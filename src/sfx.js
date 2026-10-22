@@ -445,14 +445,36 @@ const SOUNDS = {
   },
 }
 
-export function uiSound(kind) {
-  if (!ac || muted) return
-  if (kind === 'hover') play('click', { vol: 0.25, rate: 1.6 })
-  else if (kind === 'select') play('ting', { vol: 0.35, rate: 1.25 })
-  else if (kind === 'start') {
+const servo = (t, f, to, dur) => tone(t, { type: 'sawtooth', f, to, a: 0.005, dur, vol: 0.05, filter: { type: 'bandpass', f: f * 3, q: 3 } })
+
+const UI = {
+  hover: t => tone(t, { type: 'square', f: 600, to: 900, a: 0.003, dur: 0.035, vol: 0.03, filter: { type: 'bandpass', f: 1800, q: 3 } }),
+  up: t => servo(t, 400, 800, 0.06),
+  down: t => servo(t, 600, 300, 0.07),
+  tab(t) {
+    whoosh(t, 0.08, 2500, 6000, 0.05)
+    tone(t + 0.03, { f: 1568, dur: 0.05, vol: 0.035 })
+  },
+  equip(t) {
+    servo(t, 200, 500, 0.12)
+    play('clank', { vol: 0.35, rate: 1.5, at: t + 0.12 })
+    noise(t + 0.13, { dur: 0.1, vol: 0.04, filter: { type: 'highpass', f: 4000 } })
+  },
+  set(t) {
+    play('launch', { vol: 0.25, rate: 1.3, dur: 0.35, at: t })
+    play('plate', { vol: 0.5, at: t + 0.18 })
+    play('clank', { vol: 0.3, rate: 1.4, at: t + 0.26 })
+  },
+  select: () => play('ting', { vol: 0.35, rate: 1.25 }),
+  start() {
     play('punch', { vol: 0.7 })
     play('field', { vol: 0.3, rate: 1.2, dur: 0.7 })
-  }
+  },
+}
+
+export function uiSound(kind) {
+  if (!ac || muted) return
+  UI[kind]?.(ac.currentTime)
 }
 
 const LOOPS = { hover: 'hover', jets: 'hover', treads: 'tread', wheels: 'tread', skates: 'tread', mono: 'tread' }
@@ -595,3 +617,5 @@ export function sounds(state, scene, paused) {
     SOUNDS[f.k]?.(f, ac.currentTime, panOf(f.x), f.id === 1 ? 0.75 : 1)
   }
 }
+
+export const audio = { play, tone, noise, whoosh, now: () => ac.currentTime }

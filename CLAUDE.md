@@ -35,7 +35,11 @@ node --test                  # sim tests
   (`unlock`). Synth is kept for the body/head hit (Victor prefers the v1 tick), countdown/round
   beeps, heal chime, whooshes, alarms and the music (lookahead step sequencer, level 0 menus /
   1 countdown / 2 fight). `SOUNDS` = one recipe per sim `fx` kind; `engineSounds` = hover/tread loops
-  + Greaves footsteps. M mutes all, N toggles music (localStorage). Menu sounds via `uiSound`.
+  + Greaves footsteps. M mutes all, N toggles music (localStorage). Menu sounds: `uiSound(kind)` plays
+  a `UI` recipe (Victor's picks, 2026-10-22: servo hover/equip/up/down, holo tab, hangar set; Esc and
+  setting keys stay silent). Hovering a garage card plays `up`/`down` when `verdict` (garage.js) says
+  the sheet's ▲/▼ stats are mostly better/worse, else `hover` (cores and sets too: the sound must
+  match the arrows everywhere, Victor 2026-10-23). Try new menu sounds in `sounds.html`.
   A new sound: drop the .ogg in `sounds/`, add it to `BANK`, use `play()` in a recipe.
 - `src/render.js` — world drawing: follow camera (`cam`, frames both mechs, zooms on the K.O.),
   arena floor pre-rendered once into `floorCache`, decals (scorch, marks, debris) cleared per round,
@@ -93,6 +97,7 @@ node --test                  # sim tests
   `setMode`, `setPaused`, `setAutopilot` (AI plays your side, for checks in the browser pane).
 - `src/i18n.js` — en + es. Every player-visible string lives here.
 - `sheet.html` — dev page: every part in both views (`?slot=head&view=front|top|all&act=idle|wind|rec`).
+- `sounds.html` — dev page: menu sound board, 9 moments × styles, picks saved in localStorage.
 - `src/sim.test.js` — design claims + golden hash. An intentional sim change changes `GOLDEN`;
   the failing test prints the new value.
 

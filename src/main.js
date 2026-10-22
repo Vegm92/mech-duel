@@ -2,7 +2,7 @@ import { createState, step, TICKS, normalize, SETS } from './sim.js'
 import { dummyInput, DUMMY_MODES } from './dummy.js'
 import { botInput, createBrain, randomLoadout } from './bot.js'
 import { draw, toWorld } from './render.js'
-import { garageHit, SLOTS } from './garage.js'
+import { garageHit, SLOTS, verdict } from './garage.js'
 import { applyLang, toggleLang } from './i18n.js'
 import { sounds, toggleMute, isMuted, toggleMusic, isMusicOn, unlock, uiSound } from './sfx.js'
 
@@ -129,7 +129,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Escape' && screen === 'garage') screen = 'title'
   if (e.code === 'Tab' && screen === 'garage') {
     tab = (tab + (e.shiftKey ? SLOTS.length - 1 : 1)) % SLOTS.length
-    uiSound('hover')
+    uiSound('tab')
   }
   if (e.code === 'KeyL') toggleLang()
   if (e.code === 'KeyM') toggleMute()
@@ -149,7 +149,7 @@ function aimAt(e) {
   mouse.x = e.offsetX * (canvas.width / canvas.clientWidth)
   mouse.y = e.offsetY * (canvas.height / canvas.clientHeight)
   const next = screen === 'garage' ? garageHit(mouse.x, mouse.y) : null
-  if (next && (next.fight !== hover?.fight || next.key !== hover?.key || next.slot !== hover?.slot || next.tab !== hover?.tab || next.set !== hover?.set)) uiSound('hover')
+  if (next && (next.fight !== hover?.fight || next.key !== hover?.key || next.slot !== hover?.slot || next.tab !== hover?.tab || next.set !== hover?.set)) uiSound(['down', 'hover', 'up'][verdict(next, loadout) + 1])
   hover = next
 }
 canvas.addEventListener('mousemove', aimAt)
@@ -162,13 +162,13 @@ canvas.addEventListener('mousedown', e => {
     if (hover?.fight) fight()
     else if (hover?.tab !== undefined) {
       tab = hover.tab
-      uiSound('select')
+      uiSound('tab')
     } else if (hover?.slot) {
       loadout = { ...loadout, [hover.slot]: hover.key }
-      uiSound('select')
+      uiSound('equip')
     } else if (hover?.set) {
       loadout = { ...SETS[hover.set] }
-      uiSound('select')
+      uiSound('set')
     }
     return
   }

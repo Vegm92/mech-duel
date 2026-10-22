@@ -78,6 +78,15 @@ function sheet(lo) {
   ]
 }
 
+const ECHO = new Set(['siTotal', 'siWeight'])
+const trend = (d, dec, low) => (Math.abs(d) < (dec ? 0.05 : 0.5) ? 0 : (low ? d < 0 : d > 0) ? 1 : -1)
+
+export function verdict(hover, loadout) {
+  const now = sheet(loadout)
+  const next = sheet(nextLoadout({ hover, loadout }))
+  return Math.sign(now.reduce((s, [key, v, dec, low], i) => (ECHO.has(key) ? s : s + trend(next[i][1] - v, dec, low)), 0))
+}
+
 const fmt = (key, v, dec) => (UNIT[key] ? t(UNIT[key], { n: v.toFixed(dec) }) : v.toFixed(dec))
 
 function card(ctx, ui, tab, key, p, x, y, w, h, g, thumb) {
@@ -212,10 +221,11 @@ function info(ctx, ui, x, y, w, h, g) {
     const text = fmt(key, v, dec)
     label(ctx, text, cx + colW - 8 * g, ry, 12.5, g, C.text, 800, 'right')
     const d = next[i][1] - v
-    if (Math.abs(d) < (dec ? 0.05 : 0.5)) return
+    const s = trend(d, dec, low)
+    if (!s) return
     font(ctx, 12.5, g, 800)
     const vw = ctx.measureText(text).width
-    const good = low ? d < 0 : d > 0
+    const good = s > 0
     label(ctx, `${d > 0 ? '▲' : '▼'}${Math.abs(d).toFixed(dec)}`, cx + colW - 14 * g - vw, ry, 9.5, g, good ? '#7dffa8' : '#ff7a6a', 800, 'right')
   })
 }

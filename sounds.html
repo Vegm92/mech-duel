@@ -1,0 +1,166 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ui sound board</title>
+<style>
+:root { --bg: #0b0e13; --card: rgba(10,28,58,.92); --hov: rgba(18,46,90,.95); --sel: rgba(26,66,124,.97); --line: rgba(80,150,230,.45); --hi: rgba(160,215,255,.95); --text: #e8f2ff; --dim: #7fa6d6; --label: #5d84b8; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 ui-monospace, Consolas, monospace; }
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 18px; letter-spacing: .08em; margin: 0 0 4px; }
+p { color: var(--dim); margin: 0 0 16px; }
+.bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.wrap { overflow-x: auto; }
+table { width: 100%; min-width: 640px; border-collapse: separate; border-spacing: 6px; }
+th { text-align: left; vertical-align: top; font-weight: normal; }
+th b { display: block; letter-spacing: .08em; }
+th small, td small { display: block; color: var(--dim); margin-bottom: 6px; }
+button { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); padding: 8px 10px; width: 100%; cursor: pointer; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+button:hover { background: var(--hov); }
+button.on { background: var(--sel); border-color: var(--hi); }
+button.mute { color: var(--label); }
+.bar button { width: auto; }
+#gate { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(5,8,12,.92); }
+#gate button { width: auto; padding: 16px 28px; font-size: 16px; }
+#picks { color: var(--hi); margin-top: 12px; word-break: break-word; }
+</style>
+</head>
+<body>
+<main>
+<h1>UI SOUND BOARD</h1>
+<p>Click a cell to hear it. The cell you click is your pick for that row. "Play flow" walks a fake garage visit in one style, so you hear the style as a family.</p>
+<div class="bar"><button id="music"></button><button id="mute"></button><button id="mix">▶ Play my mix</button></div>
+<div class="wrap"><table id="grid"></table></div>
+<div id="picks"></div>
+</main>
+<div id="gate"><button>Turn on sound</button></div>
+<script type="module">
+import { audio, uiSound, unlock, sounds, isMuted, isMusicOn, toggleMute, toggleMusic } from './src/sfx.js'
+
+const { play, tone, noise, whoosh } = audio
+const servo = (t, f, to, dur, vol = 0.05) => tone(t, { type: 'sawtooth', f, to, a: 0.005, dur, vol, filter: { type: 'bandpass', f: f * 3, q: 3 } })
+
+const ROWS = [
+  ['hover', 'Mouse over a card. Plays the most, must be tiny.'],
+  ['tab', 'Switch tab (click or Tab key).'],
+  ['equip', 'Put a part or weapon on.'],
+  ['set', 'Equip a full ready-made build.'],
+  ['back', 'Esc: leave garage, pause, unpause.'],
+  ['toggle', 'M / N / V / L / 1-5 keys.'],
+  ['start', 'FIGHT button.'],
+  ['up', 'Hovered part makes stats better.'],
+  ['down', 'Hovered part makes stats worse.'],
+]
+
+const STYLES = {
+  now: {
+    name: 'Now', blurb: 'what the game plays today',
+    ...Object.fromEntries(['hover', 'tab', 'equip', 'set', 'start', 'up', 'down'].map(k => [k, () => uiSound(k)])),
+  },
+  hangar: {
+    name: 'Hangar', blurb: 'heavy metal clanks, real samples',
+    hover: t => play('ting', { vol: 0.12, rate: 2.4, highpass: 2000, at: t }),
+    tab: t => { play('scrape', { vol: 0.18, rate: 1.6, dur: 0.12, at: t }); play('click', { vol: 0.3, rate: 1.1, at: t + 0.08 }) },
+    equip: t => { play('clank', { vol: 0.45, rate: 1.1, at: t }); play('ting', { vol: 0.2, rate: 1.6, at: t + 0.05 }) },
+    set: t => { play('launch', { vol: 0.25, rate: 1.3, dur: 0.35, at: t }); play('plate', { vol: 0.5, at: t + 0.18 }); play('clank', { vol: 0.3, rate: 1.4, at: t + 0.26 }) },
+    back: t => { play('thud', { vol: 0.35, rate: 1.2, at: t }); play('click', { vol: 0.25, rate: 0.8, at: t + 0.04 }) },
+    toggle: t => { play('click', { vol: 0.4, at: t }); play('tin', { vol: 0.1, rate: 2, dur: 0.06, at: t + 0.02 }) },
+    start: t => { play('launch', { vol: 0.35, rate: 0.9, dur: 0.6, at: t }); play('punch', { vol: 0.7, at: t + 0.3 }); play('plate', { vol: 0.4, rate: 0.7, at: t + 0.3 }); play('rumble', { vol: 0.35, dur: 1.2, at: t + 0.3 }) },
+    up: t => { play('ting', { vol: 0.16, rate: 2, at: t }); play('ting', { vol: 0.13, rate: 2.6, at: t + 0.06 }) },
+    down: t => play('thud', { vol: 0.3, rate: 0.8, at: t }),
+  },
+  holo: {
+    name: 'Holo', blurb: 'clean synth blips, like the blue HUD',
+    hover: t => tone(t, { type: 'triangle', f: 2000, to: 1700, a: 0.002, dur: 0.03, vol: 0.035 }),
+    tab: t => { whoosh(t, 0.08, 2500, 6000, 0.05); tone(t + 0.03, { f: 1568, dur: 0.05, vol: 0.035 }) },
+    equip: t => { tone(t, { f: 880, dur: 0.05, vol: 0.04 }); tone(t + 0.05, { f: 1318.5, dur: 0.2, vol: 0.045, verb: 0.3 }) },
+    set: t => [880, 1108.7, 1318.5, 1760].forEach((f, i) => tone(t + i * 0.055, { f, dur: 0.22, vol: 0.04, verb: 0.4 })),
+    back: t => { tone(t, { f: 1318.5, dur: 0.05, vol: 0.035 }); tone(t + 0.05, { f: 880, dur: 0.1, vol: 0.03 }) },
+    toggle: t => { tone(t, { type: 'square', f: 1500, dur: 0.025, vol: 0.02, filter: { type: 'lowpass', f: 2500 } }); tone(t + 0.04, { type: 'square', f: 2250, dur: 0.025, vol: 0.02, filter: { type: 'lowpass', f: 3500 } }) },
+    start: t => {
+      tone(t, { type: 'sawtooth', f: 220, to: 880, a: 0.3, dur: 0.08, vol: 0.03, filter: { type: 'lowpass', f: 800, to: 4000 } })
+      whoosh(t, 0.38, 400, 4000, 0.06)
+      tone(t + 0.38, { f: 120, to: 45, dur: 0.3, vol: 0.2 })
+      for (const f of [1760, 2637]) tone(t + 0.38, { f, dur: 0.5, vol: 0.035, verb: 0.6 })
+    },
+    up: t => tone(t, { f: 1046.5, to: 1568, dur: 0.08, vol: 0.035 }),
+    down: t => tone(t, { type: 'triangle', f: 784, to: 523, dur: 0.09, vol: 0.035 }),
+  },
+  servo: {
+    name: 'Servo', blurb: 'motors, whirrs, hydraulics',
+    hover: t => tone(t, { type: 'square', f: 600, to: 900, a: 0.003, dur: 0.035, vol: 0.03, filter: { type: 'bandpass', f: 1800, q: 3 } }),
+    tab: t => { play('whine', { vol: 0.2, rate: 2.2, dur: 0.14, offset: 'random', at: t }); play('click', { vol: 0.3, rate: 1.4, at: t + 0.12 }) },
+    equip: t => { servo(t, 200, 500, 0.12); play('clank', { vol: 0.35, rate: 1.5, at: t + 0.12 }); noise(t + 0.13, { dur: 0.1, vol: 0.04, filter: { type: 'highpass', f: 4000 } }) },
+    set: t => { [250, 330, 440].forEach((f, i) => servo(t + i * 0.09, f, f * 1.6, 0.07)); play('clank', { vol: 0.4, rate: 1.2, at: t + 0.3 }); noise(t + 0.3, { dur: 0.25, vol: 0.05, filter: { type: 'highpass', f: 3500, to: 7000 } }) },
+    back: t => { servo(t, 500, 200, 0.1); play('click', { vol: 0.25, rate: 0.9, at: t + 0.1 }) },
+    toggle: t => { play('click', { vol: 0.35, rate: 1.8, at: t }); play('click', { vol: 0.25, rate: 1.5, at: t + 0.035 }) },
+    start: t => { tone(t, { type: 'sawtooth', f: 80, to: 800, a: 0.45, dur: 0.05, vol: 0.04, drive: 3, filter: { type: 'lowpass', f: 400, to: 3000 } }); play('thruster', { vol: 0.35, dur: 0.6, offset: 'random', at: t + 0.45 }); play('punch', { vol: 0.6, at: t + 0.45 }) },
+    up: t => servo(t, 400, 800, 0.06),
+    down: t => servo(t, 600, 300, 0.07),
+  },
+}
+
+const FLOW = [[0, 'hover'], [70, 'hover'], [140, 'hover'], [210, 'hover'], [280, 'hover'], [350, 'hover'], [700, 'tab'], [1000, 'hover'], [1080, 'hover'], [1160, 'up'], [1500, 'hover'], [1580, 'down'], [1900, 'hover'], [1980, 'up'], [2250, 'equip'], [2800, 'set'], [3500, 'toggle'], [3900, 'back'], [4500, 'start']]
+
+const KEY = 'mech-duel/ui-picks'
+let picks = {}
+try { picks = JSON.parse(localStorage.getItem(KEY)) ?? {} } catch {}
+
+const fire = (style, row) => STYLES[style][row]?.(audio.now())
+const flow = pick => FLOW.forEach(([ms, row]) => setTimeout(() => fire(pick(row), row), ms))
+
+const grid = document.getElementById('grid')
+const head = grid.insertRow()
+head.appendChild(document.createElement('th'))
+for (const [id, s] of Object.entries(STYLES)) {
+  const th = document.createElement('th')
+  th.innerHTML = `<b>${s.name}</b><small>${s.blurb}</small>`
+  const b = document.createElement('button')
+  b.textContent = '▶ Play flow'
+  b.onclick = () => flow(() => id)
+  th.appendChild(b)
+  head.appendChild(th)
+}
+for (const [row, desc] of ROWS) {
+  const tr = grid.insertRow()
+  tr.insertCell().innerHTML = `<b>${row}</b><small>${desc}</small>`
+  for (const [id, s] of Object.entries(STYLES)) {
+    const b = document.createElement('button')
+    b.dataset.row = row
+    b.dataset.style = id
+    b.textContent = s[row] ? '▶' : 'silent'
+    if (!s[row]) b.className = 'mute'
+    b.onclick = () => {
+      fire(id, row)
+      picks[row] = id
+      try { localStorage.setItem(KEY, JSON.stringify(picks)) } catch {}
+      paint()
+    }
+    tr.insertCell().appendChild(b)
+  }
+}
+
+const musicBtn = document.getElementById('music')
+const muteBtn = document.getElementById('mute')
+function paint() {
+  for (const b of grid.querySelectorAll('td button')) b.classList.toggle('on', (picks[b.dataset.row] ?? 'now') === b.dataset.style)
+  document.getElementById('picks').textContent = 'My picks: ' + ROWS.map(([r]) => `${r}=${picks[r] ?? 'now'}`).join(' · ')
+  musicBtn.textContent = `Menu music: ${isMusicOn() ? 'on' : 'off'}`
+  muteBtn.textContent = `Sound: ${isMuted() ? 'off' : 'on'}`
+}
+musicBtn.onclick = () => { toggleMusic(); paint() }
+muteBtn.onclick = () => { toggleMute(); paint() }
+document.getElementById('mix').onclick = () => flow(row => picks[row] ?? 'now')
+paint()
+
+const quiet = { mechs: [], fx: [] }
+const loop = () => { sounds(quiet, 'title', false); requestAnimationFrame(loop) }
+document.querySelector('#gate button').onclick = () => {
+  unlock()
+  document.getElementById('gate').remove()
+  loop()
+}
+</script>
+</body>
+</html>
