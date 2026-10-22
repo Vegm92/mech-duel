@@ -1,0 +1,5 @@
+# Dev-eyes-only — not for repo consumers
+.claude/
+CONTEXT.md
+REFERENCES.md
+PRD.md
