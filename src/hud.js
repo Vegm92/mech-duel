@@ -33,8 +33,8 @@ export function hud(ctx, state, ui, L, now, preview) {
   if (ui.paused) {
     ctx.fillStyle = 'rgba(0,0,0,0.6)'
     ctx.fillRect(0, 0, L.w, L.h)
-    shout(ctx, t('paused'), L.w / 2, L.cy - 110 * u, 28, '#e6ebf2', 'rgba(0,0,0,0)', u)
-    controls(ctx, L, u, L.cy - 80 * u)
+    const left = ui.menuW ?? 0
+    controls(ctx, L, u, L.h / 2 - 107 * u, (left + L.w) / 2, L.w - left - 32 * u)
   } else banner(ctx, state, ui, L, u, now)
 }
 
@@ -446,12 +446,12 @@ function controlsWidth(ctx, u) {
   return Math.min(720 * u, Math.max(...controlRows().map(([, a]) => ctx.measureText(a).width)) + 150 * u)
 }
 
-function controls(ctx, L, u, y) {
+function controls(ctx, L, u, y, cx = L.w / 2, room = Infinity) {
   const rows = controlRows()
-  const w = controlsWidth(ctx, u)
+  const w = Math.min(room, controlsWidth(ctx, u))
   const rh = 24 * u
   const h = rows.length * rh + 22 * u
-  const x = L.w / 2 - w / 2
+  const x = cx - w / 2
   plate(ctx, x, y, w, h, 14 * u, 'rgba(8,22,46,0.94)', UI_C.line, 1.5 * u)
   ctx.fillStyle = rgba(HOLO, 0.8)
   ctx.fillRect(x + 18 * u, y, 90 * u, 2 * u)

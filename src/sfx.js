@@ -2,6 +2,9 @@ import { ARENA, HEAD_ARMOR } from './sim.js'
 
 const MUTE_KEY = 'mech-duel/muted'
 const MUSIC_KEY = 'mech-duel/music'
+const VOL_KEY = 'mech-duel/volume'
+const VOL_DEFAULT = { master: 1, music: 1, sfx: 1, env: 0.5, crowd: 0.8 }
+const ENV = new Set(['crush', 'crushWarn', 'pylon', 'pylonWarn', 'vent', 'ventsOn', 'closing', 'padsUp', 'healUp'])
 const MUSIC_VOL = 0.16
 const BPM = 112
 const STEP = 60 / BPM / 4
@@ -33,6 +36,11 @@ const BANK = {
   scrape: set('impactMining', 5),
   click: set('impactGeneric_light', 3),
   step: set('footstep_concrete', 5),
+  crowdGasp: set('crowdGasp', 3),
+  crowdOoh: set('crowdOoh', 1),
+  crowdCheer: set('crowdCheer', 3),
+  crowdRoar: set('crowdRoar', 3),
+  crowdBed: set('crowdBed', 1),
 }
 
 const read = (key, fallback) => {
@@ -49,11 +57,23 @@ const write = (key, on) => {
   } catch {}
 }
 
+function readVol() {
+  try {
+    const o = JSON.parse(localStorage.getItem(VOL_KEY)) ?? {}
+    return Object.fromEntries(Object.entries(o).filter(([k, v]) => k in VOL_DEFAULT && Number.isFinite(v)))
+  } catch {
+    return {}
+  }
+}
+
 let muted = read(MUTE_KEY, false)
 let musicOn = read(MUSIC_KEY, true)
+const vol = { ...VOL_DEFAULT, ...readVol() }
 let ac = null
 let master = null
 let sfxBus = null
+let envBus = null
+let crowdBus = null
 let musicBus = null
 let verbSend = null
 let noiseBuf = null
@@ -72,16 +92,36 @@ const was = new Map()
 export const isMuted = () => muted
 export const isMusicOn = () => musicOn
 
+export const volumes = () => ({ ...vol })
+
 export function toggleMute() {
   muted = !muted
   write(MUTE_KEY, muted)
-  if (master) master.gain.setTargetAtTime(muted ? 0 : 0.9, ac.currentTime, 0.05)
+  if (ac) applyVolumes()
 }
 
 export function toggleMusic() {
   musicOn = !musicOn
   write(MUSIC_KEY, musicOn)
-  if (musicBus) musicBus.gain.setTargetAtTime(musicOn ? MUSIC_VOL : 0, ac.currentTime, 0.3)
+  if (ac) applyVolumes()
+}
+
+export function setVolume(key, v) {
+  vol[key] = clamp(v, 0, 1)
+  try {
+    localStorage.setItem(VOL_KEY, JSON.stringify(vol))
+  } catch {}
+  if (ac) applyVolumes()
+}
+
+function applyVolumes() {
+  const at = (param, v) => param.setTargetAtTime(v, ac.currentTime, 0.08)
+  at(master.gain, muted ? 0 : 0.9 * vol.master)
+  for (const bus of [sfxBus, envBus, crowdBus, musicBus]) {
+    const v = bus === musicBus ? (musicOn ? vol.music : 0) : vol[bus.key]
+    at(bus.gain, bus === musicBus ? v * MUSIC_VOL : v)
+    at(bus.verb.gain, v)
+  }
 }
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
@@ -129,14 +169,18 @@ export function unlock() {
   comp.ratio.value = 3.5
   comp.attack.value = 0.004
   comp.release.value = 0.2
-  master = gainNode(muted ? 0 : 0.9)
+  master = gainNode(0)
   master.connect(comp).connect(ac.destination)
-  sfxBus = gainNode(1, master)
-  musicBus = gainNode(musicOn ? MUSIC_VOL : 0, master)
   const verb = ac.createConvolver()
   verb.buffer = impulse(1.6, 3.4)
   verbSend = gainNode(0.3)
   verbSend.connect(verb).connect(master)
+  const bus = key => Object.assign(gainNode(0, master), { key, verb: gainNode(0, verbSend) })
+  sfxBus = bus('sfx')
+  envBus = bus('env')
+  crowdBus = bus('crowd')
+  musicBus = bus('music')
+  applyVolumes()
   noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate)
   const d = noiseBuf.getChannelData(0)
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
@@ -147,8 +191,9 @@ export function unlock() {
 function route(node, o) {
   const p = ac.createStereoPanner()
   p.pan.value = clamp(o.pan ?? 0, -1, 1)
-  node.connect(p).connect(o.bus ?? sfxBus)
-  if (o.verb) p.connect(gainNode(o.verb, verbSend))
+  const bus = o.bus ?? sfxBus
+  node.connect(p).connect(bus)
+  if (o.verb) p.connect(gainNode(o.verb, bus.verb))
 }
 
 function play(group, o = {}) {
@@ -231,13 +276,46 @@ function tone(t0, o) {
   osc.stop(t0 + end)
 }
 
-function roar(t, dur) {
-  for (const [f, pan] of [[700, -0.6], [1100, 0.6], [1600, 0]]) noise(t, { dur, a: dur * 0.3, vol: 0.05, pan, filter: { type: 'bandpass', f, q: 0.6 }, verb: 0.5 })
+const CROWD = {
+  gasp: { rank: 1, group: 'crowdGasp', vol: 0.25, len: 1.4 },
+  ooh: { rank: 1, group: 'crowdOoh', vol: 0.18, len: 1.6 },
+  cheer: { rank: 2, group: 'crowdCheer', vol: 0.3, len: 1.8 },
+  roar: { rank: 3, group: 'crowdRoar', vol: 0.5, len: 3.5 },
+}
+let crowdUntil = 0
+let crowdRank = 0
+let bed = null
+
+function crowdBed(on) {
+  if (!bed) {
+    const buf = buffers.get(BANK.crowdBed[0])
+    if (!buf) return
+    const src = ac.createBufferSource()
+    src.buffer = buf
+    src.loop = true
+    bed = gainNode(0)
+    src.connect(bed)
+    route(bed, { bus: crowdBus })
+    src.start(ac.currentTime, Math.random() * buf.duration)
+    bed.on = false
+  }
+  if (on === bed.on) return
+  bed.on = on
+  bed.gain.setTargetAtTime(on ? 0.09 : 0, ac.currentTime, on ? 0.8 : 0.3)
+}
+
+function react(kind, t) {
+  const o = CROWD[kind]
+  if (t < crowdUntil && o.rank <= crowdRank) return
+  crowdUntil = t + o.len
+  crowdRank = o.rank
+  play(o.group, { vol: o.vol, at: t, bus: crowdBus, verb: 0.3, vary: 0.06 })
 }
 
 function noise(t0, o) {
   const src = ac.createBufferSource()
   src.buffer = noiseBuf
+  src.loop = true
   const end = chain(src, t0, o)
   src.start(t0, Math.random() * 1.5)
   src.stop(t0 + end)
@@ -331,11 +409,12 @@ const SOUNDS = {
     play('plate', { vol: 0.9 * v, pan: p, verb: 0.3 })
     play('crunch', { vol: 0.35 * v, pan: p, rate: 1.3, dur: 0.45 })
     play('scrape', { vol: 0.35 * v, pan: p, at: t + 0.08, rate: 1.2 })
-    roar(t, 0.9)
+    react('cheer', t + 0.1)
   },
   parry(f, t, p) {
     play('field', { vol: 0.3, pan: p, rate: 1.5, dur: 0.45, verb: 0.4 })
     tone(t, { f: 1760, dur: 0.5, vol: 0.08, pan: p, verb: 0.5 })
+    react('gasp', t + 0.05)
   },
   blink(f, t, p, v) {
     play('launch', { vol: 0.4 * v, pan: p, rate: 1.8, dur: 0.3 })
@@ -357,6 +436,7 @@ const SOUNDS = {
   hooked(f, t, p, v) {
     play('clank', { vol: 0.8 * v, pan: p, verb: 0.2 })
     play('tin', { vol: 0.4 * v, pan: p, at: t + 0.05 })
+    react('gasp', t + 0.05)
   },
   charge(f, t, p, v) {
     play('field', { vol: 0.35 * v, pan: p, rate: 1.55 })
@@ -370,6 +450,7 @@ const SOUNDS = {
   boom(f, t, p) {
     play('crunch', { vol: f.big ? 0.75 : 0.5, pan: p, rate: f.big ? 0.7 : 1, verb: 0.3 })
     play('rumble', { vol: f.big ? 0.9 : 0.45, pan: p, dur: f.big ? 1.2 : 0.6 })
+    if (f.big) react('gasp', t + 0.1)
   },
   emp(f, t, p) {
     play('field', { vol: 0.5, pan: p, rate: 0.7, verb: 0.4 })
@@ -382,12 +463,13 @@ const SOUNDS = {
   ult(f, t, p) {
     play('field', { vol: 0.4, pan: p, rate: 1.1, verb: 0.4 })
     for (const k of [1, 1.5]) tone(t, { type: 'sawtooth', f: 330 * k, a: 0.01, dur: 0.4, vol: 0.035, pan: p, filter: { type: 'lowpass', f: 2000 }, verb: 0.4 })
+    react('ooh', t)
   },
   ko(f, t, p) {
     play('rumble', { vol: 0.9, pan: p, verb: 0.4 })
     play('crunch', { vol: 0.55, pan: p, rate: 0.7, verb: 0.4 })
     play('plate', { vol: 0.6, pan: p, at: t + 0.15 })
-    roar(t, 2.4)
+    react('roar', t + 0.1)
   },
   ping(f, t, p) {
     play('ting', { vol: 0.18, pan: p, rate: 1.4, vary: 0.3 })
@@ -398,6 +480,7 @@ const SOUNDS = {
   fight(f, t) {
     for (const k of [1, 1.26, 1.5, 2]) tone(t, { type: 'sawtooth', f: 220 * k, a: 0.02, dur: 0.7, vol: 0.04, filter: { type: 'lowpass', f: 900, to: 3500 }, verb: 0.4 })
     play('punch', { vol: 0.6 })
+    react('cheer', t + 0.15)
   },
   time(f, t) {
     for (const k of [1, 1.06]) tone(t, { type: 'square', f: 180 * k, dur: 0.8, vol: 0.045, filter: { type: 'lowpass', f: 1200 } })
@@ -410,39 +493,45 @@ const SOUNDS = {
     ;[784, 988, 1319].forEach((fr, i) => tone(t + i * 0.05, { f: fr, dur: 0.3, vol: 0.045, pan: p, verb: 0.5 }))
     play('field', { vol: 0.12, pan: p, rate: 2.6, dur: 0.3 })
   },
-  crush(f, t, p) {
-    play('thud', { vol: 0.9, pan: p, rate: 0.7 })
-    play('rumble', { vol: 0.5, pan: p, dur: 0.6 })
-    play('plate', { vol: 0.5, pan: p, rate: 0.8, at: t + 0.04 })
+  crush(f, t, p, v) {
+    play('thud', { vol: 0.5 * v, pan: p, rate: 0.7, bus: envBus })
+    play('rumble', { vol: 0.25 * v, pan: p, dur: 0.6, bus: envBus })
+    play('plate', { vol: 0.25 * v, pan: p, rate: 0.8, at: t + 0.04, bus: envBus })
   },
-  crushWarn(f, t, p) {
-    for (const k of [0, 1, 2]) tone(t + k * 0.3, { type: 'square', f: 520, dur: 0.1, vol: 0.03, pan: p, filter: { type: 'lowpass', f: 2000 } })
+  crushWarn(f, t, p, v) {
+    for (const k of [0, 1, 2]) tone(t + k * 0.3, { type: 'square', f: 520, dur: 0.1, vol: 0.03 * v, pan: p, filter: { type: 'lowpass', f: 2000 }, bus: envBus })
   },
-  pylon(f, t, p) {
-    play('zap', { vol: 0.45, pan: p, rate: 0.85 })
+  pylon(f, t, p, v) {
+    play('zap', { vol: 0.35 * v, pan: p, rate: 0.85, bus: envBus })
   },
-  pylonWarn(f, t, p) {
-    play('whine', { vol: 0.2, pan: p, rate: 1.3, dur: 0.8 })
+  pylonWarn(f, t, p, v) {
+    play('whine', { vol: 0.12 * v, pan: p, rate: 1.3, dur: 0.8, bus: envBus })
   },
   vent(f, t) {
-    play('thruster', { vol: 0.35, dur: 1.4 })
+    play('thruster', { vol: 0.25, dur: 1.4, bus: envBus })
   },
   ventsOn(f, t) {
-    for (const k of [0, 1]) tone(t + k * 0.22, { type: 'square', f: 740, dur: 0.16, vol: 0.04, filter: { type: 'lowpass', f: 2500 } })
+    for (const k of [0, 1]) tone(t + k * 0.22, { type: 'square', f: 740, dur: 0.16, vol: 0.04, filter: { type: 'lowpass', f: 2500 }, bus: envBus })
   },
   closing(f, t) {
-    for (const k of [0, 1, 2, 3]) tone(t + k * 0.25, { type: 'square', f: k % 2 ? 620 : 880, dur: 0.18, vol: 0.05, filter: { type: 'lowpass', f: 2500 }, verb: 0.3 })
+    for (const k of [0, 1, 2, 3]) tone(t + k * 0.25, { type: 'square', f: k % 2 ? 620 : 880, dur: 0.18, vol: 0.05, filter: { type: 'lowpass', f: 2500 }, verb: 0.3, bus: envBus })
   },
-  padsUp() {
-    const t = ac.currentTime
-    tone(t, { f: 880, dur: 0.18, vol: 0.03, verb: 0.5 })
-    tone(t + 0.07, { f: 1320, dur: 0.22, vol: 0.025, verb: 0.5 })
+  padsUp(f, t) {
+    tone(t, { f: 880, dur: 0.18, vol: 0.03, verb: 0.5, bus: envBus })
+    tone(t + 0.07, { f: 1320, dur: 0.22, vol: 0.025, verb: 0.5, bus: envBus })
   },
-  healUp() {
-    const t = ac.currentTime
-    tone(t, { f: 1175, dur: 0.4, vol: 0.045, verb: 0.6 })
-    tone(t + 0.08, { f: 1568, dur: 0.5, vol: 0.035, verb: 0.6 })
+  healUp(f, t) {
+    tone(t, { f: 1175, dur: 0.4, vol: 0.045, verb: 0.6, bus: envBus })
+    tone(t + 0.08, { f: 1568, dur: 0.5, vol: 0.035, verb: 0.6, bus: envBus })
   },
+}
+
+export function preview(key) {
+  if (!ac || muted) return
+  const t = ac.currentTime
+  if (key === 'env') SOUNDS.crush({}, t, 0, 1)
+  else if (key === 'crowd') react('cheer', t)
+  else if (key !== 'music') play('ting', { vol: 0.35, rate: 1.25 })
 }
 
 const servo = (t, f, to, dur) => tone(t, { type: 'sawtooth', f, to, a: 0.005, dur, vol: 0.05, filter: { type: 'bandpass', f: f * 3, q: 3 } })
@@ -607,15 +696,18 @@ export function sounds(state, scene, paused) {
   const live = scene === 'match' && !paused && state.phase === 'fight'
   const level = scene !== 'match' || paused ? 0 : state.phase === 'fight' ? 2 : 1
   music(level)
+  crowdBed(scene === 'match' && !paused)
   if (muted) return
   engineSounds(state, dt, live)
   if (scene === 'match') alarms(state, now)
+  const me = state.mechs[0]
+  const near = f => (f.x === undefined ? 1 : clamp(1.25 - Math.hypot(f.x - me.x, f.y - me.y) / 25, 0.1, 1))
   for (const f of state.fx) {
     if (seen.has(f)) continue
     seen.add(f)
     if (scene !== 'match') continue
-    SOUNDS[f.k]?.(f, ac.currentTime, panOf(f.x), f.id === 1 ? 0.75 : 1)
+    SOUNDS[f.k]?.(f, ac.currentTime, panOf(f.x), ENV.has(f.k) ? near(f) : f.id === 1 ? 0.75 : 1)
   }
 }
 
-export const audio = { play, tone, noise, whoosh, now: () => ac.currentTime }
+export const audio = { play, tone, noise, whoosh, react, now: () => ac.currentTime }

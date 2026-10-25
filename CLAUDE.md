@@ -35,7 +35,16 @@ node --test                  # sim tests
   (`unlock`). Synth is kept for the body/head hit (Victor prefers the v1 tick), countdown/round
   beeps, heal chime, whooshes, alarms and the music (lookahead step sequencer, level 0 menus /
   1 countdown / 2 fight). `SOUNDS` = one recipe per sim `fx` kind; `engineSounds` = hover/tread loops
-  + Greaves footsteps. M mutes all, N toggles music (localStorage). Menu sounds: `uiSound(kind)` plays
+  + Greaves footsteps. M mutes all, N toggles music (localStorage). Mixer: `sfxBus`, `envBus` (traps,
+  hazards, pad chimes; fades with distance from you via `near`), `crowdBus`, `musicBus`, each with its
+  own reverb send so a 0 slider is silent; levels in `vol` (localStorage `mech-duel/volume`), set by
+  `setVolume` from the pause menu. Crowd = `react(kind)` (gasp/ooh/cheer/roar, a higher rank cuts in,
+  same or lower waits) playing real recordings `crowdGasp/Cheer/Roar/Ooh_*` (credits in
+  `sounds/LICENSE.txt`: Gregor Quendel CC BY 4.0, keep that credit). Clips were cut at the moments
+  the crowd erupts, faded, and level-matched to -14 dB. `crowdBed` loops a 12 s crowd ambience
+  (crossfaded seam) quietly under every match, off on menus and pause (Victor 2026-10-25: the gaps
+  between reactions felt empty). Victor rejected two synth crowds
+  (2026-10-23/25: "know it's a cheer and still don't recognize it"), so no synth crowd. Menu sounds: `uiSound(kind)` plays
   a `UI` recipe (Victor's picks, 2026-10-22: servo hover/equip/up/down, holo tab, hangar set; Esc and
   setting keys stay silent). Hovering a garage card plays `up`/`down` when `verdict` (garage.js) says
   the sheet's ▲/▼ stats are mostly better/worse, else `hover` (cores and sets too: the sound must
@@ -93,7 +102,9 @@ node --test                  # sim tests
   palette and canvas helpers, including the store look every menu uses (`HOLO`, `UI_C`, `plate`
   for the angled panels).
 - `src/main.js` — input, fixed-step loop, title screen with an AI-vs-AI demo behind it, Enter for a
-  rematch. `window.duel` debug hook: `state`, `tick(input)`, `render`, `restart`, `start`,
+  rematch. Esc opens the menu, plain DOM (`#menu` in index.html, native range sliders): pause in a
+  match (resume, restart, quit to garage), options on the title; 5 volume sliders, language, view.
+  `syncMenu` shows/hides it every frame from `paused`/`options`. `window.duel` debug hook: `state`, `tick(input)`, `render`, `restart`, `start`,
   `setMode`, `setPaused`, `setAutopilot` (AI plays your side, for checks in the browser pane).
 - `src/i18n.js` — en + es. Every player-visible string lives here.
 - `sheet.html` — dev page: every part in both views (`?slot=head&view=front|top|all&act=idle|wind|rec`).

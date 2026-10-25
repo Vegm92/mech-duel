@@ -82,7 +82,7 @@ export function draw(ctx, state, ui) {
   if (ui.screen === 'match') drawBanners(ctx, L, now)
   if (ui.screen === 'garage') drawGarage(ctx, L, ui, now, ui.pixel ? drawMechPreview3d : drawMechPreview, drawPartThumb)
   else hud(ctx, state, ui, L, now, ui.pixel ? drawMechPreview3d : null)
-  cursor(ctx, ui.mouse, L.u, ui.screen === 'garage', ui.screen === 'match' && !ui.paused ? state.mechs[0] : null, now)
+  if (!ui.menuW) cursor(ctx, ui.mouse, L.u, ui.screen === 'garage', ui.screen === 'match' && !ui.paused ? state.mechs[0] : null, now)
 }
 
 function world2d(ctx, state, L, dt, now) {
@@ -476,7 +476,7 @@ function react(state) {
   for (const f of state.fx) {
     if (seen.has(f)) continue
     seen.add(f)
-    const cheerFor = { hit: f.n >= 30 || f.head ? 900 : 0, break: 1600, ko: 3500 }[f.k]
+    const cheerFor = { hit: f.n >= 30 || f.head ? 900 : 0, hooked: 900, break: 1600, ko: 3500 }[f.k]
     if (cheerFor) cheer[1 - f.id] = Math.max(cheer[1 - f.id], performance.now() + cheerFor)
     if (f.k === 'muzzle') {
       kick.set(f.id, { ...kick.get(f.id), [f.hand]: performance.now() })

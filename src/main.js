@@ -3,13 +3,14 @@ import { dummyInput, DUMMY_MODES } from './dummy.js'
 import { botInput, createBrain, randomLoadout } from './bot.js'
 import { draw, toWorld } from './render.js'
 import { garageHit, SLOTS, verdict } from './garage.js'
-import { applyLang, toggleLang } from './i18n.js'
-import { sounds, toggleMute, isMuted, toggleMusic, isMusicOn, unlock, uiSound } from './sfx.js'
+import { t, applyLang, toggleLang } from './i18n.js'
+import { sounds, toggleMute, isMuted, toggleMusic, isMusicOn, unlock, uiSound, volumes, setVolume, preview } from './sfx.js'
 
 const MODES = ['bot', ...DUMMY_MODES]
 const LOADOUT_KEY = 'mech-duel/loadout'
 const canvas = document.querySelector('canvas')
 const ctx = canvas.getContext('2d')
+const menu = document.getElementById('menu')
 const keys = new Set()
 const buttons = new Set()
 const tapped = new Set()
@@ -23,6 +24,7 @@ let hover = null
 let tab = 0
 let mode = 0
 let paused = false
+let options = false
 let autopilot = false
 let pixel = true
 let acc = 0
@@ -50,7 +52,33 @@ function resize() {
 function toGarage() {
   screen = 'garage'
   paused = false
+  options = false
   uiSound('select')
+}
+
+function fillMenu() {
+  const inMatch = screen === 'match'
+  menu.querySelector('h2').textContent = t(inMatch ? 'mPaused' : 'mOptions')
+  menu.querySelector('[data-act=resume]').textContent = t(inMatch ? 'mResume' : 'mBack')
+  menu.querySelector('[data-act=lang]').textContent = t('mLang')
+  menu.querySelector('[data-act=view]').textContent = t('mView', { v: t(pixel ? 'mPixel' : 'mFlat') })
+  for (const el of menu.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t)
+  for (const el of menu.querySelectorAll('.match')) el.hidden = !inMatch
+  const v = volumes()
+  for (const el of menu.querySelectorAll('input')) {
+    el.value = Math.round(v[el.dataset.vol] * 100)
+    el.nextElementSibling.textContent = `${el.value}%`
+  }
+}
+
+function syncMenu() {
+  const open = (screen === 'match' && paused) || (screen === 'title' && options)
+  if (open === !menu.hidden) return
+  menu.hidden = !open
+  document.body.classList.toggle('menu', open)
+  if (!open) return document.activeElement?.blur()
+  fillMenu()
+  menu.querySelector('button').focus()
 }
 
 function fight() {
@@ -97,8 +125,10 @@ function tick(input) {
 }
 
 const render = () => {
+  syncMenu()
   sounds(state, screen, paused)
-  draw(ctx, state, { screen, mode: MODES[mode], paused, mouse, hover, loadout, tab, muted: isMuted(), music: isMusicOn(), pixel })
+  const menuW = menu.hidden ? 0 : (menu.getBoundingClientRect().right + 16) * (window.devicePixelRatio || 1)
+  draw(ctx, state, { screen, mode: MODES[mode], paused, mouse, hover, loadout, tab, muted: isMuted(), music: isMusicOn(), pixel, menuW })
 }
 
 function frame(now) {
@@ -120,13 +150,16 @@ function confirm() {
 
 addEventListener('resize', resize)
 addEventListener('keydown', e => {
-  if (e.code === 'Space' || e.code === 'Tab') e.preventDefault()
+  if ((e.code === 'Space' || e.code === 'Tab') && menu.hidden) e.preventDefault()
   unlock()
   if (e.repeat) return
   keys.add(e.code)
   tapped.add(e.code)
-  if (e.code === 'Escape' && screen === 'match') paused = !paused
-  if (e.code === 'Escape' && screen === 'garage') screen = 'title'
+  if (e.code === 'Escape') {
+    if (screen === 'match') paused = !paused
+    else if (screen === 'garage') screen = 'title'
+    else options = !options
+  }
   if (e.code === 'Tab' && screen === 'garage') {
     tab = (tab + (e.shiftKey ? SLOTS.length - 1 : 1)) % SLOTS.length
     uiSound('tab')
@@ -135,10 +168,29 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM') toggleMute()
   if (e.code === 'KeyN') toggleMusic()
   if (e.code === 'KeyV') pixel = !pixel
-  if (e.code === 'Enter' || e.code === 'NumpadEnter') confirm()
+  if ((e.code === 'Enter' || e.code === 'NumpadEnter') && menu.hidden) confirm()
   const n = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(e.code)
   if (n >= 0) mode = n
+  if (!menu.hidden) fillMenu()
 })
+menu.addEventListener('click', e => {
+  const act = e.target.closest('[data-act]')?.dataset.act
+  if (act === 'resume') {
+    paused = false
+    options = false
+  } else if (act === 'restart') fight()
+  else if (act === 'garage') toGarage()
+  else if (act === 'lang') toggleLang()
+  else if (act === 'view') pixel = !pixel
+  if (act === 'lang' || act === 'view') uiSound('tab')
+  fillMenu()
+})
+menu.addEventListener('pointerover', e => e.target.matches('button') && uiSound('hover'))
+menu.addEventListener('input', e => {
+  setVolume(e.target.dataset.vol, e.target.value / 100)
+  e.target.nextElementSibling.textContent = `${e.target.value}%`
+})
+menu.addEventListener('change', e => preview(e.target.dataset.vol))
 addEventListener('keyup', e => keys.delete(e.code))
 addEventListener('blur', () => {
   keys.clear()
@@ -156,6 +208,7 @@ canvas.addEventListener('mousemove', aimAt)
 canvas.addEventListener('mousedown', e => {
   e.preventDefault()
   unlock()
+  if (!menu.hidden) return
   aimAt(e)
   if (screen === 'title') return toGarage()
   if (screen === 'garage') {

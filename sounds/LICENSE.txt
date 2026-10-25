@@ -1,6 +1,13 @@
 Sounds in this folder come from two Kenney.nl packs: 'Sci-fi Sounds' and 'Impact Sounds'.
 https://kenney.nl/assets/sci-fi-sounds  https://kenney.nl/assets/impact-sounds
 
+Except the crowd clips:
+- crowdCheer_*, crowdRoar_*, crowdGasp_*, crowdBed_* (looped ambience): cut from "Free Crowd Cheering Sounds" by Gregor Quendel,
+  licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Trimmed, faded and
+  level-matched. Source: https://opengameart.org/content/free-crowd-cheering-sounds
+- crowdOoh_000: "OoOoOoOoOoOoOo" by Nocturnal_Vanguard, CC0.
+  Source: https://opengameart.org/content/oooooooooooooo
+
 	
 
 	Sci-Fi Sounds (1.0)
@@ -13,7 +20,7 @@ https://kenney.nl/assets/sci-fi-sounds  https://kenney.nl/assets/impact-sounds
 	License: (Creative Commons Zero, CC0)
 	http://creativecommons.org/publicdomain/zero/1.0/
 
-	This content is free to use in personal, educational and commercial projects.
+	This content is free to use in personal, educational and commercial projects.
 	Support us by crediting Kenney or www.kenney.nl (this is not mandatory)
 
 			------------------------------
