@@ -10,4 +10,5 @@ class NoCache(http.server.SimpleHTTPRequestHandler):
 
 
 root = os.path.dirname(os.path.abspath(__file__))
+http.server.ThreadingHTTPServer.request_queue_size = 128
 http.server.ThreadingHTTPServer(("", 5194), functools.partial(NoCache, directory=root)).serve_forever()
