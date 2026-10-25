@@ -1,4 +1,4 @@
-import { ARENA, PILLARS, SPAWNS, MECH_R, LANCE, SHIELD, HEAL, HEAT, SURGE, ULTS, BOOSTERS, DASH_MOVES, TRAILS, ult, ultOf, airborne, maxArmor, arenaCorners, clampArena, PADS, PICKUP, TRAPS, HAZARDS, untilSlam, untilZap, ventPhase, vents } from './sim.js'
+import { ARENA, PILLARS, SPAWNS, MECH_R, LANCE, SHIELD, HEAL, HEAT, SURGE, ULTS, BOOSTERS, DASH_MOVES, TRAILS, ult, ultOf, airborne, maxArmor, arenaCorners, clampArena, PADS, PICKUP, TRAPS, HAZARDS, untilSlam, untilZap, ventPhase, vents, foes } from './sim.js'
 import { t } from './i18n.js'
 import { TAU, BOOST_C, TEAM, TEAM_LIGHT, TEAM_DARK, SURGE_C, STEEL, ITEM_C, rgba, shade, health, circle, rrect, glow, heatGauge, tileHash } from './paint.js'
 import { hud, cursor } from './hud.js'
@@ -7,7 +7,7 @@ import { hype, mood } from './hype.js'
 import { drawMech, shieldArc } from './mechart.js'
 import { SIN, COS, GUN_H, FLOOR_PAD, target as frame, clear, clearFloor, floorFull, blend, drawCrowd, mesh, scene, buildMech, buildPart, buildPickup, draw3d, clearFloorZoom } from './pix3d.js'
 
-const SHOT = [[255, 200, 110], [130, 205, 255]]
+const SHOT = [[255, 200, 110], [130, 205, 255], [160, 255, 150], [245, 155, 255]]
 const ULT_C = { lance: [255, 90, 70], swarm: [255, 170, 60], overdrive: [255, 225, 80], emp: [110, 220, 255], orbital: [255, 70, 70], repair: [90, 255, 150], bubble: [190, 120, 255], stasis: [150, 130, 255], mines: [255, 200, 60], berserk: [255, 60, 60], blink: [190, 210, 255], well: [150, 90, 255], wall: [255, 210, 90], meltdown: [255, 110, 40], deflect: [90, 255, 230], mirror: [235, 245, 255], rail: [90, 200, 255], shroud: [170, 170, 185] }
 const GUN_C = { laser: [140, 240, 255], tesla: [150, 190, 255], ricochet: [150, 255, 170] }
 const PPM = 24
@@ -42,7 +42,9 @@ const kick = new Map()
 const heatWas = new Map()
 const chip = new Map()
 const cam = { x: ARENA.w / 2, y: ARENA.h / 2, z: 1 }
-const cheer = [0, 0]
+const cheer = [0, 0, 0, 0]
+let hues = []
+let tags = false
 let view = null
 let shake = 0
 let last = 0
@@ -79,12 +81,14 @@ export function draw(ctx, state, ui) {
   focus = ui.focus ?? null
   last = now
   const L = layout(ctx.canvas)
+  hues = state.mechs.map(m => m.team)
+  tags = ui.screen === 'match' && ui.replay == null && state.mechs.length > 2
   if (state.round !== round) {
     round = state.round
     decals.length = 0
   }
   react(state)
-  if (mood(hype()) === 2) for (const i of [0, 1]) cheer[i] = Math.max(cheer[i], now + 300)
+  if (mood(hype()) === 2) cheer.forEach((c, i) => (cheer[i] = Math.max(c, now + 300)))
   ambient(state, dt)
   age(dt)
   ctx.fillStyle = '#05070a'
@@ -137,6 +141,7 @@ function world2d(ctx, state, L, dt, now) {
   for (const p of particles) particle(ctx, p, v)
   for (const tr of state.trails) if (tr.kind === 'smoke') smokeTrail(ctx, tr, v)
   for (const m of state.mechs) if (m.overheat > 0) gauge(ctx, m, v)
+  if (tags) for (const m of state.mechs) if (!m.ko) seatTag(ctx, m, v.X(m.x), v.Y(m.y + MECH_R + 0.5), L.u)
   ctx.restore()
 }
 
@@ -177,7 +182,7 @@ function world3d(ctx, state, full, dt, now) {
   for (const f of state.fields) field(g, f, vg)
   for (const mi of state.mines) mine(g, mi, vg)
   for (const l of state.lobs) ground(g, l, vg)
-  for (const m of state.mechs) if (!m.ko) circle(g, X(m.x), vg.Y(m.y), MECH_R * 1.3 * S, null, rgba(TEAM[m.id], 0.6), Math.max(1, 0.07 * S))
+  for (const m of state.mechs) if (!m.ko) circle(g, X(m.x), vg.Y(m.y), MECH_R * 1.3 * S, null, rgba(TEAM[m.team], 0.6), Math.max(1, 0.07 * S))
   for (const m of state.mechs) telegraph(g, m, vg)
   for (const m of state.mechs) landing(g, m, vg)
   for (const tr of state.trails) if (tr.kind !== 'smoke') trail(g, tr, vg)
@@ -217,7 +222,19 @@ function world3d(ctx, state, full, dt, now) {
   const vt = { X: x => X(x) * k, Y: y => va.Y(y) * k, S: S * k, u: L.u, now }
   for (const m of state.mechs) if (m.overheat > 0) gauge(ctx, m, vt)
   for (const p of particles) if (p.kind === 'text') particle(ctx, p, vt)
-  rivalArrow(ctx, state.mechs[1], vt, L, top, now)
+  if (tags) for (const m of state.mechs) if (!m.ko) seatTag(ctx, m, vt.X(m.x), vt.Y(m.y + MECH_R + 0.35) + AIR * COS * vt.S, L.u)
+  for (const o of foes(state, 0)) rivalArrow(ctx, o, vt, L, top, now)
+}
+
+function seatTag(ctx, m, x, y, u) {
+  const s = t('tagP', { n: m.id + 1 })
+  ctx.font = `900 ${Math.round(10 * u)}px 'Segoe UI', system-ui, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const w = ctx.measureText(s).width + 8 * u
+  rrect(ctx, x - w / 2, y - 7 * u, w, 14 * u, 4 * u, 'rgba(8,10,14,0.75)', rgba(TEAM[m.team], 0.9), 1.2 * u)
+  ctx.fillStyle = rgba(TEAM_LIGHT[m.team])
+  ctx.fillText(s, x, y + 0.5 * u)
 }
 
 function trail(ctx, tr, { X, Y, S }) {
@@ -293,7 +310,7 @@ function landing(ctx, m, { X, Y, S, u }) {
   if (!airborne(m)) return
   const a = m.act
   const r = (DASH_MOVES[a.move].land?.r ?? 1) * S
-  const c = TEAM[m.id]
+  const c = TEAM[m.team]
   const p = 1 - a.t / a.T
   circle(ctx, X(a.lx), Y(a.ly), r, rgba(c, 0.06 + 0.12 * p), rgba(c, 0.45 + 0.5 * p), 2 * u)
   circle(ctx, X(a.lx), Y(a.ly), r * p, rgba(c, 0.14))
@@ -356,14 +373,14 @@ function rivalArrow(ctx, o, { X, Y }, L, top, now) {
   ctx.save()
   ctx.translate(L.cx + dx * s, L.cy + dy * s)
   ctx.rotate(Math.atan2(dy, dx))
-  glow(ctx, 0, 0, r * 2.2, TEAM[1], 0.35)
+  glow(ctx, 0, 0, r * 2.2, TEAM[o.team], 0.35)
   ctx.beginPath()
   ctx.moveTo(r, 0)
   ctx.lineTo(-r * 0.7, -r * 0.75)
   ctx.lineTo(-r * 0.35, 0)
   ctx.lineTo(-r * 0.7, r * 0.75)
   ctx.closePath()
-  ctx.fillStyle = rgba(TEAM[1])
+  ctx.fillStyle = rgba(TEAM[o.team])
   ctx.strokeStyle = 'rgba(0,0,0,0.75)'
   ctx.lineWidth = 2 * L.u
   ctx.fill()
@@ -440,7 +457,7 @@ function drawPartThumb(ctx, slot, key, x, y, size) {
 
 function camera(state, L, fit, sin) {
   const dt = camDt
-  const down = focus != null ? state.mechs[focus] : state.phase === 'ko' || state.phase === 'over' ? state.mechs.find(m => m.ko) : null
+  const down = focus != null ? state.mechs[focus] : (state.phase === 'ko' || state.phase === 'over') && state.finalKo >= 0 ? state.mechs[state.finalKo] : null
   const want = down ? MAX_ZOOM : 1
   const snap = cam.snap
   cam.snap = false
@@ -449,9 +466,15 @@ function camera(state, L, fit, sin) {
   const S = fit * cam.z
   const hw = L.sw / 2 / S
   const hh = L.sh / 2 / (S * sin)
-  const [p, o] = state.mechs
-  let fx = down ? down.x : clamp((p.x + o.x) / 2, p.x - hw * 0.7, p.x + hw * 0.7)
-  let fy = down ? down.y : clamp((p.y + o.y) / 2, p.y - hh * 0.7, p.y + hh * 0.7)
+  const p = state.mechs[0]
+  const d = m => Math.hypot(m.x - p.x, m.y - p.y)
+  const o = foes(state, 0).reduce((a, m) => (!a || d(m) < d(a) ? m : a), null) ?? p
+  const live = state.mechs.filter(m => !m.ko)
+  const all = live.length ? live : state.mechs
+  const mx = p.ko ? all.reduce((s, m) => s + m.x, 0) / all.length : (p.x + o.x) / 2
+  const my = p.ko ? all.reduce((s, m) => s + m.y, 0) / all.length : (p.y + o.y) / 2
+  let fx = down ? down.x : p.ko ? mx : clamp(mx, p.x - hw * 0.7, p.x + hw * 0.7)
+  let fy = down ? down.y : p.ko ? my : clamp(my, p.y - hh * 0.7, p.y + hh * 0.7)
   if (!down && !snap) {
     fx = Math.abs(fx - cam.x) < hw * 0.15 ? cam.x : fx - Math.sign(fx - cam.x) * hw * 0.15
     fy = Math.abs(fy - cam.y) < hh * 0.15 ? cam.y : fy - Math.sign(fy - cam.y) * hh * 0.15
@@ -492,7 +515,7 @@ function react(state) {
     if (seen.has(f)) continue
     seen.add(f)
     const cheerFor = { hit: f.n >= 30 || f.head ? 900 : 0, hooked: 900, break: 1600, ko: 3500 }[f.k]
-    if (cheerFor) cheer[1 - f.id] = Math.max(cheer[1 - f.id], performance.now() + cheerFor)
+    if (cheerFor) cheer.forEach((c, i) => i !== hues[f.id] && (cheer[i] = Math.max(c, performance.now() + cheerFor)))
     if (f.k === 'muzzle') {
       kick.set(f.id, { ...kick.get(f.id), [f.hand]: performance.now() })
       if (f.gun === 'flamer') {
@@ -925,8 +948,8 @@ function floor(ctx, { X, Y, S }) {
 function lights(ctx, state, { X, Y, S }) {
   SPAWNS.forEach((p, i) => glow(ctx, X(p.x), Y(p.y), 4 * S, TEAM[i], 0.09))
   for (const p of PILLARS) glow(ctx, X(p.x), Y(p.y), 3.2 * S, [110, 200, 255], 0.07)
-  for (const m of state.mechs) if (!m.ko) glow(ctx, X(m.x), Y(m.y), 2.2 * S, TEAM[m.id], 0.14)
-  for (const s of state.shots) glow(ctx, X(s.x), Y(s.y), 1.4 * S, s.reflected ? [255, 255, 255] : SHOT[s.owner], 0.12)
+  for (const m of state.mechs) if (!m.ko) glow(ctx, X(m.x), Y(m.y), 2.2 * S, TEAM[m.team], 0.14)
+  for (const s of state.shots) glow(ctx, X(s.x), Y(s.y), 1.4 * S, s.reflected ? [255, 255, 255] : SHOT[hues[s.owner]], 0.12)
 }
 
 function edgeLights(ctx, { X, Y, S, now }) {
@@ -1100,7 +1123,7 @@ function ghost(ctx, g, { X, Y, S }) {
   ctx.translate(X(g.x), Y(g.y))
   ctx.rotate(g.aim)
   ctx.globalCompositeOperation = 'lighter'
-  ctx.fillStyle = rgba(TEAM[g.id], 0.3 * (g.life / g.max))
+  ctx.fillStyle = rgba(TEAM[hues[g.id]], 0.3 * (g.life / g.max))
   ctx.beginPath()
   ctx.ellipse(-0.05 * r, 0, 0.65 * r, 0.98 * r, 0, 0, TAU)
   ctx.fill()
@@ -1288,7 +1311,7 @@ function chains(ctx, state, v) {
 }
 
 function shot(ctx, s, { X, Y, S, now }) {
-  const c = s.reflected ? [255, 255, 255] : SHOT[s.owner]
+  const c = s.reflected ? [255, 255, 255] : SHOT[hues[s.owner]]
   const hx = X(s.x)
   const hy = Y(s.y)
   if (s.kind === 'flame') {
@@ -1375,7 +1398,7 @@ function zap(ctx, f, { X, Y, S }) {
       ctx.stroke()
     }
   } else {
-    const c = SHOT[f.id]
+    const c = SHOT[hues[f.id]]
     for (const [w, col, al] of [[0.7, c, 0.25], [0.32, [150, 240, 255], 0.6], [0.1, [255, 255, 255], 1]]) {
       ctx.strokeStyle = rgba(col, al * a)
       ctx.lineWidth = w * S * (0.5 + 0.5 * a)
@@ -1390,7 +1413,7 @@ function zap(ctx, f, { X, Y, S }) {
 
 function ground(ctx, l, { X, Y, S, u, now }) {
   const p = 1 - l.t / l.T
-  const c = l.kind === 'strike' ? [255, 70, 70] : SHOT[l.owner]
+  const c = l.kind === 'strike' ? [255, 70, 70] : SHOT[hues[l.owner]]
   const x = X(l.x)
   const y = Y(l.y)
   circle(ctx, x, y, l.r * S, rgba(c, 0.05 + 0.12 * p), rgba(c, 0.45 + 0.5 * p * (0.8 + 0.2 * Math.sin(now / 40))), 2 * u)
@@ -1423,15 +1446,15 @@ function shell(ctx, l, { X, Y, S }) {
   const h = 4 * k * (1 - k) * 3.2
   circle(ctx, X(x), Y(y), 0.22 * S, 'rgba(0,0,0,0.35)')
   const s = 0.22 * (1 + h * 0.18)
-  glow(ctx, X(x), Y(y - h), s * 2.2 * S, SHOT[l.owner], 0.45)
-  circle(ctx, X(x), Y(y - h), s * S, '#3a3f48', rgba(SHOT[l.owner]), 0.05 * S)
+  glow(ctx, X(x), Y(y - h), s * 2.2 * S, SHOT[hues[l.owner]], 0.45)
+  circle(ctx, X(x), Y(y - h), s * S, '#3a3f48', rgba(SHOT[hues[l.owner]]), 0.05 * S)
 }
 
 function mine(ctx, mi, { X, Y, S, u, now }) {
   const x = X(mi.x)
   const y = Y(mi.y)
   const armed = mi.arm <= 0
-  const c = SHOT[mi.owner]
+  const c = SHOT[hues[mi.owner]]
   if (armed) circle(ctx, x, y, (ULTS.mines.trigger + 0.1) * S, rgba(c, 0.04), rgba(c, 0.18), u)
   circle(ctx, x, y, 0.26 * S, '#2b3039', 'rgba(0,0,0,0.7)', 0.04 * S)
   circle(ctx, x, y, 0.16 * S, '#454c58')
@@ -1584,7 +1607,7 @@ function drawBanners(ctx, L, now) {
     for (let k = 0; k < 6; k++) ctx.fillRect((((now * 0.9 * -dir + k * 157) % w) + w) % w - w / 2, -h * 0.36, 2 * u, h * 0.72)
     ctx.save()
     ctx.translate(dir * (w / 2 - 34 * u), 0)
-    band(9 * u, h * 0.36, rgba(TEAM[b.id]))
+    band(9 * u, h * 0.36, rgba(TEAM[hues[b.id]]))
     ctx.restore()
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'

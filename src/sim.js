@@ -358,7 +358,7 @@ export function createState(loadouts = [], teams = FORMATS['1v1']) {
     shots: [], lobs: [], mines: [], fields: [], trails: [], walls: [], fx: [],
     phase: 'countdown', timer: MATCH.countdown, clock: MATCH.time, round: 1, hitstop: 0,
     heal: { ready: false, timer: HEAL.first },
-    score: Array(Math.max(...teams) + 1).fill(0), winner: -1, nextCast: 1, shrink: 0, fallen: [],
+    score: Array(Math.max(...teams) + 1).fill(0), winner: -1, nextCast: 1, shrink: 0, finalKo: -1,
   }
   return resetPads(state)
 }
@@ -1288,12 +1288,14 @@ function checkKo(state) {
   if (!down.length) return
   for (const m of down) {
     m.ko = true
-    state.fallen.push(m.id)
     state.fx.push({ k: 'ko', id: m.id, x: m.x, y: m.y, t: MATCH.ko })
   }
   state.hitstop = MATCH.koStop
   const left = [...new Set(state.mechs.filter(m => !m.ko).map(m => m.team))]
-  if (left.length < 2) return endRound(state, left.length ? left[0] : -1)
+  if (left.length < 2) {
+    state.finalKo = down[0].id
+    return endRound(state, left.length ? left[0] : -1)
+  }
   for (const m of down) Object.assign(m, { act: null, vx: 0, vy: 0, pull: null })
 }
 
@@ -1333,7 +1335,7 @@ function resetRound(state) {
   resetPads(state)
   state.shrink = 0
   state.winner = -1
-  state.fallen = []
+  state.finalKo = -1
   state.round++
   state.phase = 'countdown'
   state.timer = MATCH.countdown

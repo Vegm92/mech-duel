@@ -1,4 +1,4 @@
-import { HEADS, CORES, ARMS, LEG_PARTS, BOOSTERS, WEAPONS, SETS, HEAT, TICKS, isGun, maxArmor, weightOf, speedOf, normalize, ultOf } from './sim.js'
+import { HEADS, CORES, ARMS, LEG_PARTS, BOOSTERS, WEAPONS, SETS, FORMATS, HEAT, TICKS, isGun, maxArmor, weightOf, speedOf, normalize, ultOf } from './sim.js'
 import { t } from './i18n.js'
 import { SURGE_C, HOLO, UI_C as C, rgba, rrect, font, glow, plate } from './paint.js'
 
@@ -236,6 +236,15 @@ function about(ctx, ui, tab, x, y, w, h, g) {
   const slot = ui.hover?.slot ?? tab.slot
   const key = set ?? ui.hover?.key ?? lo[slot]
   plate(ctx, x, y, w, h, 10 * g, 'rgba(6,18,40,0.94)', C.line, 1.2 * g)
+  const f = ui.hover?.format
+  if (f) {
+    label(ctx, t(`fmtn_${f}`), x + 12 * g, y + 13 * g, 11, g, '#ffd2a8', 800)
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+    font(ctx, 9.5, g, 500)
+    ctx.fillStyle = C.dim
+    return wrap(ctx, t(`fmtd_${f}`), x + 12 * g, y + 26 * g, w - 24 * g, 13 * g, 3)
+  }
   if (!key) return
   const skill = set ? ultOf(SETS[set]) : slot === 'core' ? CORES[key].ult : null
   label(ctx, t(set ? `set_${key}` : `p_${key}`), x + 12 * g, y + 13 * g, 11, g, C.hi, 800)
@@ -283,6 +292,19 @@ export function drawGarage(ctx, L, ui, now, preview, thumb) {
     plate(ctx, x, 58 * g, 150 * g, 30 * g, 8 * g, sel ? C.sel : hov ? C.hov : C.card, sel ? C.hi : C.line, (sel ? 2 : 1.2) * g)
     label(ctx, t(mt.label), x + 75 * g, 73 * g, 13, g, sel ? '#ffffff' : C.dim, 900, 'center')
     rects.push({ tab: mt.first, main: true, x, y: 58 * g, w: 150 * g, h: 30 * g })
+  })
+  Object.keys(FORMATS).forEach((f, i, all) => {
+    const w = 40 * g
+    const x = x0 + areaW - (all.length - i) * (w + 4 * g) + 4 * g
+    const sel = ui.format === f
+    const hov = ui.hover?.format === f
+    plate(ctx, x, 58 * g, w, 30 * g, 8 * g, sel ? '#c4521a' : hov ? C.hov : C.card, sel ? '#ffd2a8' : hov ? C.hi : C.line, (sel ? 2 : 1.2) * g)
+    fit(ctx, t(`fmt_${f}`), 12, g, 900, w - 6 * g)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = sel ? '#ffffff' : C.dim
+    ctx.fillText(t(`fmt_${f}`), x + w / 2, 73 * g)
+    rects.push({ format: f, x, y: 58 * g, w, h: 30 * g })
   })
   const main = MAIN.find(mt => ti >= mt.first && ti <= mt.last)
   const subs = SLOTS.slice(main.first, main.last + 1)

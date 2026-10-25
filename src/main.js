@@ -1,4 +1,4 @@
-import { createState, step, TICKS, normalize, SETS } from './sim.js'
+import { createState, step, TICKS, normalize, SETS, FORMATS } from './sim.js'
 import { dummyInput, DUMMY_MODES } from './dummy.js'
 import { botInput, createBrain, randomLoadout } from './bot.js'
 import { draw, toWorld, cut } from './render.js'
@@ -10,6 +10,7 @@ import { sounds, toggleMute, isMuted, toggleMusic, isMusicOn, unlock, uiSound, v
 
 const MODES = ['bot', ...DUMMY_MODES]
 const LOADOUT_KEY = 'mech-duel/loadout'
+const FORMAT_KEY = 'mech-duel/format'
 const canvas = document.querySelector('canvas')
 const ctx = canvas.getContext('2d')
 const menu = document.getElementById('menu')
@@ -19,8 +20,10 @@ const tapped = new Set()
 const mouse = { x: 0, y: 0 }
 let brain = createBrain(Date.now())
 let pilot = createBrain(Date.now() + 1)
+let crew = []
 let state = demo()
 let loadout = savedLoadout()
+let format = savedFormat()
 let screen = 'title'
 let hover = null
 let tab = 0
@@ -41,6 +44,22 @@ function savedLoadout() {
   } catch {
     return normalize()
   }
+}
+
+function savedFormat() {
+  try {
+    const f = localStorage.getItem(FORMAT_KEY)
+    return f in FORMATS ? f : '1v1'
+  } catch {
+    return '1v1'
+  }
+}
+
+function setFormat(f) {
+  format = f
+  try {
+    localStorage.setItem(FORMAT_KEY, f)
+  } catch {}
 }
 
 function demo() {
@@ -93,7 +112,9 @@ function fight() {
   } catch {}
   brain = createBrain(Date.now())
   pilot = createBrain(Date.now() + 1)
-  state = createState([loadout, randomLoadout(brain)])
+  crew = [pilot, brain, createBrain(Date.now() + 2), createBrain(Date.now() + 3)]
+  const teams = FORMATS[format]
+  state = createState(teams.map((_, i) => (i ? randomLoadout(brain) : loadout)), teams)
   rec = recorder()
   replay = null
   screen = 'match'
@@ -120,7 +141,8 @@ function playerInput() {
   return input
 }
 
-const rivalInput = () => (MODES[mode] === 'bot' ? botInput(state, brain) : dummyInput(state, MODES[mode]))
+const isDuel = () => state.mechs.length === 2
+const rivalInput = () => (MODES[mode] === 'bot' || !isDuel() ? botInput(state, brain) : dummyInput(state, MODES[mode]))
 
 function tick(input) {
   if (screen !== 'match') {
@@ -129,11 +151,11 @@ function tick(input) {
     return
   }
   if (replay) return play(replay) || endReplay()
-  const ins = [input ?? (autopilot ? botInput(state, pilot, 0) : playerInput()), rivalInput()]
+  const ins = [input ?? (autopilot ? botInput(state, pilot, 0) : playerInput()), rivalInput(), ...state.mechs.slice(2).map(m => botInput(state, crew[m.id], m.id))]
   record(rec, state, ins)
   step(state, ins)
   if (wantsReplay(state)) {
-    replay = startReplay(rec, state.mechs.findIndex(m => m.ko))
+    replay = startReplay(rec, state.finalKo)
     cut()
     rewind()
   }
@@ -155,7 +177,7 @@ const render = () => {
   setSlow(slow < 1)
   sounds(view, screen, paused)
   const menuW = menu.hidden ? 0 : (menu.getBoundingClientRect().right + 16) * (window.devicePixelRatio || 1)
-  draw(ctx, view, { screen, mode: MODES[mode], paused, mouse, hover, loadout, tab, muted: isMuted(), music: isMusicOn(), pixel, menuW, replay: replay && progress(replay), speed: slow, focus: slow < 1 ? replay.focus : null })
+  draw(ctx, view, { screen, mode: isDuel() ? MODES[mode] : 'bot', format, paused, mouse, hover, loadout, tab, muted: isMuted(), music: isMusicOn(), pixel, menuW, replay: replay && progress(replay), speed: slow, focus: slow < 1 ? replay.focus : null })
 }
 
 function frame(now) {
@@ -229,7 +251,7 @@ function aimAt(e) {
   mouse.x = e.offsetX * (canvas.width / canvas.clientWidth)
   mouse.y = e.offsetY * (canvas.height / canvas.clientHeight)
   const next = screen === 'garage' ? garageHit(mouse.x, mouse.y) : null
-  if (next && (next.fight !== hover?.fight || next.key !== hover?.key || next.slot !== hover?.slot || next.tab !== hover?.tab || next.set !== hover?.set)) uiSound(['down', 'hover', 'up'][verdict(next, loadout) + 1])
+  if (next && (next.fight !== hover?.fight || next.key !== hover?.key || next.slot !== hover?.slot || next.tab !== hover?.tab || next.set !== hover?.set || next.format !== hover?.format)) uiSound(['down', 'hover', 'up'][verdict(next, loadout) + 1])
   hover = next
 }
 canvas.addEventListener('mousemove', aimAt)
@@ -241,7 +263,10 @@ canvas.addEventListener('mousedown', e => {
   if (screen === 'title') return toGarage()
   if (screen === 'garage') {
     if (hover?.fight) fight()
-    else if (hover?.tab !== undefined) {
+    else if (hover?.format) {
+      setFormat(hover.format)
+      uiSound('tab')
+    } else if (hover?.tab !== undefined) {
       tab = hover.tab
       uiSound('tab')
     } else if (hover?.slot) {
@@ -288,6 +313,7 @@ window.duel = {
   setLoadout: l => (loadout = normalize({ ...loadout, ...l })),
   setTab: n => (tab = n),
   setMode: n => (mode = n),
+  setFormat,
   setPaused: p => (paused = p),
   setAutopilot: on => (autopilot = on),
   setPixel: on => (pixel = on),

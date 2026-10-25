@@ -1,5 +1,5 @@
 import { ARENA, PILLARS, SPAWNS, HEAT, MECH_R, WALLS, TRAPS, WEAPONS, BOOSTERS, HANDS, ARM_OF, isGun, heightOf, arenaCorners, elapsed, untilSlam, untilZap, ventPhase, vents } from './sim.js'
-import { TAU, BOOST_C, TEAM, TEAM_LIGHT, TEAM_DARK, ITEM_C, health, tileHash } from './paint.js'
+import { TAU, BOOST_C, TEAM, TEAM_LIGHT, TEAM_DARK, EYES, hue, ITEM_C, health, tileHash } from './paint.js'
 import { CORE_C, reach } from './mechart.js'
 
 export const SIN = 0.75
@@ -27,7 +27,7 @@ const LASER = [255, 80, 120]
 const ARC = [170, 210, 255]
 const RICO = [120, 255, 150]
 const ORB = [190, 110, 255]
-const EYES = [[255, 214, 120], [150, 235, 255]]
+
 const WALL_C = [44, 50, 62]
 const HAZARD = [214, 168, 44]
 const HAZARD_D = [34, 30, 20]
@@ -983,18 +983,18 @@ export function buildPart(me, slot, key, now, id = 0) {
 }
 
 export function buildMech(me, m, lg, kickAt, now) {
-  const id = m.id
-  const base = 10 + id * 8
+  const c = hue(m)
+  const base = 10 + m.id * 8
   const lo = m.loadout
   const ko = m.ko
   const P = {
-    m, now, team: TEAM[id], light: TEAM_LIGHT[id], dark: TEAM_DARK[id], phase: lg.phase,
+    m, now, team: TEAM[c], light: TEAM_LIGHT[c], dark: TEAM_DARK[c], phase: lg.phase,
     moving: m.preview ? 1 : Math.min(1, Math.hypot(m.vx, m.vy) / 2),
     shooting: false, melee: false, reach: 0,
     burn: m.act?.k === 'dash' && m.act.ph === 'go' ? 1 : m.afterburn > 0 ? 0.4 : 0,
     flame: BOOST_C[BOOSTERS[lo.booster]?.trail] ?? BOOST_C.clean,
   }
-  me.xr = m.preview ? 0 : id + 1
+  me.xr = m.preview ? 0 : c + 1
   me.flash = !ko && m.stagger > 0 && Math.floor(now / 50) % 2 === 1
   const drop = ko ? -0.16 : 0
   const slump = ko ? Rx(0.3) : T3(0, 0, 0)
@@ -1032,7 +1032,7 @@ export function buildMech(me, m, lg, kickAt, now) {
   box(me, H, 0, 0, 0, 0.3, 0.3, 0.22, kind === 'medic' ? BONE : STEEL)
   box(me, H, -0.03, 0, 0.12, 0.26, 0.28, 0.04, P.team)
   const charging = m.act?.k === 'ult' && m.act.ph === 'wind' && Math.floor(now / 70) % 2 === 0
-  const eye = charging ? [255, 255, 255] : kind === 'demon' ? [255, 60, 50] : EYES[id]
+  const eye = charging ? [255, 255, 255] : kind === 'demon' ? [255, 60, 50] : EYES[c]
   if (kind !== 'visor') for (const s of [-1, 1]) box(me, H, 0.165, s * 0.08, 0.01, 0.04, 0.08, 0.07, eye, true)
   HEAD_ART[kind]?.(me, H, P)
 }

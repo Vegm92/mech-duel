@@ -15,7 +15,7 @@ export function record(rec, state, ins) {
   if (rec.snaps.length > KILLCAM.secs + 2) rec.snaps.shift()
 }
 
-export const wantsReplay = state => state.phase === 'ko' && state.timer === MATCH.ko - KILLCAM.live && state.mechs.some(m => m.ko)
+export const wantsReplay = state => state.phase === 'ko' && state.timer === MATCH.ko - KILLCAM.live && state.finalKo >= 0
 
 export function replay(rec, focus) {
   const all = rec.snaps.flatMap(s => s.ins)

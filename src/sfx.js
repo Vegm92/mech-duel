@@ -640,7 +640,7 @@ function engineSounds(state, dt, live) {
     if (!e) continue
     const sp = Math.hypot(m.vx, m.vy)
     const on = live && !m.ko
-    const v = (m.id === 0 ? 1 : 0.7) * (on ? 1 : 0)
+    const v = (m.id === 0 ? 1 : state.mechs.length > 2 ? 0.45 : 0.7) * (on ? 1 : 0)
     const target = e.group === 'hover' ? 0.05 + sp * 0.012 : e.group === 'tread' ? 0.03 + sp * 0.018 : 0
     e.out.gain.setTargetAtTime(target * v, ac.currentTime, 0.08)
     e.pan.pan.value = panOf(m.x)
@@ -741,7 +741,7 @@ export function sounds(state, scene, paused) {
     if (seen.has(f)) continue
     seen.add(f)
     if (scene !== 'match') continue
-    SOUNDS[f.k]?.(f, ac.currentTime, panOf(f.x), ENV.has(f.k) ? near(f) : f.id === 1 ? 0.75 : 1)
+    SOUNDS[f.k]?.(f, ac.currentTime, panOf(f.x), ENV.has(f.k) ? near(f) : f.id > 0 ? (state.mechs.length > 2 ? 0.6 : 0.75) : 1)
   }
 }
 

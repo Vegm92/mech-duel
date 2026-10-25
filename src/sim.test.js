@@ -5,7 +5,7 @@ import { dummyInput } from './dummy.js'
 import { botInput, createBrain, randomLoadout } from './bot.js'
 
 const MID = ARENA.h / 2
-const GOLDEN = 0xDE5BF746
+const GOLDEN = 0x66291C75
 
 function duel(bx = 16, by = MID, lo0 = {}, lo1 = {}) {
   const s = createState([{ ...DEFAULT_LOADOUT, ...lo0 }, { ...DEFAULT_LOADOUT, ...lo1 }])
@@ -668,7 +668,7 @@ test('free-for-all: a K.O. leaves a wreck and the fight goes on until one is lef
   settle(s)
   assert.equal(s.phase, 'ko')
   assert.deepEqual(s.score, [1, 0, 0, 0])
-  assert.deepEqual(s.fallen, [1, 2, 3])
+  assert.equal(s.finalKo, 2)
 })
 
 test('2v2: a shot flies through your teammate and hits the enemy behind', () => {

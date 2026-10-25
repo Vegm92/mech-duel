@@ -1,7 +1,6 @@
 import { SHIELD, SURGE, HEAT, MECH_R, WEAPONS, ARMS, BOOSTERS, HANDS, ARM_OF, isGun } from './sim.js'
-import { TAU, TEAM, TEAM_LIGHT, TEAM_DARK, SURGE_C, STEEL, rgba, shade, health, circle, rrect, glow } from './paint.js'
+import { TAU, TEAM, TEAM_LIGHT, TEAM_DARK, EYES, hue, SURGE_C, STEEL, rgba, shade, health, circle, rrect, glow } from './paint.js'
 
-const EYES = [[255, 214, 120], [150, 235, 255]]
 const BONE = ['#f1f2f6', '#c9ccd6']
 const JOINT = '#22262e'
 const INK = 'rgba(0,0,0,0.6)'
@@ -271,7 +270,7 @@ const TOP_GUNS = {
       ctx.lineWidth = 0.6 * u
       ctx.stroke()
     }
-    rrect(ctx, 0.06 * r - k, 0.18 * r, 0.07 * r, 0.52 * r, 0.02 * r, rgba(TEAM[m.id], 0.85))
+    rrect(ctx, 0.06 * r - k, 0.18 * r, 0.07 * r, 0.52 * r, 0.02 * r, rgba(TEAM[hue(m)], 0.85))
     if (health(m, 'rarm') >= 1) crack(ctx, 0.3 * r - k, 0.44 * r, 0.4 * r, 0.12 * r, u)
   },
   mortar(ctx, m, c, r, u, k) {
@@ -458,7 +457,7 @@ const TOP_BLADES = {
     ctx.restore()
     if (e > 0.5) glow(ctx, tx, ty, 0.35 * r, [255, 240, 220], (e - 0.5) * 1.2)
     rrect(ctx, 0.24 * r, -1.02 * r, 0.24 * r, 0.2 * r, 0.05 * r, '#1d2128', INK, u)
-    circle(ctx, 0.48 * r, -0.92 * r, 0.05 * r, rgba(TEAM[m.id]), INK, 0.6 * u)
+    circle(ctx, 0.48 * r, -0.92 * r, 0.05 * r, rgba(TEAM[hue(m)]), INK, 0.6 * u)
   },
   bunker(ctx, m, c, r, u, now, rc) {
     const e = ease(Math.max(0, rc))
@@ -542,7 +541,7 @@ const TOP_BLADES = {
     ctx.lineWidth = u
     ctx.stroke()
     ctx.lineWidth = 0.05 * r
-    ctx.strokeStyle = rgba(TEAM[m.id], 0.9)
+    ctx.strokeStyle = rgba(TEAM[hue(m)], 0.9)
     ctx.beginPath()
     ctx.arc(cx, cy, 0.97 * r, -0.36, 0.36)
     ctx.stroke()
@@ -583,7 +582,7 @@ const TOP_BLADES = {
     rrect(ctx, fx + 0.04 * r, cy - 0.24 * r, 0.4 * r, 0.48 * r, 0.12 * r, metal(ctx, c, cy - 0.24 * r, cy + 0.24 * r), INK, u)
     for (let i = 0; i < 4; i++) rrect(ctx, fx + 0.36 * r, cy + (-0.22 + i * 0.112) * r, 0.1 * r, 0.1 * r, 0.035 * r, rgba(shade(c, 1.1)), INK, 0.7 * u)
     rrect(ctx, fx + 0.14 * r, cy + 0.17 * r, 0.2 * r, 0.11 * r, 0.04 * r, rgba(shade(c, 0.8)), INK, 0.7 * u)
-    rrect(ctx, fx + 0.1 * r, cy - 0.06 * r, 0.18 * r, 0.12 * r, 0.03 * r, rgba(TEAM[m.id], 0.9))
+    rrect(ctx, fx + 0.1 * r, cy - 0.06 * r, 0.18 * r, 0.12 * r, 0.03 * r, rgba(TEAM[hue(m)], 0.9))
     if (health(m, 'larm') >= 1) crack(ctx, fx + 0.08 * r, cy - 0.12 * r, 0.3 * r, 0.1 * r, u)
   },
   flail(ctx, m, c, r, u, now, rc) {
@@ -634,7 +633,7 @@ const TOP_FEET = {
         const foot = [Math.cos(af) * 1.1 * r, Math.sin(af) * 1.1 * r]
         limb(ctx, [[Math.cos(base) * 0.25 * r, Math.sin(base) * 0.25 * r], knee], 0.12 * r, rgba(shade(c, 0.95)), u)
         limb(ctx, [knee, foot], 0.075 * r, rgba(shade(c, 0.7)), u)
-        circle(ctx, knee[0], knee[1], 0.07 * r, rgba(TEAM[m.id]), INK, u)
+        circle(ctx, knee[0], knee[1], 0.07 * r, rgba(TEAM[hue(m)]), INK, u)
         circle(ctx, foot[0], foot[1], 0.045 * r, '#1b1e24')
       }
     }
@@ -646,7 +645,7 @@ const TOP_FEET = {
       const ty = side * 0.64 * r
       tire(ctx, -0.46 * r, ty - 0.16 * r, 0.92 * r, 0.32 * r, lg.phase * 0.5 * r, u)
       rrect(ctx, -0.22 * r, ty - 0.18 * r, 0.44 * r, 0.36 * r, 0.1 * r, metal(ctx, c, ty - 0.18 * r, ty + 0.18 * r), INK, u)
-      rrect(ctx, -0.18 * r, ty + side * 0.1 * r - 0.025 * r, 0.36 * r, 0.05 * r, 0.02 * r, rgba(TEAM[m.id], 0.85))
+      rrect(ctx, -0.18 * r, ty + side * 0.1 * r - 0.025 * r, 0.36 * r, 0.05 * r, 0.02 * r, rgba(TEAM[hue(m)], 0.85))
     }
     hub(ctx, r, u)
   },
@@ -697,7 +696,7 @@ const TOP_FEET = {
       hazard(ctx, -0.48 * r, -0.2 * r, 0.08 * r, 0.4 * r, 5)
       ctx.fillStyle = 'rgba(0,0,0,0.3)'
       for (const x of [-0.22, 0, 0.22]) ctx.fillRect(x * r, -0.27 * r, 0.05 * r, 0.54 * r)
-      circle(ctx, 0, 0, 0.12 * r, '#1b1e24', rgba(TEAM[m.id], 0.9), u)
+      circle(ctx, 0, 0, 0.12 * r, '#1b1e24', rgba(TEAM[hue(m)], 0.9), u)
       ctx.restore()
     }
     hub(ctx, r, u)
@@ -708,9 +707,9 @@ const TOP_FEET = {
       ctx.save()
       ctx.translate(s * 0.18 * r, side * (0.46 + 0.06 * Math.max(0, s)) * r)
       ctx.rotate(side * 0.12 * Math.max(0, s))
-      if (fast) glow(ctx, -0.4 * r, 0, 0.45 * r, TEAM[m.id], 0.4)
+      if (fast) glow(ctx, -0.4 * r, 0, 0.45 * r, TEAM[hue(m)], 0.4)
       rrect(ctx, -0.64 * r, -0.04 * r, 1.28 * r, 0.08 * r, 0.03 * r, '#2a2f38', INK, u)
-      for (const x of [-0.55, -0.3, 0.3, 0.55]) rrect(ctx, (x - 0.09) * r, -0.06 * r, 0.18 * r, 0.12 * r, 0.05 * r, rgba(TEAM_LIGHT[m.id]), INK, 0.7 * u)
+      for (const x of [-0.55, -0.3, 0.3, 0.55]) rrect(ctx, (x - 0.09) * r, -0.06 * r, 0.18 * r, 0.12 * r, 0.05 * r, rgba(TEAM_LIGHT[hue(m)]), INK, 0.7 * u)
       rrect(ctx, -0.3 * r, -0.13 * r, 0.54 * r, 0.26 * r, 0.11 * r, metal(ctx, c, -0.13 * r, 0.13 * r), INK, u)
       ctx.fillStyle = 'rgba(0,0,0,0.35)'
       for (const x of [-0.16, -0.02]) ctx.fillRect(x * r, -0.12 * r, 0.04 * r, 0.24 * r)
@@ -730,7 +729,7 @@ const TOP_FEET = {
         const foot = [Math.cos(af) * 1.04 * r, Math.sin(af) * 1.04 * r]
         limb(ctx, [[Math.cos(base) * 0.3 * r, Math.sin(base) * 0.3 * r], knee], 0.17 * r, rgba(shade(c, 1.0)), u)
         limb(ctx, [knee, foot], 0.11 * r, rgba(shade(c, 0.72)), u)
-        circle(ctx, knee[0], knee[1], 0.09 * r, rgba(TEAM[m.id]), INK, u)
+        circle(ctx, knee[0], knee[1], 0.09 * r, rgba(TEAM[hue(m)]), INK, u)
         circle(ctx, foot[0], foot[1], 0.09 * r, '#1b1e24', rgba(shade(c, 0.9)), u)
       }
     }
@@ -749,14 +748,14 @@ const TOP_FEET = {
       ctx.strokeStyle = INK
       ctx.lineWidth = u
       ctx.stroke()
-      ctx.strokeStyle = rgba(TEAM[m.id], 0.9)
+      ctx.strokeStyle = rgba(TEAM[hue(m)], 0.9)
       ctx.lineWidth = 0.04 * r
       ctx.beginPath()
       ctx.moveTo(-0.34 * r, side * 0.4 * r)
       ctx.lineTo(-0.74 * r, side * 0.66 * r)
       ctx.stroke()
     }
-    if (fast) glow(ctx, -0.7 * r, 0, 0.5 * r, TEAM[m.id], 0.35)
+    if (fast) glow(ctx, -0.7 * r, 0, 0.5 * r, TEAM[hue(m)], 0.35)
     tire(ctx, -0.6 * r, -0.17 * r, 1.2 * r, 0.34 * r, lg.phase * 0.35 * r, u)
     for (const side of [-1, 1]) rrect(ctx, -0.2 * r, side * 0.2 * r - 0.06 * r, 0.4 * r, 0.12 * r, 0.04 * r, metal(ctx, c, side * 0.2 * r - 0.06 * r, side * 0.2 * r + 0.06 * r), INK, u)
     rrect(ctx, -0.07 * r, -0.26 * r, 0.14 * r, 0.52 * r, 0.04 * r, rgba(shade(c, 0.8)), INK, u)
@@ -978,7 +977,7 @@ function legs(ctx, m, lg, r, u, now) {
       ctx.stroke()
       ctx.restore()
       for (const sx of [-0.48, 0.48]) circle(ctx, sx * r, ty, 0.12 * r, rgba(shade(c, 0.85)), INK, u)
-      rrect(ctx, -0.5 * r, ty + side * 0.17 * r - 0.03 * r, r, 0.06 * r, 0.02 * r, rgba(TEAM[m.id], 0.85))
+      rrect(ctx, -0.5 * r, ty + side * 0.17 * r - 0.03 * r, r, 0.06 * r, 0.02 * r, rgba(TEAM[hue(m)], 0.85))
     }
     circle(ctx, 0, 0, 0.42 * r, '#262b35')
     return
@@ -1121,7 +1120,7 @@ function meleeArm(ctx, m, r, u, now) {
 }
 
 function shell(ctx, m, r, u) {
-  const id = m.id
+  const id = hue(m)
   const outline = () => {
     ctx.beginPath()
     ctx.moveTo(0.42 * r, 0)
@@ -1222,14 +1221,14 @@ function pack(ctx, m, r, u, now) {
   for (const y of ys) {
     if (burn) glow(ctx, -1.25 * r, y * r, 0.45 * k * r, [255, 170, 70], 0.8 + 0.2 * Math.sin(now / 25))
     rrect(ctx, -1.02 * r, (y - 0.11 * k) * r, 0.26 * r, 0.22 * k * r, 0.06 * r, '#2a2f38', INK, u)
-    circle(ctx, -1.03 * r, y * r, 0.07 * k * r, burn ? '#ffd9a0' : rgba(TEAM[m.id], 0.85))
+    circle(ctx, -1.03 * r, y * r, 0.07 * k * r, burn ? '#ffd9a0' : rgba(TEAM[hue(m)], 0.85))
   }
 }
 
 function pauldron(ctx, m, part, r, u) {
   const side = part === 'larm' ? -1 : 1
   const h = health(m, part)
-  const c = h === 3 ? STEEL[3] : TEAM[m.id]
+  const c = h === 3 ? STEEL[3] : TEAM[hue(m)]
   const k = SERIES_K[ARMS[m.loadout.arms]?.series] ?? 1
   const g = ctx.createRadialGradient(0.05 * r, side * 0.56 * r, 0.02 * r, 0, side * 0.6 * r, 0.3 * k * r)
   g.addColorStop(0, rgba(shade(c, 1.35)))
@@ -1245,7 +1244,7 @@ function pauldron(ctx, m, part, r, u) {
 }
 
 function head(ctx, m, r, u, now) {
-  const id = m.id
+  const id = hue(m)
   const hh = health(m, 'head')
   const charging = m.act?.k === 'ult' && m.act.ph === 'wind'
   const kind = headKind(m.loadout.head)
@@ -1301,7 +1300,7 @@ export function drawMech(ctx, m, { X, Y, S, u, now }, lg, kickAt) {
   const r = MECH_R * S
   const x = X(m.x)
   const y = Y(m.y)
-  const id = m.id
+  const id = hue(m)
   const fx = Math.cos(m.aim)
   const fy = Math.sin(m.aim)
   if (!m.ko && !m.preview) {

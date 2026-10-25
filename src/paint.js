@@ -1,7 +1,9 @@
 export const TAU = Math.PI * 2
-export const TEAM = [[255, 122, 47], [79, 157, 255]]
-export const TEAM_LIGHT = [[255, 196, 150], [170, 210, 255]]
-export const TEAM_DARK = [[110, 40, 10], [20, 55, 115]]
+export const TEAM = [[255, 122, 47], [79, 157, 255], [86, 214, 96], [214, 84, 230]]
+export const TEAM_LIGHT = [[255, 196, 150], [170, 210, 255], [180, 245, 172], [242, 178, 250]]
+export const TEAM_DARK = [[110, 40, 10], [20, 55, 115], [22, 88, 30], [84, 24, 100]]
+export const EYES = [[255, 214, 120], [150, 235, 255], [215, 255, 150], [255, 175, 245]]
+export const hue = m => m.team ?? m.id
 export const SURGE_C = [197, 139, 255]
 export const VENT_C = [255, 70, 50]
 export const HOLO = [95, 180, 255]

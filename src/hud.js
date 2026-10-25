@@ -26,9 +26,11 @@ export function hud(ctx, state, ui, L, now, preview) {
   }
   if (ui.replay != null) replayBars(ctx, L, u, ui.replay, now)
   else {
-    const rival = ui.mode === 'bot' ? t('rivalBot') : t('dummy')
-    card(ctx, state.mechs[0], t('you'), 16 * u, 12 * u, u, now, false)
-    card(ctx, state.mechs[1], rival, L.w - 16 * u - CARD_W * u, 12 * u, u, now, true)
+    const right = L.w - 16 * u - CARD_W * u
+    if (state.mechs.length === 2) {
+      card(ctx, state.mechs[0], t('you'), 16 * u, 12 * u, u, now, false)
+      card(ctx, state.mechs[1], t(ui.mode === 'bot' ? 'rivalBot' : 'dummy'), right, 12 * u, u, now, true)
+    } else state.mechs.forEach((m, i) => slim(ctx, m, seatName(state, i), i % 2 ? right : 16 * u, 12 * u + (i >> 1) * 44 * u, u, now, i % 2 === 1))
     clock(ctx, state, L, u, now)
     abilities(ctx, state.mechs[0], L, u, now)
     footer(ctx, ui, L, u)
@@ -246,9 +248,44 @@ function card(ctx, m, name, x, y, u, now, mirror) {
   })
 }
 
+const NAMES = ['nameCinder', 'nameTalon', 'nameMoss', 'nameDusk']
+const SEATS = ['you', 'rivalBot', 'seat2', 'seat3']
+const seatName = (state, i) => t(i && state.mechs[i].team === state.mechs[0].team ? `ally${i}` : SEATS[i])
+
+function slim(ctx, m, name, x, y, u, now, mirror) {
+  const w = CARD_W * u
+  const c = m.team
+  ctx.save()
+  ctx.globalAlpha = m.ko ? 0.5 : 1
+  rrect(ctx, x, y, w, 40 * u, 8 * u, 'rgba(10,13,19,0.86)', rgba(TEAM[c], 0.5), 1.5 * u)
+  rrect(ctx, mirror ? x + w - 6 * u : x, y, 6 * u, 40 * u, 3 * u, rgba(TEAM[c], 0.9))
+  ctx.textBaseline = 'top'
+  ctx.textAlign = mirror ? 'right' : 'left'
+  font(ctx, 12, u, 800)
+  ctx.fillStyle = rgba(TEAM_LIGHT[c])
+  ctx.fillText(t('seatCard', { p: t('tagP', { n: m.id + 1 }), name }),mirror ? x + w - 16 * u : x + 16 * u, y + 6 * u)
+  if (m.ko) {
+    ctx.textAlign = mirror ? 'left' : 'right'
+    font(ctx, 12, u, 900)
+    ctx.fillStyle = '#ff5a3c'
+    ctx.fillText(t('ko'), mirror ? x + 16 * u : x + w - 16 * u, y + 6 * u)
+  }
+  const room = w - 32 * u - 12 * u
+  let bx = x + 16 * u
+  for (const p of PARTS) {
+    const pw = room * (p === 'head' ? 0.4 : 0.2)
+    const frac = Math.max(0, m.armor[p]) / m.max[p]
+    rrect(ctx, bx, y + 25 * u, pw, 7 * u, 3.5 * u, 'rgba(255,255,255,0.07)')
+    if (frac > 0) rrect(ctx, bx, y + 25 * u, Math.max(7 * u, pw * frac), 7 * u, 3.5 * u, flashOf(m.id, p, now) > 0.5 ? '#ffffff' : HP_C[health(m, p)])
+    bx += pw + 4 * u
+  }
+  ctx.restore()
+}
+
 function clock(ctx, state, L, u, now) {
   const cx = L.w / 2
-  rrect(ctx, cx - 74 * u, 8 * u, 148 * u, 66 * u, 10 * u, 'rgba(10,13,19,0.86)', 'rgba(140,155,180,0.3)', 1.5 * u)
+  const teams = state.score.length
+  rrect(ctx, cx - 74 * u, 8 * u, 148 * u, (teams > 2 ? 74 : 66) * u, 10 * u, 'rgba(10,13,19,0.86)', 'rgba(140,155,180,0.3)', 1.5 * u)
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
   font(ctx, 9.5, u, 700)
@@ -259,12 +296,13 @@ function clock(ctx, state, L, u, now) {
   font(ctx, 26, u, 800, MONO)
   ctx.fillStyle = low ? (Math.floor(now / 250) % 2 ? '#ff5a3c' : '#ffb3a3') : '#e6ebf2'
   ctx.fillText(`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`, cx, 25 * u)
-  for (const side of [0, 1]) {
+  for (let side = 0; side < teams; side++) {
+    const py = (teams > 2 ? 58 + (side >> 1) * 11 : 62) * u
     for (let i = 0; i < MATCH.wins; i++) {
-      const px = cx + (side ? 1 : -1) * (14 + i * 13) * u
+      const px = cx + (side % 2 ? 1 : -1) * (14 + i * 13) * u
       const won = state.score[side] > i
-      if (won) glow(ctx, px, 62 * u, 8 * u, TEAM[side], 0.5)
-      circle(ctx, px, 62 * u, 4 * u, won ? rgba(TEAM[side]) : 'rgba(255,255,255,0.06)', rgba(TEAM[side], 0.7), 1.2 * u)
+      if (won) glow(ctx, px, py, 8 * u, TEAM[side], 0.5)
+      circle(ctx, px, py, 4 * u, won ? rgba(TEAM[side]) : 'rgba(255,255,255,0.06)', rgba(TEAM[side], 0.7), 1.2 * u)
     }
   }
 }
@@ -423,6 +461,7 @@ function shout(ctx, text, x, y, px, color, glowColor, u, scale = 1, alpha = 1) {
 function banner(ctx, state, ui, L, u, now) {
   const cx = L.w / 2
   const cy = L.cy
+  const me = state.mechs[0].team
   if (state.phase === 'countdown' && state.timer > 0) {
     const n = Math.ceil(state.timer / TICKS)
     const p = (state.timer % TICKS) / TICKS
@@ -439,15 +478,18 @@ function banner(ctx, state, ui, L, u, now) {
     const timeUp = state.fx.some(f => f.k === 'time')
     const k = Math.min(1, (MATCH.ko - state.timer) / 12)
     shout(ctx, t(timeUp ? 'timeUp' : 'ko'), cx, cy - 30 * u, 92, '#ff5a3c', 'rgba(255,60,40,0.95)', u, 1.6 - 0.6 * k)
-    const who = state.winner === 0 ? 'youWin' : state.winner === 1 ? (ui.mode === 'bot' ? 'rivalWins' : 'dummyWins') : 'draw'
-    shout(ctx, t(who), cx, cy + 40 * u, 22, state.winner >= 0 ? rgba(TEAM_LIGHT[state.winner]) : '#c9d1dc', 'rgba(0,0,0,0)', u)
+    const w = state.winner
+    const duo = state.score.length === 2 && state.mechs.length > 2
+    const who = w < 0 ? t('draw') : w === me ? t(duo ? 'teamWin' : 'youWin') : state.mechs.length === 2 ? t(ui.mode === 'bot' ? 'rivalWins' : 'dummyWins') : duo ? t('rivalTeamWins') : t('winsRound', { name: t(NAMES[w]) })
+    shout(ctx, who, cx, cy + 40 * u, 22, w >= 0 ? rgba(TEAM_LIGHT[w]) : '#c9d1dc', 'rgba(0,0,0,0)', u)
   }
   if (state.phase === 'over') {
     ctx.fillStyle = 'rgba(0,0,0,0.5)'
     ctx.fillRect(0, 0, L.w, L.h)
-    const won = state.score[0] > state.score[1]
+    const won = state.score[me] >= MATCH.wins
     shout(ctx, t(won ? 'victory' : 'defeat'), cx, cy - 40 * u, 88, won ? '#ffd27a' : '#9fb4d8', won ? 'rgba(255,170,60,0.9)' : 'rgba(80,140,255,0.8)', u)
-    shout(ctx, `${state.score[0]} - ${state.score[1]}`, cx, cy + 30 * u, 40, '#e6ebf2', 'rgba(0,0,0,0)', u)
+    if (state.score.length === 2) shout(ctx, `${state.score[me]} - ${state.score[1 - me]}`, cx, cy + 30 * u, 40, '#e6ebf2', 'rgba(0,0,0,0)', u)
+    else state.score.forEach((n, i) => shout(ctx, String(n), cx + (i - 1.5) * 50 * u, cy + 30 * u, 40, rgba(TEAM_LIGHT[i]), rgba(TEAM[i], 0.6), u))
     if (Math.floor(now / 500) % 2) shout(ctx, t('rematch'), cx, cy + 80 * u, 16, '#c9d1dc', 'rgba(0,0,0,0)', u)
   }
 }
