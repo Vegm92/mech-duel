@@ -5,7 +5,7 @@ import { dummyInput } from './dummy.js'
 import { botInput, createBrain, randomLoadout } from './bot.js'
 
 const MID = ARENA.h / 2
-const GOLDEN = 0x66291C75
+const GOLDEN = 0xCBFDCDC5
 
 function duel(bx = 16, by = MID, lo0 = {}, lo1 = {}) {
   const s = createState([{ ...DEFAULT_LOADOUT, ...lo0 }, { ...DEFAULT_LOADOUT, ...lo1 }])
@@ -702,4 +702,32 @@ test('bots finish a whole free-for-all and a whole 2v2', () => {
     assert.equal(s.phase, 'over')
     assert.equal(Math.max(...s.score), MATCH.wins)
   }
+})
+
+const shot = o => ({ kind: 'bolt', cast: 90, r: 0.3, left: 40, dmg: 60, impact: 1, reflected: false, homing: 0, bounces: 0, y: MID, vy: 0, ...o })
+
+test('a bullet shoots an enemy missile down mid-air', () => {
+  const s = duel(30)
+  const [a, b] = s.mechs
+  s.shots.push(shot({ kind: 'missile', owner: 1, x: 20, vx: -24 }), shot({ owner: 0, x: 10, vx: 60 }))
+  run(s, 60, () => input(), () => input())
+  assert.deepEqual(a.armor, a.max)
+  assert.deepEqual(b.armor, b.max)
+  assert.equal(s.shots.length, 0)
+})
+
+test("a teammate's bullet flies past your own missile", () => {
+  const s = brawl(FORMATS['2v2'])
+  s.shots.push(shot({ kind: 'missile', owner: 0, x: 10, vx: 24 }), shot({ owner: 2, x: 20, vx: -60 }))
+  for (let i = 0; i < 8; i++) step(s, [])
+  assert.equal(s.shots.length, 2)
+})
+
+test('a laser burns an enemy missile out of the air', () => {
+  const s = duel(20, MID, { left: 'laser' })
+  const [a, b] = s.mechs
+  s.shots.push(shot({ kind: 'missile', owner: 1, x: 15, vx: -24 }))
+  run(s, 60, i => input({ ax: b.x, ay: b.y, left: i === 0 }), () => input())
+  assert.deepEqual(a.armor, a.max)
+  assert.ok(arms(b) < FULL)
 })

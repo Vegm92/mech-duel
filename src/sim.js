@@ -77,7 +77,7 @@ export const WEAPONS = {
   scatter: { kind: 'bolt', shot: 'bolt', pellets: 5, spread: 7 * DEG, jitter: 0, speed: 48, radius: 0.25, range: 12, dmg: 26, impact: 1, windup: 8, recovery: 14, cd: 54, load: 18, recoil: 0.4, band: [4, 7], fan: { pellets: 8, spread: 6 * DEG, dmg: 22 } },
   gatling: { kind: 'bolt', auto: true, shot: 'bolt', pellets: 1, spread: 0, jitter: 5 * DEG, speed: 55, radius: 0.2, range: 30, dmg: 12, impact: 0, windup: 2, recovery: 4, cd: 10, load: 7, recoil: 0.05, band: [8, 13], fan: { pellets: 4, spread: 4 * DEG, dmg: 14 } },
   flamer: { kind: 'bolt', auto: true, shot: 'flame', pellets: 2, spread: 9 * DEG, jitter: 6 * DEG, speed: 16, radius: 0.45, range: 6.5, dmg: 8, impact: 0, windup: 2, recovery: 4, cd: 8, load: 5, recoil: 0, band: [3, 5.5], fan: { pellets: 6, spread: 8 * DEG, dmg: 7 } },
-  missiles: { kind: 'bolt', shot: 'missile', pellets: 2, spread: 10 * DEG, jitter: 0, speed: 24, radius: 0.3, range: 40, dmg: 42, impact: 1, windup: 10, recovery: 14, cd: 72, load: 20, recoil: 0.3, band: [10, 15], homing: 3.2, fan: { pellets: 4, spread: 14 * DEG, dmg: 40 } },
+  missiles: { kind: 'bolt', shot: 'missile', pellets: 2, spread: 10 * DEG, jitter: 0, speed: 24, radius: 0.3, range: 40, dmg: 42, impact: 1, windup: 10, recovery: 14, cd: 108, load: 20, recoil: 0.3, band: [10, 15], homing: 3.2, fan: { pellets: 4, spread: 14 * DEG, dmg: 40 } },
   mortar: { kind: 'lob', range: 16, dmg: 110, impact: 2, windup: 10, recovery: 16, cd: 108, load: 22, recoil: 0.6, band: [9, 15], delay: 36, splash: 1.8, fan: { pellets: 3, spread: 2.6, dmg: 70 } },
   laser: { kind: 'ray', range: 18, halfWidth: 0.3, dmg: 40, impact: 1, windup: 8, recovery: 12, cd: 40, load: 18, recoil: 0.1, band: [11, 17], fan: { pellets: 3, spread: 8 * DEG, dmg: 34 } },
   tesla: { kind: 'cone', range: 7, arc: 22 * DEG, dmg: 62, impact: 2, windup: 10, recovery: 14, cd: 54, load: 20, recoil: 0, band: [4, 6.5], fan: { pellets: 1, spread: 0, dmg: 80 } },
@@ -211,7 +211,7 @@ export const DASH_MOVES = {
   pounce: { time: 2, dist: 1.3, air: 1.4, toCursor: true, land: { r: 1.6, dmg: 40, impact: 4 } },
   roll: { hit: { dmg: 35, impact: 2, push: 1.2, through: true } },
 }
-export const SHIELD = { arc: 50 * DEG, turn: (540 * DEG) / TICKS, perfect: 8, minHold: 20, maxHold: 90, recovery: 10, cd: 360, perfectCd: 180, absorb: 160, breakStagger: 24, breakCd: 540, load: 20 }
+export const SHIELD = { arc: 50 * DEG, turn: (540 * DEG) / TICKS, perfect: 8, minHold: 20, maxHold: 90, recovery: 10, cd: 240, perfectCd: 120, absorb: 160, breakStagger: 24, breakCd: 540, load: 20 }
 export const HOOK = { range: 13, speed: 40, radius: 0.4, dmg: 30, windup: 6, recovery: 14, cd: 480, load: 10, pull: 24, pullSpeed: 22, stop: 1.8, stun: 12 }
 export const LANCE = { windup: 36, turn: (120 * DEG) / TICKS, length: 16, halfWidth: 0.7, base: 100, perHeat: 2, impact: 4, poise: 1, recoil: 2, recovery: 24, stuffRefund: 50, perfectCut: 0.5 }
 export const ULT_RECOVERY = 20
@@ -817,7 +817,28 @@ function reflect(state, s, t) {
   state.fx.push({ k: 'parry', x: s.x, y: s.y, t: 14 })
 }
 
+const enemyMissile = (state, s, team) => s.kind === 'missile' && state.mechs[s.owner].team !== team
+
+function shootDown(state, s) {
+  state.fx.push({ k: 'boom', x: s.x, y: s.y, r: 0.7, big: false, t: 22 })
+  return false
+}
+
+function intercept(state, from) {
+  const dead = new Set()
+  for (const m of state.shots) {
+    if (m.kind !== 'missile' || dead.has(m)) continue
+    const [mx, my] = from.get(m)
+    const b = state.shots.find(b => b !== m && b.kind !== 'hook' && !dead.has(b) && enemyMissile(state, m, state.mechs[b.owner].team) && segDist(from.get(b)[0] - mx, from.get(b)[1] - my, b.x - m.x, b.y - m.y, 0, 0) < m.r + b.r)
+    if (!b) continue
+    dead.add(m).add(b)
+    shootDown(state, m)
+  }
+  if (dead.size) state.shots = state.shots.filter(s => !dead.has(s))
+}
+
 function moveShots(state) {
+  const from = new Map(state.shots.map(s => [s, [s.x, s.y]]))
   state.shots = state.shots.filter(s => {
     const enemies = foes(state, s.owner)
     const dist = t => Math.hypot(t.x - s.x, t.y - s.y)
@@ -872,6 +893,7 @@ function moveShots(state) {
     }
     return s.left > 0
   })
+  intercept(state, from)
 }
 
 function shotHits(state, s, t) {
@@ -952,6 +974,7 @@ function lineAttack(state, m, sx, sy, angle, length, halfWidth, dmg, impact, tag
     }
     if (d > 0) hit(state, m, t, d, tag, impact, Math.atan2(-dy, -dx), cast)
   }
+  state.shots = state.shots.filter(s => !enemyMissile(state, s, m.team) || segDist(sx, sy, sx + dx * len, sy + dy * len, s.x, s.y) >= halfWidth + s.r || shootDown(state, s))
   state.fx.push({ k: kind === 'laser' ? 'zap' : 'beam', kind, id: m.id, x1: sx, y1: sy, x2: sx + dx * len, y2: sy + dy * len, t: kind === 'laser' ? 10 : 18 })
 }
 

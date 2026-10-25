@@ -431,10 +431,10 @@ Movement: top speed 6.5 m/s, 0 → top in 0.18 s, top → 0 in 0.12 s, normal tr
   Hold up to 90t. Movement ×0.6. Load +20 Heat.
 - **Perfect Guard** (hit in the first 8t): damage negated. Linear projectiles reflect back down their
   path as your hit (`ARMS`, same damage). Melee attackers within 3 m: stagger 30t. +15 Surge.
-  Cooldown becomes 3 s.
+  Cooldown becomes 2 s (was 3 s).
 - **Block:** absorbs up to 160 damage. Past that: **Guard Break** — the plate shatters, you're
   staggered 24t, cooldown 9 s.
-- Release: 10t recovery, cooldown 6 s from release.
+- Release: 10t recovery, cooldown 4 s from release (was 6 s; Victor 2026-10-25, to answer missiles).
 - **Whiffed tap:** the plate stays up at least 20t, then 10t recovery = 0.5 s committed. That is the bait.
 - Doesn't stop: hits from outside the arc, `LEGS` splashes and low sweeps, lobbed shots.
 
@@ -532,6 +532,13 @@ win 37–76% and melee 40–55% against a random weapon of either type; the mort
 because bots step out of every landing circle (it under-rates lobs). Bots, not people: re-tune from
 playtests.
 
+**Missile nerf (2026-10-25, Victor: "missiles are too OP").** Any enemy projectile (not the hook) or
+beam (laser, rail, lance) that touches a missile destroys it mid-air; a projectile that does is used
+up too (`intercept`, swept test on relative motion, so fast bolts can't tunnel). Covers the Swarm
+ult's missiles too. Hornet Pod cooldown 1.2 → 1.8 s, shield cooldown 6 → 4 s (Perfect Guard 3 → 2 s).
+Bot round-robin, Hornet Pod vs each other weapon in the same hand, 4 seeds side-swapped: 67% → 53%
+of rounds; it now loses to the laser (18%) and the gatling (27%), which shred missiles.
+
 #### Weapons (left or right hand)
 
 Guns:
@@ -543,7 +550,7 @@ Guns:
 | Scatter Gun | bolt | 5 × 26 | 12 m | 0.9 s | 5 pellets, short range. Brutal up close. |
 | Buzz Gatling | bolt | 12 | 30 m | 0.17 s | Tiny bullets, nonstop. Hold the button. |
 | Blaze Thrower | bolt (flame) | 2 × 8 | 6.5 m | 0.13 s | Short cone of fire. Hold the button. Shields put it out. |
-| Hornet Pod | bolt (missile) | 2 × 42 | 40 m | 1.2 s | Two missiles that chase the target. |
+| Hornet Pod | bolt (missile) | 2 × 42 | 40 m | 1.8 s | Two missiles that chase the target. Enemy bullets and beams shoot them down. |
 | Thump Mortar | lob | 110 | 16 m | 1.8 s | Lobs a shell at the cursor. Lands later, over shields and pillars. |
 | Prism Laser | ray | 40 | 18 m | 0.67 s | Instant beam. Hits the moment you fire. |
 | Arc Coil | cone | 62 | 7 m | 0.9 s | Short zap that jumps to whatever is in front of you. |
