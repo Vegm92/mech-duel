@@ -1,6 +1,6 @@
-import { SURGE, SHIELD, HOOK, LANCE, HEAL, MECH_R, PILLARS, WALLS, PADS, TRAPS, HAZARDS, TICKS, CATALOG, HANDS, TRAILS, weapon, isGun, ult, moveOf, hidden, untilSlam, untilZap, ventPhase, vents } from './sim.js'
+import { SURGE, SHIELD, HOOK, LANCE, HEAL, MECH_R, PILLARS, WALLS, PADS, TRAPS, HAZARDS, TICKS, CATALOG, HANDS, TRAILS, weapon, isGun, ult, moveOf, hidden, untilSlam, untilZap, ventPhase, vents, foes } from './sim.js'
 
-export const BOT = { aimError: 0.9, guard: 0.35, dodge: 0.25, reaction: 0.3, jukeMin: 18, jukeMax: 70, close: [1.6, 2.6], heatCap: 82, rhythm: 18, healAt: 0.6, grab: 14 }
+export const BOT = { aimError: 0.9, guard: 0.35, dodge: 0.25, reaction: 0.3, jukeMin: 18, jukeMax: 70, close: [1.6, 2.6], heatCap: 82, rhythm: 18, healAt: 0.6, grab: 14, stick: 1.3 }
 
 export function createBrain(seed = 1) {
   return { seed: seed >>> 0, side: 1, nextJuke: 0, lastFlip: 0, guard: 0, threat: 0, guardRoll: false, dodgeRoll: false, nextShot: { left: 0, right: 0 } }
@@ -34,10 +34,22 @@ function segDist(x0, y0, x1, y1, px, py) {
 const clearLine = (x0, y0, x1, y1) => PILLARS.every(p => segDist(x0, y0, x1, y1, p.x, p.y) > p.r + 0.3)
 const health = m => Object.keys(m.armor).reduce((s, p) => s + Math.max(0, m.armor[p]) / m.max[p], 0) / 4
 
+const ally = (state, m, id) => state.mechs[id].team === m.team
+
+function pick(state, brain, m) {
+  const d = t => Math.hypot(t.x - m.x, t.y - m.y)
+  const list = foes(state, m.id)
+  const near = list.reduce((a, t) => (!a || d(t) < d(a) ? t : a), null)
+  const cur = list.find(t => t.id === brain.target)
+  if (cur && d(cur) < d(near) * BOT.stick + 2) return cur
+  if (near) brain.target = near.id
+  return near ?? state.mechs.find(t => t.team !== m.team) ?? m
+}
+
 function incoming(state, m) {
   let best = null
   for (const s of state.shots) {
-    if (s.owner === m.id) continue
+    if (ally(state, m, s.owner)) continue
     const t = ((m.x - s.x) * s.vx + (m.y - s.y) * s.vy) / (s.vx * s.vx + s.vy * s.vy)
     if (t <= 0 || t > BOT.reaction) continue
     const miss = Math.hypot(s.x + s.vx * t - m.x, s.y + s.vy * t - m.y)
@@ -55,11 +67,11 @@ function hazards(state, m) {
     x += (m.x - hx) / d
     y += (m.y - hy) / d
   }
-  for (const l of state.lobs) if (l.owner !== m.id && l.t < 40) away(l.x, l.y, l.r + MECH_R + 0.6)
-  for (const mi of state.mines) if (mi.owner !== m.id) away(mi.x, mi.y, 2.2)
-  for (const f of state.fields) if (f.owner !== m.id) away(f.x, f.y, f.r + 0.5)
+  for (const l of state.lobs) if (!ally(state, m, l.owner) && l.t < 40) away(l.x, l.y, l.r + MECH_R + 0.6)
+  for (const mi of state.mines) if (!ally(state, m, mi.owner)) away(mi.x, mi.y, 2.2)
+  for (const f of state.fields) if (!ally(state, m, f.owner)) away(f.x, f.y, f.r + 0.5)
   for (const tr of state.trails) {
-    if (tr.owner === m.id || tr.kind === 'smoke') continue
+    if (ally(state, m, tr.owner) || tr.kind === 'smoke') continue
     const dx = tr.x2 - tr.x1
     const dy = tr.y2 - tr.y1
     const k = Math.max(0, Math.min(1, ((m.x - tr.x1) * dx + (m.y - tr.y1) * dy) / (dx * dx + dy * dy || 1)))
@@ -118,7 +130,7 @@ function flip(brain, tick) {
 
 export function botInput(state, brain, me = 1) {
   const m = state.mechs[me]
-  const o = state.mechs[1 - me]
+  const o = pick(state, brain, m)
   const inp = { mx: 0, my: 0, ax: o.x, ay: o.y, left: false, right: false, hook: false, shield: false, dash: false, ult: false }
   if (state.phase !== 'fight' || m.ko || o.ko) return inp
   const tick = state.tick

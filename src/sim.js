@@ -18,6 +18,16 @@ export const PILLARS = [
   { x: CX + 17, y: CY + 14, r: 2 },
 ]
 export const SPAWNS = [{ x: CX - 15, y: CY, aim: 0 }, { x: CX + 15, y: CY, aim: Math.PI }]
+export const FORMATS = { '1v1': [0, 1], ffa: [0, 1, 2, 3], '2v2': [0, 1, 0, 1] }
+const CORNERS = [[-15, -10], [15, 10], [15, -10], [-15, 10]]
+export function spawnsOf(teams) {
+  if (teams.length === 2) return SPAWNS
+  const duo = new Set(teams).size === 2
+  return teams.map((team, i) => {
+    const [dx, dy] = duo ? [team ? 15 : -15, teams.indexOf(team) === i ? -6 : 6] : CORNERS[i]
+    return { x: CX + dx, y: CY + dy, aim: Math.atan2(-dy, -dx) }
+  })
+}
 const Q = Math.SQRT1_2
 export const WALLS = [
   [0, -1, 0],
@@ -327,12 +337,11 @@ function power(m, melee) {
   return k
 }
 
-function makeMech(id, loadout) {
-  const s = SPAWNS[id]
+function makeMech(id, loadout, team, s) {
   const lo = normalize(loadout)
   const max = maxArmor(lo)
   return {
-    id, loadout: lo, max, x: s.x, y: s.y, vx: 0, vy: 0, aim: s.aim, tx: s.x, ty: s.y,
+    id, team, loadout: lo, max, x: s.x, y: s.y, vx: 0, vy: 0, aim: s.aim, tx: s.x, ty: s.y,
     armor: { ...max }, heat: 0, ventDelay: 0, overheat: 0, surge: CORES[lo.core].surgeStart ?? 0,
     cd: { left: 0, right: 0, hook: 0, shield: 0, dash: 0 },
     buf: { left: 0, right: 0, hook: 0, dash: 0, ult: 0 },
@@ -342,16 +351,20 @@ function makeMech(id, loadout) {
   }
 }
 
-export function createState(loadouts = [DEFAULT_LOADOUT, DEFAULT_LOADOUT]) {
+export function createState(loadouts = [], teams = FORMATS['1v1']) {
+  const spawns = spawnsOf(teams)
   const state = {
-    tick: 0, seed: 0x2545f491, mechs: [makeMech(0, loadouts[0]), makeMech(1, loadouts[1])],
+    tick: 0, seed: 0x2545f491, mechs: teams.map((team, i) => makeMech(i, loadouts[i], team, spawns[i])),
     shots: [], lobs: [], mines: [], fields: [], trails: [], walls: [], fx: [],
     phase: 'countdown', timer: MATCH.countdown, clock: MATCH.time, round: 1, hitstop: 0,
     heal: { ready: false, timer: HEAL.first },
-    score: [0, 0], winner: -1, nextCast: 1, shrink: 0,
+    score: Array(Math.max(...teams) + 1).fill(0), winner: -1, nextCast: 1, shrink: 0, fallen: [],
   }
   return resetPads(state)
 }
+
+export const foes = (state, id) => state.mechs.filter(t => !t.ko && t.team !== state.mechs[id].team)
+const turns = state => state.mechs.map((_, i) => state.mechs[(i + state.tick) % state.mechs.length])
 
 function resetPads(state) {
   state.pads = PADS.map(() => null)
@@ -392,7 +405,7 @@ export function step(state, inputs) {
   }
   if (state.phase === 'over') return state
   state.shrink = shrinkOf(state)
-  for (const i of state.tick % 2 ? [1, 0] : [0, 1]) think(state, state.mechs[i], ins[i])
+  for (const m of turns(state)) if (!m.ko) think(state, m, ins[m.id])
   moveShots(state)
   updateLobs(state)
   updateMines(state)
@@ -400,7 +413,8 @@ export function step(state, inputs) {
   updateTrails(state)
   state.walls = state.walls.filter(w => --w.t > 0)
   for (const m of state.mechs) collide(m, state.shrink)
-  separate(state.mechs[0], state.mechs[1])
+  const live = state.mechs.filter(m => !m.ko)
+  live.forEach((a, i) => live.slice(i + 1).forEach(b => separate(a, b)))
   pickups(state)
   traps(state)
   checkKo(state)
@@ -582,19 +596,20 @@ function dash(state, m, inp, feinted) {
 
 function magnetize(state, m) {
   const M = TRAILS.magnet
-  const t = state.mechs[1 - m.id]
-  const d = Math.hypot(m.x - t.x, m.y - t.y)
-  if (t.ko || airborne(t) || d > M.reach || d < 2 * MECH_R) return
-  push(t, (m.x - t.x) / d, (m.y - t.y) / d, M.pull)
-  state.fx.push({ k: 'magnet', id: m.id, x: m.x, y: m.y, x1: m.x, y1: m.y, x2: t.x, y2: t.y, t: 18 })
+  for (const t of foes(state, m.id)) {
+    const d = Math.hypot(m.x - t.x, m.y - t.y)
+    if (airborne(t) || d > M.reach || d < 2 * MECH_R) continue
+    push(t, (m.x - t.x) / d, (m.y - t.y) / d, M.pull)
+    state.fx.push({ k: 'magnet', id: m.id, x: m.x, y: m.y, x1: m.x, y1: m.y, x2: t.x, y2: t.y, t: 18 })
+  }
 }
 
 function updateTrails(state) {
   state.trails = state.trails.filter(tr => {
     const T = TRAILS[tr.kind]
     const atk = state.mechs[tr.owner]
-    const t = state.mechs[1 - tr.owner]
-    if (!t.ko && !airborne(t) && segDist(tr.x1, tr.y1, tr.x2, tr.y2, t.x, t.y) < T.width + MECH_R) {
+    for (const t of foes(state, tr.owner)) {
+      if (airborne(t) || segDist(tr.x1, tr.y1, tr.x2, tr.y2, t.x, t.y) >= T.width + MECH_R) continue
       const from = Math.atan2((tr.y1 + tr.y2) / 2 - t.y, (tr.x1 + tr.x2) / 2 - t.x)
       tr.cast ||= state.nextCast++
       if (tr.kind === 'arc' && !tr.hit) {
@@ -612,8 +627,8 @@ function updateTrails(state) {
 }
 
 function bump(state, m, a, h) {
-  const t = state.mechs[1 - m.id]
-  if (t.ko || airborne(t) || Math.hypot(t.x - m.x, t.y - m.y) > 2 * MECH_R + 0.25) return
+  const t = foes(state, m.id).find(t => !airborne(t) && Math.hypot(t.x - m.x, t.y - m.y) <= 2 * MECH_R + 0.25)
+  if (!t) return
   a.hit = true
   hit(state, m, t, Math.floor(h.dmg * power(m, true)), 'ARMS', h.impact, Math.atan2(m.y - t.y, m.x - t.x), state.nextCast++)
   push(t, a.dx, a.dy, h.push)
@@ -622,13 +637,14 @@ function bump(state, m, a, h) {
 
 function land(state, m, L) {
   state.fx.push({ k: 'land', id: m.id, x: m.x, y: m.y, r: L.r, t: 20 })
-  const t = state.mechs[1 - m.id]
-  if (t.ko || airborne(t) || Math.hypot(t.x - m.x, t.y - m.y) > L.r + MECH_R) return
-  hit(state, m, t, Math.floor(L.dmg * power(m, true)), 'LEGS', L.impact ?? 0, Math.atan2(m.y - t.y, m.x - t.x), state.nextCast++)
-  if (!L.stun || t.ko) return
-  interrupt(t)
-  t.stagger = Math.max(t.stagger, L.stun)
-  if (L.lift) Object.assign(t, { lift: L.stun, liftT: L.stun })
+  for (const t of foes(state, m.id)) {
+    if (airborne(t) || Math.hypot(t.x - m.x, t.y - m.y) > L.r + MECH_R) continue
+    hit(state, m, t, Math.floor(L.dmg * power(m, true)), 'LEGS', L.impact ?? 0, Math.atan2(m.y - t.y, m.x - t.x), state.nextCast++)
+    if (!L.stun) continue
+    interrupt(t)
+    t.stagger = Math.max(t.stagger, L.stun)
+    if (L.lift) Object.assign(t, { lift: L.stun, liftT: L.stun })
+  }
 }
 
 function aimFrom(m, x, y) {
@@ -698,13 +714,13 @@ function swing(state, m, hand, spin) {
   const hot = hotOf(m)
   const jam = jammed(m, ARM_OF[hand]) ? JAM.dmg : 1
   const arc = spin ? Math.PI : b.arc
-  const t = state.mechs[1 - m.id]
-  const dx = t.x - m.x
-  const dy = t.y - m.y
-  if (!t.ko && !airborne(t) && Math.hypot(dx, dy) <= b.range + MECH_R && inArc(m.aim, arc, dx, dy)) {
+  for (const t of foes(state, m.id)) {
+    const dx = t.x - m.x
+    const dy = t.y - m.y
+    if (airborne(t) || Math.hypot(dx, dy) > b.range + MECH_R || !inArc(m.aim, arc, dx, dy)) continue
     const dmg = Math.floor((spin ? b.spinDmg : b.dmg) * (hot ? core(m).hotDmg ?? HEAT.hotDmg : 1) * jam * power(m, true))
     hit(state, m, t, dmg, 'LEGS', b.impact + (hot ? 1 : 0), Math.atan2(-dy, -dx), cast)
-    if (b.yank && !t.ko) push(t, -dx / Math.hypot(dx, dy), -dy / Math.hypot(dx, dy), b.yank)
+    if (b.yank) push(t, -dx / Math.hypot(dx, dy), -dy / Math.hypot(dx, dy), b.yank)
   }
   state.fx.push({ k: 'slash', id: m.id, hand, blade: m.loadout[hand], x: m.x, y: m.y, a: m.aim, arc, range: b.range, t: 12 })
   addHeat(m, b.load)
@@ -713,7 +729,7 @@ function swing(state, m, hand, spin) {
 
 function fireUlt(state, m, a) {
   const h = ult(m)
-  const t = state.mechs[1 - m.id]
+  const near = (x, y, r) => foes(state, m.id).filter(t => Math.hypot(t.x - x, t.y - y) <= r)
   const cast = state.nextCast++
   const target = range => {
     const d = Math.min(range, Math.hypot(m.tx - m.x, m.ty - m.y))
@@ -738,7 +754,7 @@ function fireUlt(state, m, a) {
     state.fx.push({ k: 'heal', id: m.id, x: m.x, y: m.y, n: h.amount, t: 40 })
   } else if (h.kind === 'emp') {
     state.fx.push({ k: 'emp', id: m.id, x: m.x, y: m.y, r: h.radius, t: 24 })
-    if (!t.ko && Math.hypot(t.x - m.x, t.y - m.y) <= h.radius + MECH_R) {
+    for (const t of near(m.x, m.y, h.radius + MECH_R)) {
       hit(state, m, t, Math.floor(h.dmg * power(m, false)), 'ARMS', 0, Math.atan2(m.y - t.y, m.x - t.x), cast)
       interrupt(t)
       t.buffs.jam = h.jam
@@ -749,7 +765,7 @@ function fireUlt(state, m, a) {
   } else if (h.kind === 'stasis') {
     const p = target(h.range)
     state.fields.push({ kind: 'stasis', owner: m.id, x: p.x, y: p.y, r: h.radius, t: h.time, T: h.time })
-    if (!t.ko && Math.hypot(t.x - p.x, t.y - p.y) <= h.radius) hit(state, m, t, Math.floor(h.dmg * power(m, false)), 'ARMS', 0, Math.atan2(p.y - t.y, p.x - t.x), cast)
+    for (const t of near(p.x, p.y, h.radius)) hit(state, m, t, Math.floor(h.dmg * power(m, false)), 'ARMS', 0, Math.atan2(p.y - t.y, p.x - t.x), cast)
   } else if (h.kind === 'mines') {
     for (let i = 0; i < h.count; i++) {
       const ang = (i / h.count) * TAU
@@ -763,7 +779,7 @@ function fireUlt(state, m, a) {
   } else if (h.kind === 'well') {
     const p = target(h.range)
     state.fields.push({ kind: 'well', owner: m.id, x: p.x, y: p.y, r: h.radius, t: h.time, T: h.time })
-    if (!t.ko && Math.hypot(t.x - p.x, t.y - p.y) <= h.radius) hit(state, m, t, Math.floor(h.dmg * power(m, false)), 'ARMS', 0, Math.atan2(p.y - t.y, p.x - t.x), cast)
+    for (const t of near(p.x, p.y, h.radius)) hit(state, m, t, Math.floor(h.dmg * power(m, false)), 'ARMS', 0, Math.atan2(p.y - t.y, p.x - t.x), cast)
   } else if (h.kind === 'wall') {
     const fx = Math.cos(m.aim)
     const fy = Math.sin(m.aim)
@@ -772,7 +788,7 @@ function fireUlt(state, m, a) {
     state.walls.push({ owner: m.id, x1: cx - (fy * h.len) / 2, y1: cy + (fx * h.len) / 2, x2: cx + (fy * h.len) / 2, y2: cy - (fx * h.len) / 2, t: h.time, T: h.time })
   } else if (h.kind === 'meltdown') {
     state.fx.push({ k: 'boom', x: m.x, y: m.y, r: h.radius, big: true, t: 22 })
-    if (!t.ko && Math.hypot(t.x - m.x, t.y - m.y) <= h.radius + MECH_R) hit(state, m, t, Math.floor((h.base + h.perHeat * m.heat) * power(m, false)), 'ARMS', h.impact, Math.atan2(m.y - t.y, m.x - t.x), cast)
+    for (const t of near(m.x, m.y, h.radius + MECH_R)) hit(state, m, t, Math.floor((h.base + h.perHeat * m.heat) * power(m, false)), 'ARMS', h.impact, Math.atan2(m.y - t.y, m.x - t.x), cast)
     Object.assign(m, { heat: 0, overheat: 0, ventDelay: 0 })
   } else if (h.kind === 'deflect') m.buffs.deflect = h.time
   else if (h.kind === 'mirror') m.buffs.mirror = h.time
@@ -803,14 +819,17 @@ function reflect(state, s, t) {
 
 function moveShots(state) {
   state.shots = state.shots.filter(s => {
-    const t = state.mechs[1 - s.owner]
-    if (s.homing && !t.ko) {
+    const enemies = foes(state, s.owner)
+    const dist = t => Math.hypot(t.x - s.x, t.y - s.y)
+    const prey = enemies.reduce((a, t) => (!a || dist(t) < dist(a) ? t : a), null)
+    if (s.homing && prey) {
       const sp = Math.hypot(s.vx, s.vy)
-      const a = turnToward(Math.atan2(s.vy, s.vx), Math.atan2(t.y - s.y, t.x - s.x), s.homing * DT)
+      const a = turnToward(Math.atan2(s.vy, s.vx), Math.atan2(prey.y - s.y, prey.x - s.x), s.homing * DT)
       s.vx = Math.cos(a) * sp
       s.vy = Math.sin(a) * sp
     }
-    if (t.buffs.deflect > 0 && !t.ko && Math.hypot(s.x - t.x, s.y - t.y) < ULTS.deflect.radius) {
+    for (const t of enemies) {
+      if (!(t.buffs.deflect > 0 && dist(t) < ULTS.deflect.radius)) continue
       const sp = Math.hypot(s.vx, s.vy)
       const a = turnToward(Math.atan2(s.vy, s.vx), Math.atan2(s.y - t.y, s.x - t.x), ULTS.deflect.turn)
       s.vx = Math.cos(a) * sp
@@ -825,8 +844,9 @@ function moveShots(state) {
       state.fx.push({ k: 'ping', x: s.x, y: s.y, a: Math.atan2(s.vy, s.vx), t: 8 })
       return false
     }
-    const touches = !t.ko && !airborne(t) && segDist(x0, y0, s.x, s.y, t.x, t.y) < MECH_R + s.r
-    if (touches) return shotHits(state, s, t)
+    const from0 = t => Math.hypot(t.x - x0, t.y - y0)
+    const touched = enemies.filter(t => !airborne(t) && segDist(x0, y0, s.x, s.y, t.x, t.y) < MECH_R + s.r)
+    if (touched.length) return shotHits(state, s, touched.reduce((a, t) => (from0(t) < from0(a) ? t : a)))
     const wall = WALLS.find(w => s.x * w.nx + s.y * w.ny >= w.d - state.shrink)
     const pillar = PILLARS.find(p => segDist(x0, y0, s.x, s.y, p.x, p.y) < p.r + s.r)
     if (wall || pillar) {
@@ -914,11 +934,11 @@ function lineAttack(state, m, sx, sy, angle, length, halfWidth, dmg, impact, tag
     const k = crossT(sx, sy, sx + dx * len, sy + dy * len, w)
     if (k !== null) len *= k
   }
-  const t = state.mechs[1 - m.id]
-  const px = t.x - sx
-  const py = t.y - sy
-  const along = px * dx + py * dy
-  if (!t.ko && !airborne(t) && along > -MECH_R && along - MECH_R < len && Math.abs(px * dy - py * dx) < halfWidth + MECH_R) {
+  for (const t of foes(state, m.id)) {
+    const px = t.x - sx
+    const py = t.y - sy
+    const along = px * dx + py * dy
+    if (airborne(t) || along <= -MECH_R || along - MECH_R >= len || Math.abs(px * dy - py * dx) >= halfWidth + MECH_R) continue
     let d = dmg
     if (t.buffs.mirror > 0 && inArc(t.aim, ULTS.mirror.arc, -dx, -dy)) d = 0
     else if (shieldUp(t) && inArc(t.act.angle, SHIELD.arc, -dx, -dy)) {
@@ -936,11 +956,14 @@ function lineAttack(state, m, sx, sy, angle, length, halfWidth, dmg, impact, tag
 }
 
 function coneAttack(state, m, dir, g, dmg, impact, cast) {
-  const t = state.mechs[1 - m.id]
-  const dx = t.x - m.x
-  const dy = t.y - m.y
-  const inside = !t.ko && !airborne(t) && Math.hypot(dx, dy) <= g.range + MECH_R && inArc(dir, g.arc, dx, dy) && clearLine(m.x, m.y, t.x, t.y) && !state.walls.some(w => crossT(m.x, m.y, t.x, t.y, w) !== null) && !(t.buffs.mirror > 0 && inArc(t.aim, ULTS.mirror.arc, -dx, -dy))
-  if (inside) {
+  const inside = foes(state, m.id).filter(t => {
+    const dx = t.x - m.x
+    const dy = t.y - m.y
+    return !airborne(t) && Math.hypot(dx, dy) <= g.range + MECH_R && inArc(dir, g.arc, dx, dy) && clearLine(m.x, m.y, t.x, t.y) && !state.walls.some(w => crossT(m.x, m.y, t.x, t.y, w) !== null) && !(t.buffs.mirror > 0 && inArc(t.aim, ULTS.mirror.arc, -dx, -dy))
+  })
+  for (const t of inside) {
+    const dx = t.x - m.x
+    const dy = t.y - m.y
     const from = Math.atan2(-dy, -dx)
     if (shieldUp(t) && inArc(t.act.angle, SHIELD.arc, -dx, -dy)) {
       const through = t.act.t < perfectOf(t) ? 0 : block(t, dmg)
@@ -948,7 +971,8 @@ function coneAttack(state, m, dir, g, dmg, impact, cast) {
       if (through > 0) hit(state, m, t, through, 'ARMS', impact, from, cast)
     } else hit(state, m, t, dmg, 'ARMS', impact, from, cast)
   }
-  state.fx.push({ k: 'zap', kind: 'tesla', id: m.id, x1: m.x, y1: m.y, x2: inside ? t.x : m.x + Math.cos(dir) * g.range, y2: inside ? t.y : m.y + Math.sin(dir) * g.range, t: 10 })
+  const ends = inside.length ? inside : [{ x: m.x + Math.cos(dir) * g.range, y: m.y + Math.sin(dir) * g.range }]
+  for (const e of ends) state.fx.push({ k: 'zap', kind: 'tesla', id: m.id, x1: m.x, y1: m.y, x2: e.x, y2: e.y, t: 10 })
 }
 
 function fireLance(state, m, angle) {
@@ -1087,9 +1111,8 @@ function move(state, m, inp) {
 function updateLobs(state) {
   state.lobs = state.lobs.filter(l => {
     if (--l.t > 0) return true
-    const t = state.mechs[1 - l.owner]
     state.fx.push({ k: 'boom', x: l.x, y: l.y, r: l.r, big: l.kind === 'strike', t: 22 })
-    if (!t.ko && Math.hypot(t.x - l.x, t.y - l.y) <= l.r + MECH_R) hit(state, state.mechs[l.owner], t, l.dmg, 'LEGS', l.impact, Math.atan2(l.sy - t.y, l.sx - t.x), l.cast)
+    for (const t of foes(state, l.owner)) if (Math.hypot(t.x - l.x, t.y - l.y) <= l.r + MECH_R) hit(state, state.mechs[l.owner], t, l.dmg, 'LEGS', l.impact, Math.atan2(l.sy - t.y, l.sx - t.x), l.cast)
     return false
   })
 }
@@ -1099,23 +1122,24 @@ function updateMines(state) {
   state.mines = state.mines.filter(mi => {
     if (mi.arm > 0) mi.arm--
     if (--mi.life <= 0) return false
-    const t = state.mechs[1 - mi.owner]
-    if (mi.arm > 0 || t.ko || airborne(t) || Math.hypot(t.x - mi.x, t.y - mi.y) > h.trigger + MECH_R) return true
+    const caught = mi.arm > 0 ? [] : foes(state, mi.owner).filter(t => !airborne(t) && Math.hypot(t.x - mi.x, t.y - mi.y) <= h.trigger + MECH_R)
+    if (!caught.length) return true
     state.fx.push({ k: 'boom', x: mi.x, y: mi.y, r: 1.4, big: false, t: 22 })
-    hit(state, state.mechs[mi.owner], t, mi.dmg, 'LEGS', h.impact, Math.atan2(mi.y - t.y, mi.x - t.x), mi.cast)
+    for (const t of caught) hit(state, state.mechs[mi.owner], t, mi.dmg, 'LEGS', h.impact, Math.atan2(mi.y - t.y, mi.x - t.x), mi.cast)
     return false
   })
 }
 
 function updateFields(state) {
   state.fields = state.fields.filter(f => {
-    const t = state.mechs[1 - f.owner]
-    const d = Math.hypot(t.x - f.x, t.y - f.y)
-    if (t.ko || airborne(t) || d > f.r) return --f.t > 0
-    if (f.kind !== 'well') t.buffs.slow = Math.max(t.buffs.slow, 2)
-    else if (d > 0.3) {
-      t.x += ((f.x - t.x) / d) * ULTS.well.pull * DT
-      t.y += ((f.y - t.y) / d) * ULTS.well.pull * DT
+    for (const t of foes(state, f.owner)) {
+      const d = Math.hypot(t.x - f.x, t.y - f.y)
+      if (airborne(t) || d > f.r) continue
+      if (f.kind !== 'well') t.buffs.slow = Math.max(t.buffs.slow, 2)
+      else if (d > 0.3) {
+        t.x += ((f.x - t.x) / d) * ULTS.well.pull * DT
+        t.y += ((f.y - t.y) / d) * ULTS.well.pull * DT
+      }
     }
     return --f.t > 0
   })
@@ -1168,7 +1192,7 @@ const repair = (m, n) => {
 }
 
 function pickups(state) {
-  const order = state.tick % 2 ? [state.mechs[1], state.mechs[0]] : state.mechs
+  const order = turns(state)
   const near = (x, y, r) => order.find(m => !m.ko && Math.hypot(m.x - x, m.y - y) <= r + MECH_R)
   const h = state.heal
   if (!h.ready && --h.timer <= 0) {
@@ -1260,21 +1284,28 @@ function traps(state) {
 }
 
 function checkKo(state) {
-  const [a, b] = state.mechs
-  a.ko = a.armor.head <= 0
-  b.ko = b.armor.head <= 0
-  if (!a.ko && !b.ko) return
-  for (const m of state.mechs) if (m.ko) state.fx.push({ k: 'ko', id: m.id, x: m.x, y: m.y, t: MATCH.ko })
-  endRound(state, a.ko && b.ko ? -1 : a.ko ? 1 : 0)
+  const down = state.mechs.filter(m => !m.ko && m.armor.head <= 0)
+  if (!down.length) return
+  for (const m of down) {
+    m.ko = true
+    state.fallen.push(m.id)
+    state.fx.push({ k: 'ko', id: m.id, x: m.x, y: m.y, t: MATCH.ko })
+  }
   state.hitstop = MATCH.koStop
+  const left = [...new Set(state.mechs.filter(m => !m.ko).map(m => m.team))]
+  if (left.length < 2) return endRound(state, left.length ? left[0] : -1)
+  for (const m of down) Object.assign(m, { act: null, vx: 0, vy: 0, pull: null })
 }
 
 function timeUp(state) {
   const total = m => Object.values(m.armor).reduce((s, v) => s + Math.max(0, v), 0)
-  const [a, b] = state.mechs.map(m => [m.armor.head / m.max.head, total(m)])
-  const w = a[0] !== b[0] ? (a[0] > b[0] ? 0 : 1) : a[1] !== b[1] ? (a[1] > b[1] ? 0 : 1) : -1
+  const rank = m => [m.armor.head / m.max.head, total(m)]
+  const cmp = (a, b) => a[0] - b[0] || a[1] - b[1]
+  const live = state.mechs.filter(m => !m.ko)
+  const best = live.reduce((a, m) => (cmp(rank(m), rank(a)) > 0 ? m : a))
+  const tie = live.some(m => m.team !== best.team && cmp(rank(m), rank(best)) === 0)
   state.fx.push({ k: 'time', t: MATCH.ko })
-  endRound(state, w)
+  endRound(state, tie ? -1 : best.team)
 }
 
 function endRound(state, winner) {
@@ -1285,8 +1316,9 @@ function endRound(state, winner) {
 }
 
 function resetRound(state) {
+  const spawns = spawnsOf(state.mechs.map(m => m.team))
   state.mechs = state.mechs.map(old => {
-    const m = makeMech(old.id, old.loadout)
+    const m = makeMech(old.id, old.loadout, old.team, spawns[old.id])
     m.surge = Math.max(Math.floor(old.surge * SURGE.carry), core(m).surgeStart ?? 0)
     m.held = old.held
     return m
@@ -1301,6 +1333,7 @@ function resetRound(state) {
   resetPads(state)
   state.shrink = 0
   state.winner = -1
+  state.fallen = []
   state.round++
   state.phase = 'countdown'
   state.timer = MATCH.countdown

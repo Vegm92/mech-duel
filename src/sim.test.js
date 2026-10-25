@@ -1,11 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createState, step, hashState, ARENA, PILLARS, SPAWNS, PICKUP, PADS, ITEMS, TRAPS, HAZARDS, ventPhase, GUN, DASH, LANCE, HEAT, MECH_R, SAW, ARMOR, MATCH, HOOK, HEAL, DEFAULT_LOADOUT, WEAPONS, ARMS, BOOSTERS, LEG_PARTS, HEADS, CORES, ULTS, SETS, speedOf, ultOf, normalize, hidden } from './sim.js'
+import { createState, step, hashState, FORMATS, ARENA, PILLARS, SPAWNS, PICKUP, PADS, ITEMS, TRAPS, HAZARDS, ventPhase, GUN, DASH, LANCE, HEAT, MECH_R, SAW, ARMOR, MATCH, HOOK, HEAL, DEFAULT_LOADOUT, WEAPONS, ARMS, BOOSTERS, LEG_PARTS, HEADS, CORES, ULTS, SETS, speedOf, ultOf, normalize, hidden } from './sim.js'
 import { dummyInput } from './dummy.js'
 import { botInput, createBrain, randomLoadout } from './bot.js'
 
 const MID = ARENA.h / 2
-const GOLDEN = 0x903C21DD
+const GOLDEN = 0xDE5BF746
 
 function duel(bx = 16, by = MID, lo0 = {}, lo1 = {}) {
   const s = createState([{ ...DEFAULT_LOADOUT, ...lo0 }, { ...DEFAULT_LOADOUT, ...lo1 }])
@@ -639,4 +639,67 @@ test('the bot steps off a crusher plate before it slams', () => {
   const brain = createBrain(9)
   run(s, TRAPS.crush.warn + 1, () => input({ ax: 5, ay: MID }), () => botInput(s, brain, 1))
   assert.equal(b.armor.legs, b.max.legs)
+})
+
+const brawl = teams => {
+  const s = createState([], teams)
+  s.phase = 'fight'
+  return s
+}
+const settle = s => {
+  do step(s, []); while (s.hitstop > 0)
+}
+
+test('free-for-all: four mechs spawn apart, each scores for itself', () => {
+  const s = createState([], FORMATS.ffa)
+  assert.equal(s.mechs.length, 4)
+  assert.deepEqual(s.score, [0, 0, 0, 0])
+  for (const a of s.mechs) for (const b of s.mechs) if (a !== b) assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= 20)
+})
+
+test('free-for-all: a K.O. leaves a wreck and the fight goes on until one is left', () => {
+  const s = brawl(FORMATS.ffa)
+  s.mechs[1].armor.head = 0
+  settle(s)
+  assert.equal(s.phase, 'fight')
+  assert.ok(s.mechs[1].ko)
+  s.mechs[2].armor.head = 0
+  s.mechs[3].armor.head = 0
+  settle(s)
+  assert.equal(s.phase, 'ko')
+  assert.deepEqual(s.score, [1, 0, 0, 0])
+  assert.deepEqual(s.fallen, [1, 2, 3])
+})
+
+test('2v2: a shot flies through your teammate and hits the enemy behind', () => {
+  const s = brawl(FORMATS['2v2'])
+  const [a, b, c, d] = s.mechs
+  Object.assign(a, { x: 5, y: MID, aim: 0 })
+  Object.assign(c, { x: 10, y: MID })
+  Object.assign(b, { x: 16, y: MID, aim: Math.PI })
+  Object.assign(d, { x: 60, y: 10 })
+  for (let i = 0; i < 60; i++) step(s, [input({ ax: b.x, ay: b.y, left: i === 0 }), input(), input(), input()])
+  assert.deepEqual(c.armor, c.max)
+  assert.ok(arms(b) < FULL)
+})
+
+test('2v2: the round ends only when both mechs of a team are down', () => {
+  const s = brawl(FORMATS['2v2'])
+  s.mechs[1].armor.head = 0
+  settle(s)
+  assert.equal(s.phase, 'fight')
+  s.mechs[3].armor.head = 0
+  settle(s)
+  assert.equal(s.phase, 'ko')
+  assert.deepEqual(s.score, [1, 0])
+})
+
+test('bots finish a whole free-for-all and a whole 2v2', () => {
+  for (const teams of [FORMATS.ffa, FORMATS['2v2']]) {
+    const s = createState(Object.values(SETS), teams)
+    const brains = s.mechs.map(m => createBrain(m.id + 7))
+    for (let i = 0; i < 12 * (MATCH.time + MATCH.countdown + MATCH.ko) && s.phase !== 'over'; i++) step(s, s.mechs.map(m => botInput(s, brains[m.id], m.id)))
+    assert.equal(s.phase, 'over')
+    assert.equal(Math.max(...s.score), MATCH.wins)
+  }
 })
