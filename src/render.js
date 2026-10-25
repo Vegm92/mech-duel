@@ -62,6 +62,12 @@ export function layout(canvas) {
   return { w, h, u, top, bottom, sw, sh, fit, cx: w / 2, cy: top + sh / 2 }
 }
 
+export function cut() {
+  for (const a of [particles, ghosts, banners, decals]) a.length = 0
+  shake = 0
+  cam.snap = true
+}
+
 export const toWorld = (sx, sy) => (view ? { x: view.x0 + (sx - view.cx) / view.S, y: view.y0 + ((sy - view.cy) / view.S + view.h * view.cos) / view.sin } : { x: 0, y: 0 })
 
 export function draw(ctx, state, ui) {
@@ -84,7 +90,7 @@ export function draw(ctx, state, ui) {
   if (ui.screen === 'match') drawBanners(ctx, L, now)
   if (ui.screen === 'garage') drawGarage(ctx, L, ui, now, ui.pixel ? drawMechPreview3d : drawMechPreview, drawPartThumb)
   else hud(ctx, state, ui, L, now, ui.pixel ? drawMechPreview3d : null)
-  if (!ui.menuW) cursor(ctx, ui.mouse, L.u, ui.screen === 'garage', ui.screen === 'match' && !ui.paused ? state.mechs[0] : null, now)
+  if (!ui.menuW) cursor(ctx, ui.mouse, L.u, ui.screen === 'garage', ui.screen === 'match' && !ui.paused && ui.replay == null ? state.mechs[0] : null, now)
 }
 
 function world2d(ctx, state, L, dt, now) {
@@ -431,7 +437,9 @@ function drawPartThumb(ctx, slot, key, x, y, size) {
 function camera(state, L, dt, fit, sin) {
   const down = state.phase === 'ko' || state.phase === 'over' ? state.mechs.find(m => m.ko) : null
   const want = down ? MAX_ZOOM : 1
-  cam.z += (want - cam.z) * (1 - Math.exp(-dt * (down ? 3 : 6)))
+  const snap = cam.snap
+  cam.snap = false
+  cam.z += (want - cam.z) * (snap ? 1 : 1 - Math.exp(-dt * (down ? 3 : 6)))
   if (Math.abs(want - cam.z) < 0.002) cam.z = want
   const S = fit * cam.z
   const hw = L.sw / 2 / S
@@ -439,13 +447,13 @@ function camera(state, L, dt, fit, sin) {
   const [p, o] = state.mechs
   let fx = down ? down.x : clamp((p.x + o.x) / 2, p.x - hw * 0.7, p.x + hw * 0.7)
   let fy = down ? down.y : clamp((p.y + o.y) / 2, p.y - hh * 0.7, p.y + hh * 0.7)
-  if (!down) {
+  if (!down && !snap) {
     fx = Math.abs(fx - cam.x) < hw * 0.15 ? cam.x : fx - Math.sign(fx - cam.x) * hw * 0.15
     fy = Math.abs(fy - cam.y) < hh * 0.15 ? cam.y : fy - Math.sign(fy - cam.y) * hh * 0.15
   }
   const cx = hw * 2 >= ARENA.w + 2 * SEEN ? ARENA.w / 2 : clamp(fx, hw - SEEN, ARENA.w + SEEN - hw)
   const cy = hh * 2 >= ARENA.h + 2 * SEEN ? ARENA.h / 2 : clamp(fy, hh - SEEN, ARENA.h + SEEN - hh)
-  const k = 1 - Math.exp(-dt * (down ? 3 : 2.2))
+  const k = snap ? 1 : 1 - Math.exp(-dt * (down ? 3 : 2.2))
   cam.x += (cx - cam.x) * k
   cam.y += (cy - cam.y) * k
 }

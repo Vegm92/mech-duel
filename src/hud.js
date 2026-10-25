@@ -36,6 +36,25 @@ export function hud(ctx, state, ui, L, now, preview) {
     const left = ui.menuW ?? 0
     controls(ctx, L, u, L.h / 2 - 107 * u, (left + L.w) / 2, L.w - left - 32 * u)
   } else banner(ctx, state, ui, L, u, now)
+  if (ui.replay != null && !ui.paused) replayTag(ctx, L, u, ui.replay, now)
+}
+
+function replayTag(ctx, L, u, p, now) {
+  const cx = L.w / 2
+  const y = L.top + 18 * u
+  font(ctx, 26, u, 900)
+  const w = ctx.measureText(t('kcReplay')).width
+  if (Math.floor(now / 450) % 2) circle(ctx, cx - w / 2 - 16 * u, y, 6 * u, '#ff3b30')
+  shout(ctx, t('kcReplay'), cx, y, 26, '#ffffff', 'rgba(255,60,40,0.9)', u)
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'
+  ctx.fillRect(cx - 90 * u, y + 20 * u, 180 * u, 3 * u)
+  ctx.fillStyle = '#ff3b30'
+  ctx.fillRect(cx - 90 * u, y + 20 * u, 180 * u * p, 3 * u)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  font(ctx, 11, u, 700)
+  ctx.fillStyle = UI_C.dim
+  ctx.fillText(t('kcSkip'), cx, y + 36 * u)
 }
 
 function holoBackdrop(ctx, L, u) {

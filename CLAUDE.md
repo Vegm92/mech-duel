@@ -115,7 +115,16 @@ node --test                  # sim tests
   rematch. Esc opens the menu, plain DOM (`#menu` in index.html, native range sliders): pause in a
   match (resume, restart, quit to garage), options on the title; 5 volume sliders, language, view.
   `syncMenu` shows/hides it every frame from `paused`/`options`. `window.duel` debug hook: `state`, `tick(input)`, `render`, `restart`, `start`,
-  `setMode`, `setPaused`, `setAutopilot` (AI plays your side, for checks in the browser pane).
+  `setMode`, `setPaused`, `setAutopilot` (AI plays your side, for checks in the browser pane),
+  `replay` + `skip` (kill cam).
+- `src/killcam.js` — the kill cam, presentation only. After a K.O. it re-runs the last 5 s instead
+  of playing back a recording: `record` keeps a `structuredClone` of the state once a second plus
+  both sides' inputs every fight tick, `replay` copies the oldest snapshot and steps it to 5 s before
+  the K.O., `advance` steps it one tick with the saved inputs. A re-run makes fresh fx objects that
+  render/sfx/hype see once, like live (cloned frames would fire every fx every frame). Keep
+  `structuredClone`: a dash trail is shared by `state.trails` and `m.act.trail`, JSON would split
+  it. main.js swaps the replay state in for drawing and sound; `cut()` (render.js) clears
+  particles/decals and snaps the camera. Tuning in `KILLCAM`.
 - `src/i18n.js` — en + es. Every player-visible string lives here.
 - `sheet.html` — dev page: every part in both views (`?slot=head&view=front|top|all&act=idle|wind|rec`).
 - `sounds.html` — dev page: menu sound board, 9 moments × styles, picks saved in localStorage.

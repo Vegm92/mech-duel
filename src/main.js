@@ -1,7 +1,8 @@
 import { createState, step, TICKS, normalize, SETS } from './sim.js'
 import { dummyInput, DUMMY_MODES } from './dummy.js'
 import { botInput, createBrain, randomLoadout } from './bot.js'
-import { draw, toWorld } from './render.js'
+import { draw, toWorld, cut } from './render.js'
+import { KILLCAM, recorder, record, wantsReplay, replay as startReplay, advance, progress } from './killcam.js'
 import { garageHit, SLOTS, verdict } from './garage.js'
 import { t, applyLang, toggleLang } from './i18n.js'
 import { trackHype, hype } from './hype.js'
@@ -28,6 +29,8 @@ let paused = false
 let options = false
 let autopilot = false
 let pixel = true
+let rec = recorder()
+let replay = null
 let acc = 0
 let last = performance.now()
 
@@ -52,6 +55,7 @@ function resize() {
 
 function toGarage() {
   screen = 'garage'
+  replay = null
   paused = false
   options = false
   uiSound('select')
@@ -90,6 +94,8 @@ function fight() {
   brain = createBrain(Date.now())
   pilot = createBrain(Date.now() + 1)
   state = createState([loadout, randomLoadout(brain)])
+  rec = recorder()
+  replay = null
   screen = 'match'
   paused = false
 }
@@ -122,15 +128,31 @@ function tick(input) {
     if (state.phase === 'over') state = demo()
     return
   }
-  step(state, [input ?? (autopilot ? botInput(state, pilot, 0) : playerInput()), rivalInput()])
+  if (replay) return advance(replay) || endReplay()
+  const ins = [input ?? (autopilot ? botInput(state, pilot, 0) : playerInput()), rivalInput()]
+  record(rec, state, ins)
+  step(state, ins)
+  if (wantsReplay(state)) {
+    replay = startReplay(rec)
+    cut()
+  }
 }
+
+function endReplay() {
+  replay = null
+  tapped.clear()
+  while (state.phase === 'ko') step(state, [])
+}
+
+const skip = () => replay && replay.i >= KILLCAM.grace && endReplay()
 
 const render = () => {
   syncMenu()
   trackHype(state)
-  sounds(state, screen, paused)
+  const view = replay?.state ?? state
+  sounds(view, screen, paused)
   const menuW = menu.hidden ? 0 : (menu.getBoundingClientRect().right + 16) * (window.devicePixelRatio || 1)
-  draw(ctx, state, { screen, mode: MODES[mode], paused, mouse, hover, loadout, tab, muted: isMuted(), music: isMusicOn(), pixel, menuW })
+  draw(ctx, view, { screen, mode: MODES[mode], paused, mouse, hover, loadout, tab, muted: isMuted(), music: isMusicOn(), pixel, menuW, replay: replay && progress(replay) })
 }
 
 function frame(now) {
@@ -147,6 +169,7 @@ function frame(now) {
 function confirm() {
   if (screen === 'title') toGarage()
   else if (screen === 'garage') fight()
+  else if (replay) skip()
   else if (state.phase === 'over') toGarage()
 }
 
@@ -227,6 +250,7 @@ canvas.addEventListener('mousedown', e => {
     }
     return
   }
+  if (replay) return e.button === 0 && skip()
   if (state.phase === 'over' && e.button === 0) return toGarage()
   buttons.add(e.button)
   tapped.add(`Mouse${e.button}`)
@@ -250,7 +274,11 @@ window.duel = {
   get hype() {
     return hype()
   },
+  get replay() {
+    return replay
+  },
   tick,
+  skip,
   render,
   toGarage,
   fight,
