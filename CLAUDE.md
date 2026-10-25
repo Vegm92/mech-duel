@@ -184,7 +184,7 @@ node --test                  # sim tests
   zooms. The 3D floor is one cached image of the whole stadium; the camera snaps to whole low-res
   pixels so floor and models line up.
 - **Original names only** in anything player-facing. No Medabots names (Medabot, Medal, Robattle,
-  Medaforce, Metabee...). Same rule as `../medabots-survivor`.
+  Medaforce, Metabee...). Same rule as `../../../to_develop/medabots-survivor`.
 - **Sim stays pure.** Randomness, time and DOM never enter `src/sim.js`.
 - Tuning constants in `src/sim.js` mirror `COMBAT_DESIGN.md`. Change both together.
 - Everything else: parent `C:\Users\victo\Proyectos\CLAUDE.md`.
