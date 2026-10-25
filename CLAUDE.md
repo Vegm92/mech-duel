@@ -45,6 +45,9 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   tags state dicts with `seen` (fx) and `_n` (pooled node); the sim ignores both.
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
   saves that tick's frame and quits.
+- Chassis (hips, torso, shoulders) is `godot/assets/models/chassis.glb`, made in Blender
+  (`art/chassis.blend`; its build script is the text block `chassis_build.py`). `Mech.add_part`
+  swaps its materials by name (body/trim/joint/gem/boost) for the team ones.
 
 ## Layout
 

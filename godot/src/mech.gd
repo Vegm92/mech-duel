@@ -11,6 +11,7 @@ static var STEEL := Color8(170, 180, 198)
 static var DARK := Color8(44, 48, 58)
 static var _mats := {}
 static var _meshes := {}
+static var _chassis := {}
 
 const TO_X := Vector3(0, 0, -PI / 2)
 const TO_Z := Vector3(PI / 2, 0, 0)
@@ -116,6 +117,20 @@ static func add(parent: Node3D, mesh: Mesh, m: Material, pos := Vector3.ZERO, ro
 	mi.rotation = rot
 	if m is StandardMaterial3D and (m.emission_enabled or m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED):
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	return mi
+
+
+static func add_part(parent: Node3D, part: String, mats: Dictionary) -> MeshInstance3D:
+	if _chassis.is_empty():
+		var s: Node = load("res://assets/models/chassis.glb").instantiate()
+		for c in s.get_children():
+			_chassis[String(c.name)] = c.mesh
+		s.free()
+	var mi := MeshInstance3D.new()
+	mi.mesh = _chassis[part]
+	for i in mi.mesh.get_surface_count():
+		mi.set_surface_override_material(i, mats[mi.mesh.surface_get_material(i).resource_name])
 	parent.add_child(mi)
 	return mi
 
@@ -234,27 +249,21 @@ func build(lo: Dictionary, t: int) -> void:
 	var trim := mat(STEEL, 0.0, 0.55, 0.5)
 	var joint := mat(DARK, 0.0, 0.4, 0.6)
 	var eye := glow(EYES[t], 5.0)
+	var parts := {"body": body_mat, "trim": trim, "joint": joint, "gem": gem_mat, "boost": boost_mat}
 	hips = Node3D.new()
 	add_child(hips)
 	torso = Node3D.new()
 	add_child(torso)
 	build_legs(lo.legs, joint, trim)
-	add(hips, box(Vector3(0.5, 0.3, 0.55)), joint, Vector3(0, 0.72, 0))
-	add(torso, box(Vector3(1.0, 0.62, 1.05)), body_mat, Vector3(0, 1.08, 0))
-	add(torso, box(Vector3(0.72, 0.18, 0.86)), trim, Vector3(-0.05, 1.46, 0))
-	add(torso, box(Vector3(0.12, 0.3, 0.6)), joint, Vector3(0.5, 1.02, 0))
-	add(torso, ball(0.12), gem_mat, Vector3(0.56, 1.08, 0))
+	add_part(hips, "Hips", parts)
+	add_part(torso, "Torso", parts)
 	build_head(lo.head, eye, trim)
-	add(torso, box(Vector3(0.32, 0.5, 0.7)), joint, Vector3(-0.62, 1.12, 0))
-	for s in [-0.2, 0.2]:
-		add(torso, cyl(0.1, 0.14, 0.22, 10), boost_mat, Vector3(-0.84, 1.0, s), Vector3(0, 0, PI / 2))
 	for hand in Sim.HANDS:
 		var side := -1.0 if hand == "left" else 1.0
 		var p := Node3D.new()
 		p.position = Vector3(0.05, 1.12, side * 0.74)
 		torso.add_child(p)
-		add(p, box(Vector3(0.44, 0.44, 0.36)), body_mat)
-		add(p, box(Vector3(0.46, 0.12, 0.38)), trim, Vector3(0, 0.2, 0))
+		add_part(p, "Shoulder_L" if hand == "left" else "Shoulder_R", parts)
 		var w := weapon_node(lo[hand], t)
 		w.position = Vector3(0.28, -0.08, 0)
 		p.add_child(w)
