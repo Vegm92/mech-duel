@@ -2,8 +2,8 @@
 
 Draft 2026-10-16 (UTC). Every number here is a v0 starting point for playtest, not balance.
 
-Pure 1v1, top-down. Two mechs, one arena. No minions, no towers, no auto-attacks, no auto-targeting,
-no aim assist. Every action is aimed by the player.
+Top-down, one arena: 1v1, free-for-all (4 mechs) or 2v2 (see Match). No minions, no towers, no
+auto-attacks, no auto-targeting, no aim assist. Every action is aimed by the player.
 
 ---
 
@@ -149,6 +149,19 @@ whether their W is up — you see it. Baiting is a decision game, not a memory t
 - Timeout: higher Head armor wins; tie → higher total armor; tie → draw.
 - Between rounds: all parts repaired, 50% Surge kept. Not built yet: the round loser may swap one part
   (counter-pick).
+- **Formats (built 2026-10-25, `FORMATS`):** `1v1` (teams [0, 1]), `ffa` (4 mechs, 4 teams),
+  `2v2` (seats 0 + 2 vs 1 + 3). You are always seat 0; the other seats are bots. Picked in the garage.
+  - Every attack hits every enemy it reaches (melee cleaves, lines pierce, blasts hit all in the
+    radius); teammates are never hit (no friendly fire). Dash contact hits and the arc trail still hit
+    only the first enemy. Homing locks onto the nearest enemy.
+  - A K.O. mid-round leaves a wreck (no collision, no actions). The round ends when one team is left;
+    its team scores. `finalKo` is the mech whose fall ended it (K.O. zoom, kill cam).
+  - Timeout: the healthiest single mech (head %, then total armor) wins for its team; a tie between
+    teams is a draw.
+  - Spawns (`spawnsOf`): 1v1 as before; FFA in the four corners (±15, ±10 from the center);
+    2v2 each team on its side at ±6 m.
+  - Bot vs bot, 8 matches each: FFA rounds ~35 s, 1 timeout in 38 rounds, wins spread over all 4
+    seats; 2v2 rounds ~26 s. 2v2 with mirrored loadouts, 60 matches: 124 / 112 rounds.
 
 ### Hit-stop (built)
 
@@ -174,6 +187,8 @@ shots in flight, cooldown lights, heat.
   berserk up close, the orbital strike and stasis field at your predicted spot, repair when hurt,
   bubble when a shot is coming.
 - Steps out of mortar and orbital circles, mines and stasis fields.
+- With more than one enemy it chases the nearest one and keeps it unless another is clearly closer
+  (`BOT.stick`: 1.3× + 2 m). It ignores its teammates' shots, lobs, mines, fields and trails.
 - Holds fire into a raised shield facing it (the mortar lobs over it), and above 82 Heat unless it can
   finish you.
 

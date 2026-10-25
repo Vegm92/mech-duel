@@ -1,6 +1,6 @@
 # Mech Duel (working title)
 
-Pure 1v1 top-down mech duel. LoL-style Q/W/E/R/Passive kits, every action aimed, no auto-attacks,
+Top-down mech arena: 1v1, free-for-all (4 mechs) or 2v2, picked in the garage. LoL-style Q/W/E/R/Passive kits, every action aimed, no auto-attacks,
 no auto-targeting. Mechs are built Exteel-style from five body parts (Head = R ultimate, Core =
 passive, Arms, Legs = movement, Booster = Space dash) plus two hands that each hold any weapon
 (left click = left hand, right click = right hand). Inspired by Medabots and Exteel.
@@ -24,9 +24,16 @@ node --test                  # sim tests
   `arenaCorners`); pickup pads are `PADS`, `PICKUP`, `ITEMS`, run by `pickups()`; traps and hazards are `TRAPS`, `HAZARDS`, run by
   `traps()`, with pure timing helpers (`elapsed`, `untilSlam`, `untilZap`, `ventPhase`, `vents`, `shrinkOf`) that
   render.js, pix3d.js and bot.js read (spec: COMBAT_DESIGN.md).
+  **2–4 mechs (2026-10-25):** `createState(loadouts, teams)` with `teams` from `FORMATS` (`1v1`,
+  `ffa`, `2v2`); each mech has `id` (seat, 0 = you) and `team`; `state.score` has one slot per team.
+  Never write "the other mech": every attack loops `foes(state, id)` (live enemies, never teammates).
+  Mechs act in rotating order (`turns`). A K.O. leaves a wreck until one team is left; `finalKo` is the
+  mech whose fall ended the round (-1 on a timeout). `spawnsOf(teams)` places them. 1v1 must stay
+  tick-for-tick identical: compare a bot-vs-bot run before/after with the new keys stripped.
 - `src/bot.js` — the AI rival (default opponent, key 1). Pure function of the state plus a `brain`
   (seeded rng, juke timer, per-shot guard/dodge rolls). Tuning in `BOT` at the top. Handles every
-  gun kind and every ultimate (`wantsUlt`), and steps out of enemy lobs, mines and fields.
+  gun kind and every ultimate (`wantsUlt`), and steps out of enemy lobs, mines and fields. `pick`
+  chooses the target: nearest enemy, sticky (`BOT.stick`). main.js gives seats 2–3 their own brains (`crew`).
 - `src/dummy.js` — scripted training dummies (keys 2–5): idle / strafe / strafe + Q / saw rush.
 - `src/sfx.js` — all audio (WebAudio). Mostly recorded samples from `sounds/` (Kenney CC0 packs,
   see `sounds/LICENSE.txt`): `BANK` maps a group name to its file variations, `play(group, opts)`
@@ -92,7 +99,13 @@ node --test                  # sim tests
 - `src/mechart.js` — all robot art. `drawMech` (top-down, arena) and `drawPortrait` (front view,
   garage + title), both built from the loadout: one function per part type (`legs`, `gunArm`,
   `meleeArm`, `frontLegs`, `frontArm`) plus the frame (`shell`, `head`, `frontTorso`, `frontHead`).
-  Mech id 0 is Cinderhorn (orange), id 1 is Talonjaw (blue): the id sets team colors and eyes, the
+  Colors come from the mech's **team**, not its seat (`hue(m)` in paint.js = `m.team ?? m.id`; 4 colors in
+  `TEAM`/`TEAM_LIGHT`/`TEAM_DARK`/`EYES`: orange, blue, green, purple). render.js keeps `hues` (seat → team)
+  for shots/lobs/mines that only carry an owner seat. Seats: 0 Cinderhorn, 1 Talonjaw, 2 Mossfang,
+  3 Duskvane. With 4 mechs: slim HUD cards (`slim`, seats 0/2 left, 1/3 right), P1–P4 tags under the
+  mechs (`seatTag`, hidden in the replay), an edge arrow per enemy, camera on you + your nearest enemy.
+  pix3d's stadium takes `sides` (2, or 4 in FFA): `sideOf`, `PITS[sides]` (FFA pits on the 4 cut corner
+  walls), `FANS[sides]`, the floor cache is keyed by it. The
   head shape comes from `loadout.head`, the chest gem color from `loadout.core`. Damage shows per
   part (cracks ≤ 50%, broken arms droop and go dark). The 2D arm art was drawn for "gun on the
   right, melee on the left": `hands()` mirrors the canvas for the other side and passes an
@@ -119,7 +132,7 @@ node --test                  # sim tests
   `replay` + `skip` (kill cam).
 - `src/killcam.js` — the kill cam, presentation only. After a K.O. it re-runs the last 5 s instead
   of playing back a recording: `record` keeps a `structuredClone` of the state once a second plus
-  both sides' inputs every fight tick, `replay` copies the oldest snapshot and steps it to 5 s before
+  every seat's inputs every fight tick (it plays when `finalKo >= 0` and focuses that mech), `replay` copies the oldest snapshot and steps it to 5 s before
   the K.O., `advance` steps it one tick with the saved inputs. A re-run makes fresh fx objects that
   render/sfx/hype see once, like live (cloned frames would fire every fx every frame). Keep
   `structuredClone`: a dash trail is shared by `state.trails` and `m.act.trail`, JSON would split
