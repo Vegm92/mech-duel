@@ -43,7 +43,17 @@ node --test                  # sim tests
   `sounds/LICENSE.txt`: Gregor Quendel CC BY 4.0, keep that credit). Clips were cut at the moments
   the crowd erupts, faded, and level-matched to -14 dB. `crowdBed` loops a 12 s crowd ambience
   (crossfaded seam) quietly under every match, off on menus and pause (Victor 2026-10-25: the gaps
-  between reactions felt empty). Victor rejected two synth crowds
+  between reactions felt empty). Everything crowd follows the hype meter (`src/hype.js`, below).
+- `src/hype.js` — crowd excitement 0–100, presentation only (never feeds the sim). Events add points
+  (`gain`), it halves every `HYPE.half` s, tension floors (`floor`: a head under 25%, last 10 s, match
+  point). `mood` = calm / hot / wild. `trackHype(state)` runs once per frame in main.js before
+  `sounds`; sfx (`moment`: reaction size, `crowdBed` volume, `chant` after 3 s wild, 22 s cooldown)
+  and render (all fans bounce when wild) read `hype()`. Victor chose a neutral crowd (cheers both
+  sides). Victor wants it lively ("rather crazier than plain"): half 4 s, hits ÷10 → in 30 bot
+  matches calm 20% / hot 46% / wild 34%, a chant ~1.7 per fight-minute (half 3 s, hits ÷20 gave
+  wild 11% and he found it too calm). When wild, reactions stack (`react(..., stack)` skips the
+  rank gate, one new clip per 0.6 s) and half the time a second, softer layer follows 0.6–1 s
+  later; a K.O. always gets roar + cheer. `duel.hype` shows it live. Victor rejected two synth crowds
   (2026-10-23/25: "know it's a cheer and still don't recognize it"), so no synth crowd. Menu sounds: `uiSound(kind)` plays
   a `UI` recipe (Victor's picks, 2026-10-22: servo hover/equip/up/down, holo tab, hangar set; Esc and
   setting keys stay silent). Hovering a garage card plays `up`/`down` when `verdict` (garage.js) says

@@ -3,6 +3,7 @@ import { t } from './i18n.js'
 import { TAU, BOOST_C, TEAM, TEAM_LIGHT, TEAM_DARK, SURGE_C, STEEL, ITEM_C, rgba, shade, health, circle, rrect, glow, heatGauge, tileHash } from './paint.js'
 import { hud, cursor } from './hud.js'
 import { drawGarage } from './garage.js'
+import { hype, mood } from './hype.js'
 import { drawMech, shieldArc } from './mechart.js'
 import { SIN, COS, GUN_H, FLOOR_PAD, target as frame, clear, clearFloor, floorFull, blend, drawCrowd, mesh, scene, buildMech, buildPart, buildPickup, draw3d, clearFloorZoom } from './pix3d.js'
 
@@ -73,6 +74,7 @@ export function draw(ctx, state, ui) {
     decals.length = 0
   }
   react(state)
+  if (mood(hype()) === 2) for (const i of [0, 1]) cheer[i] = Math.max(cheer[i], now + 300)
   ambient(state, dt)
   age(dt)
   ctx.fillStyle = '#05070a'

@@ -1,4 +1,5 @@
 import { ARENA, HEAD_ARMOR } from './sim.js'
+import { hype, mood } from './hype.js'
 
 const MUTE_KEY = 'mech-duel/muted'
 const MUSIC_KEY = 'mech-duel/music'
@@ -41,6 +42,7 @@ const BANK = {
   crowdCheer: set('crowdCheer', 3),
   crowdRoar: set('crowdRoar', 3),
   crowdBed: set('crowdBed', 1),
+  crowdChant: set('crowdChant', 1),
 }
 
 const read = (key, fallback) => {
@@ -281,10 +283,14 @@ const CROWD = {
   ooh: { rank: 1, group: 'crowdOoh', vol: 0.18, len: 1.6 },
   cheer: { rank: 2, group: 'crowdCheer', vol: 0.3, len: 1.8 },
   roar: { rank: 3, group: 'crowdRoar', vol: 0.5, len: 3.5 },
+  ko: { rank: 4, group: 'crowdRoar', vol: 0.5, len: 3.5 },
 }
 let crowdUntil = 0
 let crowdRank = 0
+let stackAt = 0
 let bed = null
+let wildSince = null
+let chantAt = 0
 
 function crowdBed(on) {
   if (!bed) {
@@ -297,19 +303,42 @@ function crowdBed(on) {
     src.connect(bed)
     route(bed, { bus: crowdBus })
     src.start(ac.currentTime, Math.random() * buf.duration)
-    bed.on = false
+    bed.level = 0
   }
-  if (on === bed.on) return
-  bed.on = on
-  bed.gain.setTargetAtTime(on ? 0.09 : 0, ac.currentTime, on ? 0.8 : 0.3)
+  const level = on ? 0.06 + 0.08 * (hype() / 100) : 0
+  if (Math.abs(level - bed.level) < 0.004) return
+  bed.level = level
+  bed.gain.setTargetAtTime(level, ac.currentTime, on ? 0.8 : 0.3)
 }
 
-function react(kind, t) {
+function chant(live) {
+  const t = ac.currentTime
+  if (!live || mood(hype()) < 2) {
+    wildSince = null
+    return
+  }
+  wildSince ??= t
+  if (t - wildSince < 3 || t < chantAt) return
+  chantAt = t + 22
+  play('crowdChant', { vol: 0.16, bus: crowdBus, verb: 0.3, vary: 0.02 })
+}
+
+function react(kind, t, k = 1, stack = false) {
   const o = CROWD[kind]
-  if (t < crowdUntil && o.rank <= crowdRank) return
-  crowdUntil = t + o.len
-  crowdRank = o.rank
-  play(o.group, { vol: o.vol, at: t, bus: crowdBus, verb: 0.3, vary: 0.06 })
+  if (stack ? t < stackAt : t < crowdUntil && o.rank <= crowdRank) return
+  stackAt = t + 0.6
+  if (t >= crowdUntil || o.rank >= crowdRank) {
+    crowdUntil = t + o.len
+    crowdRank = o.rank
+  }
+  play(o.group, { vol: o.vol * k, at: t, bus: crowdBus, verb: 0.3, vary: 0.06 })
+}
+
+function moment(t, big) {
+  const m = mood(hype())
+  if (m < 2) return react(big ? 'cheer' : 'gasp', t, big || m ? 1 : 0.6)
+  react(big ? 'roar' : 'cheer', t, 1, true)
+  if (Math.random() < 0.5) react(big ? 'cheer' : 'gasp', t + 0.6 + Math.random() * 0.4, 0.7, true)
 }
 
 function noise(t0, o) {
@@ -409,12 +438,12 @@ const SOUNDS = {
     play('plate', { vol: 0.9 * v, pan: p, verb: 0.3 })
     play('crunch', { vol: 0.35 * v, pan: p, rate: 1.3, dur: 0.45 })
     play('scrape', { vol: 0.35 * v, pan: p, at: t + 0.08, rate: 1.2 })
-    react('cheer', t + 0.1)
+    moment(t + 0.1, true)
   },
   parry(f, t, p) {
     play('field', { vol: 0.3, pan: p, rate: 1.5, dur: 0.45, verb: 0.4 })
     tone(t, { f: 1760, dur: 0.5, vol: 0.08, pan: p, verb: 0.5 })
-    react('gasp', t + 0.05)
+    moment(t + 0.05)
   },
   blink(f, t, p, v) {
     play('launch', { vol: 0.4 * v, pan: p, rate: 1.8, dur: 0.3 })
@@ -436,7 +465,7 @@ const SOUNDS = {
   hooked(f, t, p, v) {
     play('clank', { vol: 0.8 * v, pan: p, verb: 0.2 })
     play('tin', { vol: 0.4 * v, pan: p, at: t + 0.05 })
-    react('gasp', t + 0.05)
+    moment(t + 0.05)
   },
   charge(f, t, p, v) {
     play('field', { vol: 0.35 * v, pan: p, rate: 1.55 })
@@ -450,7 +479,7 @@ const SOUNDS = {
   boom(f, t, p) {
     play('crunch', { vol: f.big ? 0.75 : 0.5, pan: p, rate: f.big ? 0.7 : 1, verb: 0.3 })
     play('rumble', { vol: f.big ? 0.9 : 0.45, pan: p, dur: f.big ? 1.2 : 0.6 })
-    if (f.big) react('gasp', t + 0.1)
+    if (f.big) moment(t + 0.1)
   },
   emp(f, t, p) {
     play('field', { vol: 0.5, pan: p, rate: 0.7, verb: 0.4 })
@@ -469,7 +498,8 @@ const SOUNDS = {
     play('rumble', { vol: 0.9, pan: p, verb: 0.4 })
     play('crunch', { vol: 0.55, pan: p, rate: 0.7, verb: 0.4 })
     play('plate', { vol: 0.6, pan: p, at: t + 0.15 })
-    react('roar', t + 0.1)
+    react('ko', t + 0.1)
+    react('cheer', t + 1, 0.7, true)
   },
   ping(f, t, p) {
     play('ting', { vol: 0.18, pan: p, rate: 1.4, vary: 0.3 })
@@ -697,6 +727,7 @@ export function sounds(state, scene, paused) {
   const level = scene !== 'match' || paused ? 0 : state.phase === 'fight' ? 2 : 1
   music(level)
   crowdBed(scene === 'match' && !paused)
+  chant(live && !muted)
   if (muted) return
   engineSounds(state, dt, live)
   if (scene === 'match') alarms(state, now)

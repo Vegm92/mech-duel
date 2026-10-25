@@ -4,6 +4,7 @@ import { botInput, createBrain, randomLoadout } from './bot.js'
 import { draw, toWorld } from './render.js'
 import { garageHit, SLOTS, verdict } from './garage.js'
 import { t, applyLang, toggleLang } from './i18n.js'
+import { trackHype, hype } from './hype.js'
 import { sounds, toggleMute, isMuted, toggleMusic, isMusicOn, unlock, uiSound, volumes, setVolume, preview } from './sfx.js'
 
 const MODES = ['bot', ...DUMMY_MODES]
@@ -126,6 +127,7 @@ function tick(input) {
 
 const render = () => {
   syncMenu()
+  trackHype(state)
   sounds(state, screen, paused)
   const menuW = menu.hidden ? 0 : (menu.getBoundingClientRect().right + 16) * (window.devicePixelRatio || 1)
   draw(ctx, state, { screen, mode: MODES[mode], paused, mouse, hover, loadout, tab, muted: isMuted(), music: isMusicOn(), pixel, menuW })
@@ -244,6 +246,9 @@ window.duel = {
   },
   get loadout() {
     return loadout
+  },
+  get hype() {
+    return hype()
   },
   tick,
   render,
