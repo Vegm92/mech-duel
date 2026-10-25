@@ -44,7 +44,10 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   as `Translation` objects in code; L toggles). Sim (x, y) maps to `Vector3(x, height, y)`. The view
   tags state dicts with `seen` (fx) and `_n` (pooled node); the sim ignores both.
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
-  saves that tick's frame and quits.
+  saves that tick's frame and quits. Add `--cam=1..4` for a close-up.
+- Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
+  (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
+  picks the mech, and while frozen drag orbits and the wheel zooms.
 - Chassis (hips, torso, shoulders) is `godot/assets/models/chassis.glb`, made in Blender
   (`art/chassis.blend`; its build script is the text block `chassis_build.py`). `Mech.add_part`
   swaps its materials by name (body/trim/joint/gem/boost) for the team ones.

@@ -7,6 +7,7 @@ const Hud = preload("res://src/hud.gd")
 const I18n = preload("res://src/i18n.gd")
 
 const PITCH := deg_to_rad(60.0)
+const CAMS := [[], [0.6, 0.3, 5.0, true], [PI / 2, 0.12, 5.0, true], [PI + 0.6, 0.4, 5.0, true], [PI / 2, PITCH, 6.0, false]]
 
 var state: Dictionary
 var brain: Dictionary
@@ -25,6 +26,11 @@ var shot_at := -1
 var shooting := false
 var tapped := {}
 var shake := 0.0
+var frozen := false
+var cam_mode := 0
+var target := 0
+var orbit := Vector2.ZERO
+var zoom := 1.0
 
 
 func _ready() -> void:
@@ -38,6 +44,8 @@ func _ready() -> void:
 			shot_path = a.substr(7)
 		elif a.begins_with("--at="):
 			shot_at = a.substr(5).to_int()
+		elif a.begins_with("--cam="):
+			cam_mode = a.substr(6).to_int() % CAMS.size()
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 	cam = Camera3D.new()
 	cam.fov = 40.0
@@ -116,11 +124,26 @@ func _input(event: InputEvent) -> void:
 					new_match()
 			KEY_L:
 				I18n.toggle()
+			KEY_F:
+				frozen = not frozen
+				tapped.clear()
+			KEY_C:
+				cam_mode = (cam_mode + 1) % CAMS.size()
+				orbit = Vector2.ZERO
+				zoom = 1.0
+			KEY_TAB:
+				target = (target + 1) % state.mechs.size()
+	elif event is InputEventMouseMotion and frozen and cam_mode > 0 and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+		orbit += event.relative * 0.01
 	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			tapped.left = true
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			tapped.right = true
+		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			zoom = maxf(zoom * 0.9, 0.3)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			zoom = minf(zoom * 1.1, 3.0)
 
 
 func _notification(what: int) -> void:
@@ -130,13 +153,18 @@ func _notification(what: int) -> void:
 
 func _physics_process(delta: float) -> void:
 	aim = aim_point()
-	if not paused:
+	if not paused and not frozen:
 		var me = Bot.bot_input(state, pilot, 0) if autopilot else player_input()
 		Sim.step(state, [me, Bot.bot_input(state, brain, 1)])
-	view.sync(state, aim, delta)
+	if not frozen:
+		view.sync(state, aim, delta)
 	shake = maxf(shake, view.shake)
 	view.shake = 0.0
-	follow(delta)
+	if cam_mode == 0:
+		follow(delta)
+	else:
+		close_camera()
+	hud.visible = cam_mode == 0
 	hud.paused = paused
 	if shot_at >= 0 and state.tick >= shot_at and not shooting:
 		shooting = true
@@ -168,6 +196,17 @@ func follow(delta: float) -> void:
 
 func place_camera() -> void:
 	cam.position = focus + Vector3(0, sin(PITCH), cos(PITCH)) * dist
+	cam.rotation = Vector3(-PITCH, 0, 0)
+
+
+func close_camera() -> void:
+	var m = state.mechs[target]
+	var c: Array = CAMS[cam_mode]
+	var at := Vector3(m.x, Sim.height_of(m) + 1.1, m.y)
+	var t: float = (m.aim if c[3] else 0.0) + c[0] + orbit.x
+	var p := clampf(c[1] + orbit.y, -0.1, 1.5)
+	cam.position = at + Vector3(cos(t) * cos(p), sin(p), sin(t) * cos(p)) * c[2] * zoom
+	cam.look_at(at)
 
 
 func _process(delta: float) -> void:
