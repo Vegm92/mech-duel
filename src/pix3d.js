@@ -467,6 +467,7 @@ export function scene(me, V, now, state, cheer) {
 }
 
 const PITS = [6, 2]
+const PADDOCK = { half: 4.5, tiers: 2 }
 const SKIN = [[241, 194, 150], [198, 134, 90], [141, 85, 52], [255, 220, 180]]
 const NEUTRAL = [[230, 230, 236], [60, 64, 74], [240, 200, 60], [120, 200, 120]]
 const SEAT = [[34, 38, 50], [44, 48, 62]]
@@ -479,8 +480,20 @@ function edge(i, o) {
   return [c[(i + WALLS.length - 1) % WALLS.length], c[i]]
 }
 
+function pitFrame(i) {
+  const w = WALLS[i]
+  const [a, b] = edge(i, 0)
+  const mx = (a.x + b.x) / 2
+  const my = (a.y + b.y) / 2
+  return {
+    w,
+    P: (s, o) => ({ x: mx - w.ny * s + w.nx * o, y: my + w.nx * s + w.ny * o }),
+    along: p => -(p.x - mx) * w.ny + (p.y - my) * w.nx,
+  }
+}
+
 const FANS = WALLS.flatMap((w, i) => {
-  if (PITS.includes(i)) return []
+  const pit = PITS.includes(i) && pitFrame(i)
   const out = []
   for (let t = 0; t < TIER.n; t++) {
     for (const row of [0.6, 1.5]) {
@@ -491,6 +504,7 @@ const FANS = WALLS.flatMap((w, i) => {
         if (rnd(n) < 0.08) continue
         const x = a.x + ((b.x - a.x) * d) / len
         const y = a.y + ((b.y - a.y) * d) / len
+        if (pit && t < PADDOCK.tiers && Math.abs(pit.along({ x, y })) < PADDOCK.half + 0.3) continue
         const team = rnd(n + 1) < 0.2 ? -1 : x < ARENA.w / 2 ? 0 : 1
         const base = team < 0 ? NEUTRAL[Math.floor(rnd(n + 2) * NEUTRAL.length)] : TEAM[team]
         const k = 0.75 + rnd(n + 3) * 0.4
@@ -504,39 +518,44 @@ const FANS = WALLS.flatMap((w, i) => {
 function stands(me, now, cheer) {
   Object.assign(me, { k: 1, flash: false, xr: 0, oid: 4, cast: false })
   WALLS.forEach((w, i) => {
-    if (PITS.includes(i)) return
+    const pit = PITS.includes(i) && pitFrame(i)
     for (let t = 0; t <= TIER.n; t++) {
       const o0 = TIER.from + t * TIER.depth
+      const o1 = t < TIER.n ? o0 + TIER.depth : o0 + 0.5
       const [a0, b0] = edge(i, o0)
-      const [a1, b1] = edge(i, t < TIER.n ? o0 + TIER.depth : o0 + 0.5)
-      slab(me, [a0, b0, b1, a1], t < TIER.n ? tierH(w, t) : tierH(w, t) + 1.2, t < TIER.n ? SEAT[t % 2] : [24, 27, 36])
+      const [a1, b1] = edge(i, o1)
+      const h = t < TIER.n ? tierH(w, t) : tierH(w, t) + 1.2
+      const c = t < TIER.n ? SEAT[t % 2] : [24, 27, 36]
+      if (!pit || t >= PADDOCK.tiers) {
+        slab(me, [a0, b0, b1, a1], h, c)
+        continue
+      }
+      const g = Math.sign(pit.along(a0)) * PADDOCK.half
+      slab(me, [a0, pit.P(g, o0), pit.P(g, o1), a1], h, c)
+      slab(me, [pit.P(-g, o0), b0, b1, pit.P(-g, o1)], h, c)
     }
   })
   PITS.forEach((wi, team) => {
-    const w = WALLS[wi]
-    const [a, b] = edge(wi, 0)
-    const mx = (a.x + b.x) / 2
-    const my = (a.y + b.y) / 2
-    const tx = -w.ny
-    const ty = w.nx
-    const P = (s, o) => ({ x: mx + tx * s + w.nx * o, y: my + ty * s + w.ny * o })
+    const { w, P } = pitFrame(wi)
+    const G = PADDOCK.half
+    const front = TIER.from
+    const back = TIER.from + PADDOCK.tiers * TIER.depth
     const yaw = Math.atan2(-w.ny, -w.nx)
     const hype = cheer[team] > now
     me.oid = 5
     me.cast = false
-    slab(me, [P(-10, 1.3), P(10, 1.3), P(10, 7), P(-10, 7)], 0.25, [40, 44, 54])
-    slab(me, [P(-10, 7), P(10, 7), P(10, 7.6), P(-10, 7.6)], 2.6, TEAM_DARK[team])
-    slab(me, [P(-9, 6.9), P(9, 6.9), P(9, 7), P(-9, 7)], 1.9, TEAM[team].map(v => v * 0.9))
+    slab(me, [P(-G, front), P(G, front), P(G, back), P(-G, back)], 0.25, [40, 44, 54])
+    for (const sd of [-1, 1]) slab(me, [P(sd * G, front), P(sd * (G - 0.12), front), P(sd * (G - 0.12), back), P(sd * G, back)], tierH(w, PADDOCK.tiers - 1) + 0.25, TEAM_DARK[team])
     me.cast = true
-    for (const [s, o] of [[-7, 5.5], [-2.5, 6], [6.5, 5.2]]) box(me, T3(P(s, o).x, P(s, o).y, 0), 0, 0, 0.6, 0.9, 0.7, 0.7, s < 0 ? RED : STEEL_D)
-    const pole = P(8.5, 2)
+    for (const [s, o] of [[-3.6, 5], [-2.7, 5.05], [3.3, 4.95]]) box(me, T3(P(s, o).x, P(s, o).y, 0), 0, 0, 0.47, 0.6, 0.5, 0.45, s < 0 ? RED : STEEL_D)
+    const pole = P(G - 0.8, 1.9)
     box(me, T3(pole.x, pole.y, 0), 0, 0, 1.8, 0.1, 0.1, 3.4, STEEL)
     box(me, mul(T3(pole.x, pole.y, 2.9), Rz(yaw + Math.PI / 2 + 0.35 * Math.sin(now / 300 + team))), 0.6, 0, 0, 1.2, 0.06, 0.7, TEAM[team])
     for (let c = 0; c < 5; c++) {
-      const s = -6 + c * 2.6 + Math.sin(now / 900 + c * 1.7) * 0.8
-      const p = P(s, 2.6 + (c % 2) * 1.1)
-      const jump = hype ? Math.max(0, Math.sin(now / 110 + c)) * 0.45 : 0.02 * Math.sin(now / 250 + c)
-      const M = mul(T3(p.x, p.y, 0.25 + jump), Sc(1.7), Rz(yaw))
+      const s = -3.4 + c * 1.6 + Math.sin(now / 900 + c * 1.7) * 0.5
+      const p = P(s, 2.3 + (c % 2) * 1.2)
+      const jump = hype ? Math.max(0, Math.sin(now / 110 + c)) * 0.35 : 0.02 * Math.sin(now / 250 + c)
+      const M = mul(T3(p.x, p.y, 0.25 + jump), Rz(yaw))
       box(me, M, 0, 0, 0.38, 0.32, 0.4, 0.62, TEAM[team])
       box(me, M, 0.02, 0, 0.82, 0.26, 0.26, 0.24, c % 2 ? [255, 210, 60] : BONE)
       if (hype) for (const sd of [-1, 1]) box(me, M, 0, sd * 0.26, 0.85, 0.1, 0.1, 0.4, TEAM[team])
