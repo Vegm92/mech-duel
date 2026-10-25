@@ -128,7 +128,7 @@ node --test                  # sim tests
   the K.O. and the `hold` after it run at `slow` speed (`speed(r)`). In slow-mo render scales its
   dt by `ui.speed` (particles, legs, shake) but the camera keeps real time and zooms on `ui.focus`
   (the mech that dies); sfx `setSlow` plays recorded sounds at `SLOW_RATE` (synth and music stay
-  normal). The replay hides the whole match HUD and the R cut-ins (Victor 2026-10-25: "remove the
+  normal); `rewind()` (sfx) plays a falling swoosh as the replay starts. The replay hides the whole match HUD and the R cut-ins (Victor 2026-10-25: "remove the
   HUD, leave a minimal ui so the user knows it's not the next round"): only black bars, a blinking
   "● REPLAY", a progress line and a skip hint (`replayBars` in hud.js). Tuning in `KILLCAM`.
 - `src/i18n.js` — en + es. Every player-visible string lives here.

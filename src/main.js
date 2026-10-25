@@ -6,7 +6,7 @@ import { KILLCAM, recorder, record, wantsReplay, replay as startReplay, play, sp
 import { garageHit, SLOTS, verdict } from './garage.js'
 import { t, applyLang, toggleLang } from './i18n.js'
 import { trackHype, hype } from './hype.js'
-import { sounds, toggleMute, isMuted, toggleMusic, isMusicOn, unlock, uiSound, volumes, setVolume, preview, setSlow } from './sfx.js'
+import { sounds, toggleMute, isMuted, toggleMusic, isMusicOn, unlock, uiSound, volumes, setVolume, preview, setSlow, rewind } from './sfx.js'
 
 const MODES = ['bot', ...DUMMY_MODES]
 const LOADOUT_KEY = 'mech-duel/loadout'
@@ -135,6 +135,7 @@ function tick(input) {
   if (wantsReplay(state)) {
     replay = startReplay(rec, state.mechs.findIndex(m => m.ko))
     cut()
+    rewind()
   }
 }
 

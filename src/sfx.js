@@ -95,6 +95,7 @@ const was = new Map()
 
 export const isMuted = () => muted
 export const setSlow = on => (slow = on)
+export const rewind = () => ac?.state === 'running' && !muted && whoosh(ac.currentTime, 0.5, 3200, 300, 0.25)
 export const isMusicOn = () => musicOn
 
 export const volumes = () => ({ ...vol })
