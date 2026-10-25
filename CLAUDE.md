@@ -17,6 +17,35 @@ python serve.py              # same server without opening the browser ("mech-du
 node --test                  # sim tests
 ```
 
+## Godot port (slice, `godot/`)
+
+A Godot 4.7 port being evaluated (2026-10-25): same rules, lit low-poly 3D instead of the pixel view.
+Godot is portable at `C:\Users\victo\Tools\Godot\` (not on PATH).
+
+```bash
+G=/c/Users/victo/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
+$G --path godot                                                # play
+$G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs node for the JS check)
+```
+
+- `godot/src/sim.gd` and `godot/src/bot.gd` are line-by-line ports of `src/sim.js` and `src/bot.js`:
+  same constants, same dict keys (camelCase), snake_case function names. Every `/` has a float
+  operand (GDScript int / int truncates) and `%` takes ints. `Sim.hypot` and `Sim.jround` copy
+  V8's `Math.hypot` and `Math.round` bit for bit; sin/cos/atan2 differ from V8 in the last bit.
+  A rule change goes into both ports together until the port is adopted or dropped.
+- `godot/tests/sim_rules_test.gd`: `every_step_matches_js` runs `godot/tests/js_steps.mjs` (bot
+  matches in JS covering every core, weapon, leg and booster), loads each sampled state into
+  Godot, steps once and compares with JS (1e-9 tolerance for the trig noise); numbers cross as
+  hex bits because Godot's JSON parser rounds decimals. It also checks `create_state` and every
+  round reset. `GOLDEN` is the Godot-side golden hash; it depends on the platform's trig.
+- View: `main.gd` (fixed 60 Hz `_physics_process` loop with physics interpolation on, input with
+  latched taps, calm follow camera, never rotating), `view.gd` (arena, projectiles, fx), `mech.gd`
+  (mechs from primitive meshes + shared mesh/material helpers), `hud.gd`, `i18n.gd` (en + es built
+  as `Translation` objects in code; L toggles). Sim (x, y) maps to `Vector3(x, height, y)`. The view
+  tags state dicts with `seen` (fx) and `_n` (pooled node); the sim ignores both.
+- Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
+  saves that tick's frame and quits.
+
 ## Layout
 
 - `src/sim.js` — every game rule. Pure: no DOM, no `Math.random`, no `Date`. Fixed 60 ticks/s,
