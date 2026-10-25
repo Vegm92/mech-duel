@@ -2,11 +2,11 @@ import { createState, step, TICKS, normalize, SETS } from './sim.js'
 import { dummyInput, DUMMY_MODES } from './dummy.js'
 import { botInput, createBrain, randomLoadout } from './bot.js'
 import { draw, toWorld, cut } from './render.js'
-import { KILLCAM, recorder, record, wantsReplay, replay as startReplay, advance, progress } from './killcam.js'
+import { KILLCAM, recorder, record, wantsReplay, replay as startReplay, play, speed, progress } from './killcam.js'
 import { garageHit, SLOTS, verdict } from './garage.js'
 import { t, applyLang, toggleLang } from './i18n.js'
 import { trackHype, hype } from './hype.js'
-import { sounds, toggleMute, isMuted, toggleMusic, isMusicOn, unlock, uiSound, volumes, setVolume, preview } from './sfx.js'
+import { sounds, toggleMute, isMuted, toggleMusic, isMusicOn, unlock, uiSound, volumes, setVolume, preview, setSlow } from './sfx.js'
 
 const MODES = ['bot', ...DUMMY_MODES]
 const LOADOUT_KEY = 'mech-duel/loadout'
@@ -128,12 +128,12 @@ function tick(input) {
     if (state.phase === 'over') state = demo()
     return
   }
-  if (replay) return advance(replay) || endReplay()
+  if (replay) return play(replay) || endReplay()
   const ins = [input ?? (autopilot ? botInput(state, pilot, 0) : playerInput()), rivalInput()]
   record(rec, state, ins)
   step(state, ins)
   if (wantsReplay(state)) {
-    replay = startReplay(rec)
+    replay = startReplay(rec, state.mechs.findIndex(m => m.ko))
     cut()
   }
 }
@@ -150,9 +150,11 @@ const render = () => {
   syncMenu()
   trackHype(state)
   const view = replay?.state ?? state
+  const slow = replay ? speed(replay) : 1
+  setSlow(slow < 1)
   sounds(view, screen, paused)
   const menuW = menu.hidden ? 0 : (menu.getBoundingClientRect().right + 16) * (window.devicePixelRatio || 1)
-  draw(ctx, view, { screen, mode: MODES[mode], paused, mouse, hover, loadout, tab, muted: isMuted(), music: isMusicOn(), pixel, menuW, replay: replay && progress(replay) })
+  draw(ctx, view, { screen, mode: MODES[mode], paused, mouse, hover, loadout, tab, muted: isMuted(), music: isMusicOn(), pixel, menuW, replay: replay && progress(replay), speed: slow, focus: slow < 1 ? replay.focus : null })
 }
 
 function frame(now) {

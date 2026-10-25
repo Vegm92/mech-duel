@@ -124,7 +124,13 @@ node --test                  # sim tests
   render/sfx/hype see once, like live (cloned frames would fire every fx every frame). Keep
   `structuredClone`: a dash trail is shared by `state.trails` and `m.act.trail`, JSON would split
   it. main.js swaps the replay state in for drawing and sound; `cut()` (render.js) clears
-  particles/decals and snaps the camera. Tuning in `KILLCAM`.
+  particles/decals and snaps the camera. `play` runs once per real tick: the last `slowTicks` before
+  the K.O. and the `hold` after it run at `slow` speed (`speed(r)`). In slow-mo render scales its
+  dt by `ui.speed` (particles, legs, shake) but the camera keeps real time and zooms on `ui.focus`
+  (the mech that dies); sfx `setSlow` plays recorded sounds at `SLOW_RATE` (synth and music stay
+  normal). The replay hides the whole match HUD and the R cut-ins (Victor 2026-10-25: "remove the
+  HUD, leave a minimal ui so the user knows it's not the next round"): only black bars, a blinking
+  "● REPLAY", a progress line and a skip hint (`replayBars` in hud.js). Tuning in `KILLCAM`.
 - `src/i18n.js` — en + es. Every player-visible string lives here.
 - `sheet.html` — dev page: every part in both views (`?slot=head&view=front|top|all&act=idle|wind|rec`).
 - `sounds.html` — dev page: menu sound board, 9 moments × styles, picks saved in localStorage.

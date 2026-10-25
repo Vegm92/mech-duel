@@ -84,6 +84,8 @@ let stepIndex = 0
 let lastFrame = 0
 let lastState = null
 let alarmAt = 0
+let slow = false
+const SLOW_RATE = 0.55
 const buffers = new Map()
 const last = new Map()
 const seen = new WeakSet()
@@ -92,6 +94,7 @@ const engines = new Map()
 const was = new Map()
 
 export const isMuted = () => muted
+export const setSlow = on => (slow = on)
 export const isMusicOn = () => musicOn
 
 export const volumes = () => ({ ...vol })
@@ -205,7 +208,7 @@ function play(group, o = {}) {
   const buf = buffers.get(names[pick])
   if (!buf) return
   const t = o.at ?? ac.currentTime
-  const rate = (o.rate ?? 1) * vary(o.vary ?? 0.1)
+  const rate = (o.rate ?? 1) * vary(o.vary ?? 0.1) * (slow ? SLOW_RATE : 1)
   const src = ac.createBufferSource()
   src.buffer = buf
   src.playbackRate.value = rate

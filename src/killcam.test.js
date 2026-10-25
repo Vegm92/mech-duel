@@ -2,9 +2,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createState, step, TICKS } from './sim.js'
 import { botInput, createBrain, randomLoadout } from './bot.js'
-import { KILLCAM, recorder, record, wantsReplay, replay, advance } from './killcam.js'
+import { KILLCAM, recorder, record, wantsReplay, replay, advance, play } from './killcam.js'
 
-test('the replay re-runs the last 5 s and lands on the same K.O.', () => {
+function koRound() {
   const b0 = createBrain(11)
   const b1 = createBrain(12)
   const s = createState([randomLoadout(b0), randomLoadout(b1)])
@@ -18,6 +18,11 @@ test('the replay re-runs the last 5 s and lands on the same K.O.', () => {
     if (s.phase === 'countdown') ko = null
   }
   assert.ok(wantsReplay(s), 'a round ends in a K.O.')
+  return { rec, ko }
+}
+
+test('the replay re-runs the last 5 s and lands on the same K.O.', () => {
+  const { rec, ko } = koRound()
   const r = replay(rec)
   assert.equal(r.ins.length, KILLCAM.secs * TICKS)
   assert.equal(r.state.tick, ko.tick - r.ins.length)
@@ -28,4 +33,12 @@ test('the replay re-runs the last 5 s and lands on the same K.O.', () => {
   let more = 0
   while (advance(r)) more++
   assert.equal(more, KILLCAM.hold - 1)
+})
+
+test('the last moments before the K.O. play in slow motion', () => {
+  const r = replay(koRound().rec)
+  let frames = 1
+  while (play(r)) frames++
+  const fast = r.ins.length - KILLCAM.slowTicks
+  assert.equal(frames, fast + (KILLCAM.slowTicks + KILLCAM.hold) / KILLCAM.slow)
 })

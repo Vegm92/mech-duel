@@ -46,6 +46,8 @@ const cheer = [0, 0]
 let view = null
 let shake = 0
 let last = 0
+let camDt = 0
+let focus = null
 let round = 0
 let floorCache = null
 let px = null
@@ -72,7 +74,9 @@ export const toWorld = (sx, sy) => (view ? { x: view.x0 + (sx - view.cx) / view.
 
 export function draw(ctx, state, ui) {
   const now = performance.now()
-  const dt = Math.min(0.05, last ? (now - last) / 1000 : 0)
+  camDt = Math.min(0.05, last ? (now - last) / 1000 : 0)
+  const dt = camDt * (ui.speed ?? 1)
+  focus = ui.focus ?? null
   last = now
   const L = layout(ctx.canvas)
   if (state.round !== round) {
@@ -87,7 +91,7 @@ export function draw(ctx, state, ui) {
   ctx.fillRect(0, 0, L.w, L.h)
   if (ui.screen !== 'garage') (ui.pixel ? world3d : world2d)(ctx, state, L, dt, now)
   vignette(ctx, L)
-  if (ui.screen === 'match') drawBanners(ctx, L, now)
+  if (ui.screen === 'match' && ui.replay == null) drawBanners(ctx, L, now)
   if (ui.screen === 'garage') drawGarage(ctx, L, ui, now, ui.pixel ? drawMechPreview3d : drawMechPreview, drawPartThumb)
   else hud(ctx, state, ui, L, now, ui.pixel ? drawMechPreview3d : null)
   if (!ui.menuW) cursor(ctx, ui.mouse, L.u, ui.screen === 'garage', ui.screen === 'match' && !ui.paused && ui.replay == null ? state.mechs[0] : null, now)
@@ -95,7 +99,7 @@ export function draw(ctx, state, ui) {
 
 function world2d(ctx, state, L, dt, now) {
   const fit = Math.max(1, Math.min(L.sw / VIEW.w, L.sh / VIEW.h))
-  camera(state, L, dt, fit, 1)
+  camera(state, L, fit, 1)
   const S = fit * cam.z
   const v = { X: x => L.cx + (x - cam.x) * S, Y: y => L.cy + (y - cam.y) * S, S, u: L.u, now }
   view = { cx: L.cx, cy: L.cy, S, sin: 1, cos: 0, h: 0, x0: cam.x, y0: cam.y }
@@ -148,7 +152,7 @@ function world3d(ctx, state, full, dt, now) {
   const sh = Math.max(120, full.h - top - 112 * full.u)
   const L = { ...full, sh, cy: top + sh / 2 }
   const fit = Math.max(1, Math.min(L.sw / VIEW.w, L.sh / (VIEW.h * SIN)))
-  camera(state, L, dt, fit, SIN)
+  camera(state, L, fit, SIN)
   const k = Math.max(2, Math.round(fit / PIX))
   const W = Math.ceil(L.w / k)
   const H = Math.ceil(L.h / k)
@@ -434,8 +438,9 @@ function drawPartThumb(ctx, slot, key, x, y, size) {
   ctx.imageSmoothingEnabled = true
 }
 
-function camera(state, L, dt, fit, sin) {
-  const down = state.phase === 'ko' || state.phase === 'over' ? state.mechs.find(m => m.ko) : null
+function camera(state, L, fit, sin) {
+  const dt = camDt
+  const down = focus != null ? state.mechs[focus] : state.phase === 'ko' || state.phase === 'over' ? state.mechs.find(m => m.ko) : null
   const want = down ? MAX_ZOOM : 1
   const snap = cam.snap
   cam.snap = false

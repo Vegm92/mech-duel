@@ -24,37 +24,40 @@ export function hud(ctx, state, ui, L, now, preview) {
       prevArmor.set(key, m.armor[p])
     }
   }
-  const rival = ui.mode === 'bot' ? t('rivalBot') : t('dummy')
-  card(ctx, state.mechs[0], t('you'), 16 * u, 12 * u, u, now, false)
-  card(ctx, state.mechs[1], rival, L.w - 16 * u - CARD_W * u, 12 * u, u, now, true)
-  clock(ctx, state, L, u, now)
-  abilities(ctx, state.mechs[0], L, u, now)
-  footer(ctx, ui, L, u)
+  if (ui.replay != null) replayBars(ctx, L, u, ui.replay, now)
+  else {
+    const rival = ui.mode === 'bot' ? t('rivalBot') : t('dummy')
+    card(ctx, state.mechs[0], t('you'), 16 * u, 12 * u, u, now, false)
+    card(ctx, state.mechs[1], rival, L.w - 16 * u - CARD_W * u, 12 * u, u, now, true)
+    clock(ctx, state, L, u, now)
+    abilities(ctx, state.mechs[0], L, u, now)
+    footer(ctx, ui, L, u)
+  }
   if (ui.paused) {
     ctx.fillStyle = 'rgba(0,0,0,0.6)'
     ctx.fillRect(0, 0, L.w, L.h)
     const left = ui.menuW ?? 0
     controls(ctx, L, u, L.h / 2 - 107 * u, (left + L.w) / 2, L.w - left - 32 * u)
-  } else banner(ctx, state, ui, L, u, now)
-  if (ui.replay != null && !ui.paused) replayTag(ctx, L, u, ui.replay, now)
+  } else if (ui.replay == null) banner(ctx, state, ui, L, u, now)
 }
 
-function replayTag(ctx, L, u, p, now) {
-  const cx = L.w / 2
-  const y = L.top + 18 * u
-  font(ctx, 26, u, 900)
-  const w = ctx.measureText(t('kcReplay')).width
-  if (Math.floor(now / 450) % 2) circle(ctx, cx - w / 2 - 16 * u, y, 6 * u, '#ff3b30')
-  shout(ctx, t('kcReplay'), cx, y, 26, '#ffffff', 'rgba(255,60,40,0.9)', u)
-  ctx.fillStyle = 'rgba(255,255,255,0.15)'
-  ctx.fillRect(cx - 90 * u, y + 20 * u, 180 * u, 3 * u)
-  ctx.fillStyle = '#ff3b30'
-  ctx.fillRect(cx - 90 * u, y + 20 * u, 180 * u * p, 3 * u)
-  ctx.textAlign = 'center'
+function replayBars(ctx, L, u, p, now) {
+  const bar = Math.round(L.h * 0.08 * Math.min(1, p * 20))
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, L.w, bar)
+  ctx.fillRect(0, L.h - bar, L.w, bar)
+  ctx.fillStyle = 'rgba(255,59,48,0.85)'
+  ctx.fillRect(0, L.h - bar, L.w * p, 2 * u)
   ctx.textBaseline = 'middle'
-  font(ctx, 11, u, 700)
-  ctx.fillStyle = UI_C.dim
-  ctx.fillText(t('kcSkip'), cx, y + 36 * u)
+  ctx.textAlign = 'left'
+  font(ctx, 15, u, 800)
+  if (Math.floor(now / 500) % 2) circle(ctx, 24 * u, bar / 2, 5 * u, '#ff3b30')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillText(t('kcReplay'), 36 * u, bar / 2)
+  ctx.textAlign = 'right'
+  font(ctx, 11, u, 600)
+  ctx.fillStyle = 'rgba(255,255,255,0.45)'
+  ctx.fillText(t('kcSkip'), L.w - 20 * u, L.h - bar / 2)
 }
 
 function holoBackdrop(ctx, L, u) {
