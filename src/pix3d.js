@@ -1,4 +1,4 @@
-import { ARENA, PILLARS, SPAWNS, HEAT, MECH_R, WALLS, TRAPS, WEAPONS, BOOSTERS, HANDS, ARM_OF, isGun, heightOf, arenaCorners, elapsed, untilSlam, untilZap, ventPhase, vents } from './sim.js'
+import { ARENA, PILLARS, SPAWNS, FORMATS, spawnsOf, HEAT, MECH_R, WALLS, TRAPS, WEAPONS, BOOSTERS, HANDS, ARM_OF, isGun, heightOf, arenaCorners, elapsed, untilSlam, untilZap, ventPhase, vents } from './sim.js'
 import { TAU, BOOST_C, TEAM, TEAM_LIGHT, TEAM_DARK, EYES, hue, ITEM_C, health, tileHash } from './paint.js'
 import { CORE_C, reach } from './mechart.js'
 
@@ -313,7 +313,9 @@ function mix(c, a) {
   RGB[2] += (c[2] - RGB[2]) * a
 }
 
-function floorColor(x, y, e, ey) {
+const SPOTS = { 2: SPAWNS, 4: spawnsOf(FORMATS.ffa) }
+
+function floorColor(x, y, e, ey, sides) {
   const A = ARENA
   let out = -1
   for (const w of WALLS) out = Math.max(out, x * w.nx + y * w.ny - w.d)
@@ -337,20 +339,20 @@ function floorColor(x, y, e, ey) {
   RGB[0] = b * m
   RGB[1] = (b + 5) * m
   RGB[2] = (b + 12) * m
-  const s = x < A.w / 2 ? 0 : 1
-  mix(TEAM[s], (0.1 * Math.abs(x - A.w / 2)) / (A.w / 2))
+  const s = sideOf(x, y, sides)
   const dx = x - A.w / 2
   const dy = y - A.h / 2
+  mix(TEAM[s], 0.1 * (sides > 2 ? Math.max(Math.abs(dx) / (A.w / 2), Math.abs(dy) / (A.h / 2)) : Math.abs(dx) / (A.w / 2)))
   const dc = Math.sqrt(dx * dx + dy * dy)
   if ((Math.abs(dx) < e * 0.6 && fr((y - 0.3) / 1.2) < 0.5) || Math.abs(dc - 2.4) < ey * 0.62 || Math.abs(dc - 1.4) < ey * 0.62) mix([200, 210, 225], 0.16)
-  const p = SPAWNS[s]
+  const p = SPOTS[sides][s]
   const sx = x - p.x
   const sy = y - p.y
   if (Math.abs(sx) < 3.6 && Math.abs(sy) < 1.3) {
     const d = Math.sqrt(sx * sx + sy * sy)
     if (d < 1.2) mix(TEAM[s], 0.1)
     if (Math.abs(d - 1.2) < ey * 0.62 || Math.abs(d - 0.8) < ey * 0.62) mix(TEAM[s], 0.5)
-    const u = sx * (s === 0 ? 1 : -1)
+    const u = sx * (p.x < A.w / 2 ? 1 : -1)
     const v = Math.abs(sy)
     for (let k = 0; k < 3; k++) if (v <= 0.35 && Math.abs(u - (1.8 + k * 0.6 - 0.714 * v)) < e * 0.9) mix(TEAM[s], 0.4 - k * 0.1)
   }
@@ -358,20 +360,22 @@ function floorColor(x, y, e, ey) {
 }
 
 let fullS = 0
+let fullSides = 0
 let full = null
 export const FLOOR_PAD = 14
 
-export function floorFull(S) {
-  if (full && fullS === S) return full
+export function floorFull(S, sides) {
+  if (full && fullS === S && fullSides === sides) return full
   const w = Math.ceil((ARENA.w + 2 * FLOOR_PAD) * S)
   const h = Math.ceil((ARENA.h + 2 * FLOOR_PAD) * S * SIN)
   const px = new Uint32Array(w * h)
   const e = 1 / S
   for (let qy = 0; qy < h; qy++) {
     const y = (qy + 0.5) / (S * SIN) - FLOOR_PAD
-    for (let qx = 0; qx < w; qx++) px[qy * w + qx] = floorColor((qx + 0.5) / S - FLOOR_PAD, y, e, e / SIN)
+    for (let qx = 0; qx < w; qx++) px[qy * w + qx] = floorColor((qx + 0.5) / S - FLOOR_PAD, y, e, e / SIN, sides)
   }
   fullS = S
+  fullSides = sides
   full = { px, w, h }
   return full
 }
@@ -397,9 +401,9 @@ export function clearFloorZoom(T, V, F, S1) {
   depthReset(T, V)
 }
 
-export function scene(me, V, now, state, cheer) {
+export function scene(me, V, now, state, cheer, sides) {
   const shrink = state.shrink
-  stands(me, now, cheer)
+  stands(me, now, cheer, sides)
   const A = ARENA
   Object.assign(me, { k: 1, flash: false, xr: 0, oid: WALL })
   const top = (px, py, k) => {
@@ -415,7 +419,7 @@ export function scene(me, V, now, state, cheer) {
     const along = y * w.nx - x * w.ny
     const lo = Math.floor(along / 2) * 2 + 1
     if (Math.abs(along - lo) < 0.15 && Math.abs(across) < 0.15) {
-      const c = TEAM[x > A.w / 2 ? 1 : 0]
+      const c = TEAM[sideOf(x, y, sides)]
       const a = 0.75 + 0.35 * Math.sin(now / 320 + lo * 0.7)
       return pack(c[0] * a + 40, c[1] * a + 40, c[2] * a + 40)
     }
@@ -466,7 +470,8 @@ export function scene(me, V, now, state, cheer) {
   })
 }
 
-const PITS = [6, 2]
+const PITS = { 2: [6, 2], 4: [7, 3, 1, 5] }
+export const sideOf = (x, y, n) => (n > 2 ? (x < ARENA.w / 2 ? (y < ARENA.h / 2 ? 0 : 3) : y < ARENA.h / 2 ? 2 : 1) : x < ARENA.w / 2 ? 0 : 1)
 const PADDOCK = { half: 4.5, tiers: 2 }
 const SKIN = [[241, 194, 150], [198, 134, 90], [141, 85, 52], [255, 220, 180]]
 const NEUTRAL = [[230, 230, 236], [60, 64, 74], [240, 200, 60], [120, 200, 120]]
@@ -492,8 +497,8 @@ function pitFrame(i) {
   }
 }
 
-const FANS = WALLS.flatMap((w, i) => {
-  const pit = PITS.includes(i) && pitFrame(i)
+const fansOf = sides => WALLS.flatMap((w, i) => {
+  const pit = PITS[sides].includes(i) && pitFrame(i)
   const out = []
   for (let t = 0; t < TIER.n; t++) {
     for (const row of [0.6, 1.5]) {
@@ -505,7 +510,7 @@ const FANS = WALLS.flatMap((w, i) => {
         const x = a.x + ((b.x - a.x) * d) / len
         const y = a.y + ((b.y - a.y) * d) / len
         if (pit && t < PADDOCK.tiers && Math.abs(pit.along({ x, y })) < PADDOCK.half + 0.3) continue
-        const team = rnd(n + 1) < 0.2 ? -1 : x < ARENA.w / 2 ? 0 : 1
+        const team = rnd(n + 1) < 0.2 ? -1 : sideOf(x, y, sides)
         const base = team < 0 ? NEUTRAL[Math.floor(rnd(n + 2) * NEUTRAL.length)] : TEAM[team]
         const k = 0.75 + rnd(n + 3) * 0.4
         out.push({ x, y, h: tierH(w, t), team, ph: rnd(n + 4) * TAU, shirt: pack(base[0] * k, base[1] * k, base[2] * k), skin: pack(...SKIN[Math.floor(rnd(n + 5) * SKIN.length)]) })
@@ -514,11 +519,12 @@ const FANS = WALLS.flatMap((w, i) => {
   }
   return out
 })
+const FANS = { 2: fansOf(2), 4: fansOf(4) }
 
-function stands(me, now, cheer) {
+function stands(me, now, cheer, sides) {
   Object.assign(me, { k: 1, flash: false, xr: 0, oid: 4, cast: false })
   WALLS.forEach((w, i) => {
-    const pit = PITS.includes(i) && pitFrame(i)
+    const pit = PITS[sides].includes(i) && pitFrame(i)
     for (let t = 0; t <= TIER.n; t++) {
       const o0 = TIER.from + t * TIER.depth
       const o1 = t < TIER.n ? o0 + TIER.depth : o0 + 0.5
@@ -535,7 +541,7 @@ function stands(me, now, cheer) {
       slab(me, [pit.P(-g, o0), b0, b1, pit.P(-g, o1)], h, c)
     }
   })
-  PITS.forEach((wi, team) => {
+  PITS[sides].forEach((wi, team) => {
     const { w, P } = pitFrame(wi)
     const G = PADDOCK.half
     const front = TIER.from
@@ -564,7 +570,7 @@ function stands(me, now, cheer) {
   Object.assign(me, { oid: WALL, cast: true })
 }
 
-export function drawCrowd(T, V, now, cheer) {
+export function drawCrowd(T, V, now, cheer, sides) {
   const fw = Math.max(2, Math.round(0.34 * V.S))
   const fh = Math.max(3, Math.round(0.42 * V.S))
   const hd = Math.max(1, Math.round(0.22 * V.S))
@@ -580,8 +586,8 @@ export function drawCrowd(T, V, now, cheer) {
       }
     }
   }
-  for (const f of FANS) {
-    const hype = f.team < 0 ? Math.max(cheer[0], cheer[1]) > now : cheer[f.team] > now
+  for (const f of FANS[sides]) {
+    const hype = f.team < 0 ? Math.max(...cheer) > now : cheer[f.team] > now
     const jump = hype ? Math.max(0, Math.sin(now / 120 + f.ph)) * 0.35 : 0.03 * Math.sin(now / 400 + f.ph)
     const h = f.h + jump
     const sx = Math.round(V.cx + (f.x - V.x0) * V.S - fw / 2)
