@@ -30,6 +30,8 @@ node --test                  # sim tests
   Mechs act in rotating order (`turns`). A K.O. leaves a wreck until one team is left; `finalKo` is the
   mech whose fall ended the round (-1 on a timeout). `spawnsOf(teams)` places them. 1v1 must stay
   tick-for-tick identical: compare a bot-vs-bot run before/after with the new keys stripped.
+  Shots of kind `missile` (Hornet Pod, Swarm ult) can be shot down: `intercept` (end of `moveShots`,
+  swept on relative motion) for enemy projectiles, a filter in `lineAttack` for beams.
 - `src/bot.js` — the AI rival (default opponent, key 1). Pure function of the state plus a `brain`
   (seeded rng, juke timer, per-shot guard/dodge rolls). Tuning in `BOT` at the top. Handles every
   gun kind and every ultimate (`wantsUlt`), and steps out of enemy lobs, mines and fields. `pick`
