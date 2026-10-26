@@ -13,7 +13,6 @@ static var _mats := {}
 static var _meshes := {}
 static var _glb := {}
 
-const TO_X := Vector3(0, 0, -PI / 2)
 const TO_Z := Vector3(PI / 2, 0, 0)
 const ARM_UP := 0.2
 const ELBOW := Vector3(0.048, -0.235, 0)
@@ -141,57 +140,13 @@ static func add_part(parent: Node3D, part: String, mats: Dictionary, file := "li
 	return mi
 
 
-static func weapon_node(name: String, t: int, mats: Dictionary) -> Node3D:
+static func weapon_node(name: String, mats: Dictionary) -> Node3D:
 	var n := Node3D.new()
-	if Sim.WEAPONS[name].kind != "melee":
-		add_part(n, name, mats, "guns")
-		return n
-	var steel := mat(STEEL, 0.0, 0.55, 0.5)
-	var dark := mat(DARK, 0.0, 0.5, 0.5)
-	var hot := glow(TEAM_LIGHT[t], 1.6)
-	match name:
-		"saw":
-			add(n, box(Vector3(0.6, 0.16, 0.16)), dark, Vector3(0.3, 0, 0))
-			var disc := Node3D.new()
-			disc.position = Vector3(0.75, 0, 0)
-			n.add_child(disc)
-			add(disc, cyl(0.48, 0.48, 0.05, 16), steel)
-			add(disc, ring(0.4, 0.5), hot, Vector3.ZERO)
-			disc.set_meta("spin", true)
-		"drill":
-			add(n, cyl(0.16, 0.16, 0.3), dark, Vector3(0.1, 0, 0), TO_X)
-			add(n, cyl(0.0, 0.2, 1.0, 8), steel, Vector3(0.75, 0, 0), TO_X)
-		"hammer":
-			add(n, cyl(0.05, 0.05, 0.9), dark, Vector3(0.45, 0, 0), TO_X)
-			add(n, box(Vector3(0.36, 0.42, 0.62)), steel, Vector3(0.9, 0, 0))
-			add(n, box(Vector3(0.38, 0.08, 0.64)), hot, Vector3(0.9, 0.0, 0))
-		"claws":
-			add(n, box(Vector3(0.3, 0.24, 0.3)), dark, Vector3(0.1, 0, 0))
-			for i in 3:
-				add(n, box(Vector3(0.7, 0.05, 0.05)), steel, Vector3(0.55, 0, -0.12 + i * 0.12), Vector3(0, (i - 1) * 0.25, 0))
-		"whip":
-			for i in 6:
-				add(n, box(Vector3(0.3, 0.06, 0.06)), steel, Vector3(0.2 + i * 0.27, 0, sin(i * 1.2) * 0.06))
-			add(n, ball(0.08, 8), hot, Vector3(1.85, 0, 0))
-		"bunker":
-			add(n, box(Vector3(0.5, 0.36, 0.36)), dark, Vector3(0.15, 0, 0))
-			add(n, cyl(0.0, 0.14, 0.8, 8), steel, Vector3(0.75, 0, 0), TO_X)
-		"katana":
-			add(n, box(Vector3(0.22, 0.12, 0.12)), dark, Vector3(0.05, 0, 0))
-			add(n, box(Vector3(1.3, 0.14, 0.03)), steel, Vector3(0.8, 0, 0))
-			add(n, box(Vector3(1.3, 0.03, 0.035)), hot, Vector3(0.8, -0.07, 0))
-		"bash":
-			add(n, box(Vector3(0.14, 0.85, 0.95)), steel, Vector3(0.4, 0, 0))
-			add(n, box(Vector3(0.16, 0.1, 0.8)), hot, Vector3(0.42, 0.15, 0))
-		"fist":
-			add(n, box(Vector3(0.3, 0.3, 0.3)), dark, Vector3(0.1, 0, 0))
-			add(n, box(Vector3(0.55, 0.5, 0.5)), steel, Vector3(0.5, 0, 0))
-			add(n, box(Vector3(0.1, 0.4, 0.42)), hot, Vector3(0.79, 0, 0))
-		"flail":
-			add(n, cyl(0.05, 0.05, 0.6), dark, Vector3(0.3, 0, 0), TO_X)
-			add(n, box(Vector3(0.45, 0.04, 0.04)), steel, Vector3(0.8, 0, 0))
-			add(n, ball(0.24), steel, Vector3(1.15, 0, 0))
-			add(n, ring(0.18, 0.28), hot, Vector3(1.15, 0, 0))
+	add_part(n, name, mats, "guns")
+	if name == "saw":
+		var disc := add_part(n, "saw_disc", mats, "guns")
+		disc.position = Vector3(0.75, 0, 0)
+		disc.set_meta("spin", true)
 	return n
 
 
@@ -238,7 +193,7 @@ func build(lo: Dictionary, t: int) -> void:
 		fore.rotation.z = PI / 2
 		var mount: String = MOUNT.get(lo[hand], "hand")
 		fore.visible = mount != "arm"
-		var w := weapon_node(lo[hand], t, gun_mats)
+		var w := weapon_node(lo[hand], gun_mats)
 		w.position = ELBOW if mount == "arm" else (Vector3(0, 0.15, side * 0.02) if mount == "shoulder" else FIST)
 		if Sim.WEAPONS[lo[hand]].kind == "melee":
 			w.rotation = Vector3(0, -side * 0.5, 0.6)

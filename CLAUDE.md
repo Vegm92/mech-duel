@@ -71,8 +71,10 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   `MOUNT` (mech.gd) places each gun like the sheets: `arm` replaces the forearm (rivet, scatter,
   gatling, tesla; origin = elbow, forearm hidden), `shoulder` sits on the pad (flamer, missiles,
   mortar; origin = pad top), anything else is held in the fist (needle = crossbow, laser,
-  ricochet). Melee weapons are still primitives in `weapon_node`, held at the fist in a raised,
-  outward guard (Victor: "ready state but not just in front").
+  ricochet). Melee weapons live in the same `guns.glb` (same script, origin = fist, +X = reach;
+  claws, bunker and fist are gauntlets over the fist), held in a raised, outward guard (Victor:
+  "ready state but not just in front"). The saw's blade is its own object `saw_disc`, flat in
+  XZ, placed at x 0.75 by `weapon_node` and spun around Y.
 
 ## Layout
 
