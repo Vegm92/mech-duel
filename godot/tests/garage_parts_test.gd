@@ -18,7 +18,7 @@ func _initialize() -> void:
 
 func run(name: String, test: Callable) -> void:
 	var t0 := Time.get_ticks_msec()
-	if await test.call():
+	if await test.call() != 0:
 		failed += 1
 		print("test failed: " + name)
 	else:
