@@ -34,6 +34,7 @@ var core_arg := ""
 var arms_arg := ""
 var legs_arg := ""
 var booster_arg := ""
+var set_arg := ""
 var target := 0
 var orbit := Vector2.ZERO
 var zoom := 1.0
@@ -64,6 +65,8 @@ func _ready() -> void:
 			legs_arg = a.substr(7)
 		elif a.begins_with("--booster="):
 			booster_arg = a.substr(10)
+		elif a.begins_with("--set="):
+			set_arg = a.substr(6)
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 	cam = Camera3D.new()
 	cam.fov = 40.0
@@ -80,8 +83,8 @@ func _ready() -> void:
 
 func new_match() -> void:
 	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
-	var rival := Bot.random_loadout(Bot.create_brain(s))
-	var mine := Sim.DEFAULT_LOADOUT.duplicate()
+	var rival: Dictionary = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
+	var mine: Dictionary = Sim.SETS.get(set_arg, Sim.DEFAULT_LOADOUT).duplicate()
 	if hands_arg.size() == 2:
 		mine.left = hands_arg[0]
 		mine.right = hands_arg[1]

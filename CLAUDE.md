@@ -49,7 +49,13 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   broken, drooping arm). `--head=<id>` picks your head (e.g. `--head=demon`), `--core=<id>` your
   core (e.g. `--core=titan`; pair it with `--hands=rivet,rivet` so no blade hides the chest),
   `--arms=<id>` your arms (pair it with `--hands=laser,ricochet` so both forearms show), `--legs=<id>`
-  your legs, `--booster=<id>` your booster (pair it with `--cam=3`, the back view).
+  your legs, `--booster=<id>` your booster (pair it with `--cam=3`, the back view), `--set=<id>` a
+  whole ready-made build (`SETS`; the part flags still override single parts). The rival is always
+  one of the 6 `SETS`, picked by the seed (`s % 6`); you get `DEFAULT_LOADOUT` without `--set`.
+  **Sets (Victor 2026-10-26: "pick the parts that make sense for those roles"):** sniper uses the
+  Rail core (rail-shot R + faster bolts for the needle), artillery the heavy Bulwark arms and the
+  Coolant core (stasis holds them still while the mortar lands). Evidence:
+  `production/qa/evidence/godot-sets-2026-10-26.png`.
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

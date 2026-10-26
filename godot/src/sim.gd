@@ -158,11 +158,11 @@ const CATALOG := {"head": HEADS, "core": CORES, "arms": ARMS, "legs": LEG_PARTS,
 const DEFAULT_LOADOUT := {"head": "horn", "core": "furnace", "arms": "frame", "legs": "greaves", "booster": "thruster", "left": "rivet", "right": "saw"}
 const SETS := {
 	"duelist": {"head": "horn", "core": "furnace", "arms": "frame", "legs": "greaves", "booster": "twin", "left": "rivet", "right": "drill"},
-	"sniper": {"head": "visor", "core": "glass", "arms": "reed", "legs": "hover", "booster": "wisp", "left": "needle", "right": "laser"},
+	"sniper": {"head": "visor", "core": "rail", "arms": "reed", "legs": "hover", "booster": "wisp", "left": "needle", "right": "laser"},
 	"brawler": {"head": "demon", "core": "fury", "arms": "brace", "legs": "quad", "booster": "comet", "left": "claws", "right": "katana"},
 	"tank": {"head": "medic", "core": "aegis", "arms": "anvil", "legs": "stompers", "booster": "rocket", "left": "scatter", "right": "hammer"},
 	"speedster": {"head": "crest", "core": "volt", "arms": "wire", "legs": "wheels", "booster": "flicker", "left": "gatling", "right": "saw"},
-	"artillery": {"head": "antenna", "core": "coolant", "arms": "frame", "legs": "treads", "booster": "thruster", "left": "mortar", "right": "missiles"},
+	"artillery": {"head": "antenna", "core": "coolant", "arms": "bulwark", "legs": "treads", "booster": "thruster", "left": "mortar", "right": "missiles"},
 }
 const DASH := {"ticks": 10, "endLag": 6, "slide": 0.4, "vent": 25, "afterburn": 48, "feintRefund": 0.7}
 const TRAILS := {

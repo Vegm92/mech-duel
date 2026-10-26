@@ -182,11 +182,11 @@ export const CATALOG = { head: HEADS, core: CORES, arms: ARMS, legs: LEG_PARTS, 
 export const DEFAULT_LOADOUT = { head: 'horn', core: 'furnace', arms: 'frame', legs: 'greaves', booster: 'thruster', left: 'rivet', right: 'saw' }
 export const SETS = {
   duelist: { head: 'horn', core: 'furnace', arms: 'frame', legs: 'greaves', booster: 'twin', left: 'rivet', right: 'drill' },
-  sniper: { head: 'visor', core: 'glass', arms: 'reed', legs: 'hover', booster: 'wisp', left: 'needle', right: 'laser' },
+  sniper: { head: 'visor', core: 'rail', arms: 'reed', legs: 'hover', booster: 'wisp', left: 'needle', right: 'laser' },
   brawler: { head: 'demon', core: 'fury', arms: 'brace', legs: 'quad', booster: 'comet', left: 'claws', right: 'katana' },
   tank: { head: 'medic', core: 'aegis', arms: 'anvil', legs: 'stompers', booster: 'rocket', left: 'scatter', right: 'hammer' },
   speedster: { head: 'crest', core: 'volt', arms: 'wire', legs: 'wheels', booster: 'flicker', left: 'gatling', right: 'saw' },
-  artillery: { head: 'antenna', core: 'coolant', arms: 'frame', legs: 'treads', booster: 'thruster', left: 'mortar', right: 'missiles' },
+  artillery: { head: 'antenna', core: 'coolant', arms: 'bulwark', legs: 'treads', booster: 'thruster', left: 'mortar', right: 'missiles' },
 }
 export const GUN = WEAPONS.rivet
 export const SAW = WEAPONS.saw

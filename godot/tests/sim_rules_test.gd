@@ -3,7 +3,7 @@ extends SceneTree
 const Sim = preload("res://src/sim.gd")
 const Bot = preload("res://src/bot.gd")
 
-const GOLDEN := 3113283068
+const GOLDEN := 610374086
 const TOL := 1e-9
 const IGNORED := ["fx0", "fy0", "seen"]
 
