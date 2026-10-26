@@ -13,6 +13,7 @@ func _initialize() -> void:
 	await run("garage_previews_on_hover_and_equips_on_click", test_garage_previews_on_hover_and_equips_on_click)
 	await run("match_flow_comes_back_to_the_garage", test_match_flow_comes_back_to_the_garage)
 	await run("pad_moves_aims_acts_and_pauses", test_pad_moves_aims_acts_and_pauses)
+	await run("garage_works_with_a_pad", test_garage_works_with_a_pad)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -216,6 +217,41 @@ func test_pad_moves_aims_acts_and_pauses() -> int:
 	axis(JOY_AXIS_LEFT_X, 0.0)
 	await process_frame
 	m.queue_free()
+	await process_frame
+	return int(bad > 0)
+
+
+func focused_card(g):
+	for c in g.cards:
+		if c[0] == get_root().gui_get_focus_owner():
+			return c[2]
+	return null
+
+
+func test_garage_works_with_a_pad() -> int:
+	var g = Garage.new()
+	root.add_child(g)
+	g.open(Sim.DEFAULT_LOADOUT)
+	await process_frame
+	var sent := []
+	g.fight.connect(func(lo): sent.append(lo))
+	var bad := ensure(not g.pad and focused_card(g) == null, "with the mouse no card has the pad cursor")
+	await press(JOY_BUTTON_DPAD_DOWN)
+	var h = focused_card(g)
+	bad += ensure(g.pad and h != null and h.slot == "head" and h.key != "horn", "the first D-pad press shows the cursor and moves it off the equipped head")
+	bad += ensure(g.hover == h and g.next_lo().head == h.key and g.loadout.head == "horn", "the card under the cursor previews like a hover, nothing equipped yet")
+	await press(JOY_BUTTON_A)
+	bad += ensure(g.loadout.head == h.key, "A equips the card under the cursor")
+	await press(JOY_BUTTON_RIGHT_SHOULDER)
+	bad += ensure(g.tab == 1 and focused_card(g) == {"slot": "core", "key": g.loadout.core}, "RB moves to the core tab with the cursor on the equipped core")
+	await press(JOY_BUTTON_LEFT_SHOULDER)
+	await press(JOY_BUTTON_LEFT_SHOULDER)
+	bad += ensure(g.tab == 7 and focused_card(g) != null, "LB goes back and wraps around to the sets tab")
+	await press(JOY_BUTTON_START)
+	bad += ensure(sent.size() == 1 and sent[0].head == h.key, "Start sends the built bot to FIGHT")
+	await mouse(Vector2(5, 5))
+	bad += ensure(not g.pad and focused_card(g) == null, "moving the mouse hides the pad cursor")
+	g.queue_free()
 	await process_frame
 	return int(bad > 0)
 

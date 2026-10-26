@@ -39,6 +39,7 @@ static var BAD := Color("ff7a6a")
 var loadout: Dictionary = Sim.DEFAULT_LOADOUT.duplicate()
 var tab := 0
 var hover = null
+var pad := false
 var bold: FontVariation
 var root: Control
 var left: Control
@@ -140,6 +141,8 @@ func build_tab() -> void:
 		var at := Vector2(PAD + (k % cols) * (cw + gap), GRID_Y + floorf(k / float(cols)) * (ch + gap))
 		card(slot, items[k], Rect2(at, Vector2(cw, ch)))
 	refresh()
+	if pad:
+		point()
 
 
 func card(slot: String, key: String, r: Rect2) -> void:
@@ -147,6 +150,9 @@ func card(slot: String, key: String, r: Rect2) -> void:
 	var p: Dictionary = Sim.SETS[key] if is_set else Sim.CATALOG[slot][key]
 	var h := {"set": key} if is_set else {"slot": slot, "key": key}
 	var b := button(left, r, h, equip.bind(h))
+	b.focus_mode = Control.FOCUS_ALL if pad else Control.FOCUS_NONE
+	b.focus_entered.connect(set_hover.bind(h))
+	b.focus_exited.connect(leave.bind(h))
 	var ts := r.size.y - 12.0
 	panel(b, Rect2(6, 6, ts, ts), Color8(0, 10, 30, 115), Color8(80, 150, 230, 51), 4)
 	var v := PartView.new()
@@ -346,6 +352,45 @@ func go() -> void:
 	fight.emit(loadout.duplicate())
 
 
+func point() -> void:
+	var on := cards.filter(func(c): return selected(c[2]))
+	(on[0] if on else cards[0])[0].grab_focus()
+
+
+func use_pad(on: bool) -> void:
+	if on == pad:
+		return
+	pad = on
+	for c in cards:
+		c[0].focus_mode = Control.FOCUS_ALL if on else Control.FOCUS_NONE
+	if visible and on:
+		point()
+	elif visible:
+		get_viewport().gui_release_focus()
+
+
+func _input(e: InputEvent) -> void:
+	if e is InputEventMouseMotion:
+		use_pad(false)
+	elif (e is InputEventJoypadButton and e.pressed) or (e is InputEventJoypadMotion and absf(e.axis_value) > 0.5):
+		use_pad(true)
+
+
+func _unhandled_input(e: InputEvent) -> void:
+	if not visible or not (e is InputEventJoypadButton and e.pressed):
+		return
+	match e.button_index:
+		JOY_BUTTON_LEFT_SHOULDER:
+			select_tab((tab + SLOTS.size() - 1) % SLOTS.size())
+		JOY_BUTTON_RIGHT_SHOULDER:
+			select_tab((tab + 1) % SLOTS.size())
+		JOY_BUTTON_START:
+			go()
+		_:
+			return
+	get_viewport().set_input_as_handled()
+
+
 func _unhandled_key_input(e: InputEvent) -> void:
 	if not visible or not e.pressed or e.echo:
 		return
@@ -472,7 +517,9 @@ func paint(b: Button, on: bool) -> void:
 	var hov := plate(SEL if on else HOV, HI if on else LINE_HOV, 2 if on else 1, cut, Color(HOLO, 0.45) if on else Color.TRANSPARENT)
 	for s in ["hover", "pressed", "hover_pressed"]:
 		b.add_theme_stylebox_override(s, hov)
-	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	var ring := plate(Color.TRANSPARENT, Color.WHITE, 2, cut)
+	ring.set_expand_margin_all(3)
+	b.add_theme_stylebox_override("focus", ring)
 
 
 func button(parent: Control, r: Rect2, h: Dictionary, press: Callable) -> Button:

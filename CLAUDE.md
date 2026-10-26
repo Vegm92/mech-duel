@@ -26,7 +26,7 @@ Godot is portable at `C:\Users\victo\Tools\Godot\` (not on PATH).
 G=/c/Users/victo/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
 $G --path godot                                                # play
 $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs node for the JS check)
-$G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow; gamepad
+$G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow; gamepad in match + garage
 ```
 
 - `godot/src/sim.gd` and `godot/src/bot.gd` are line-by-line ports of `src/sim.js` and `src/bot.js`:
@@ -78,6 +78,14 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build al
   `--garage[=<tab 0..7>]` opens it, `--hover=<id>` fakes a hover for screenshots (the real
   mouse over the window wins). Evidence: `production/qa/evidence/godot-garage-*-2026-10-26.png`
   (every tab in both languages: `godot-garage-all-tabs-{english,spanish}-2026-10-26.png`).
+  **Garage with a pad:** cards take focus only while you use the pad (`use_pad`, from `_input`:
+  any pad press turns it on, moving the mouse turns it off and drops the cursor), so for mouse
+  users Enter stays FIGHT instead of pressing a clicked card. The card under the cursor previews
+  like a hover (`focus_entered` → `set_hover`); D-pad / left stick move it, A equips, LB / RB =
+  Shift+Tab / Tab, Start = FIGHT. The cursor starts on the equipped card (`point`, also after
+  every tab switch); the first pad press shows it and moves it. The cursor is the white `focus`
+  ring in `paint` (Godot hides it on mouse clicks by default). Evidence:
+  `godot-garage-pad-2026-10-26.png`.
 - **Flow (same as JS):** the game opens on the garage; FIGHT saves your bot to
   `user://loadout.cfg` (`ConfigFile`, read back through `Sim.normalize`) and starts the match.
   Esc pauses with three buttons in hud.gd (Resume, Restart match, Quit to garage); Enter after
@@ -95,8 +103,9 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build al
   RB shield (hold), L3 hook, R3 R skill (Victor: "thumbs always on the joysticks"); Start does
   what Esc does. Taps latch like keys. While you aim with the pad the HUD slots show pad buttons
   (`hud.pad`, `cap*` strings). Pause menu: Resume has focus when it opens, D-pad / left stick
-  move, A presses (main adds A to `ui_accept`; Godot 4.7 leaves it out). Not built yet: garage with a pad (still needs the mouse), a second local player,
-  rumble. Evidence: `godot-gamepad-hud-2026-10-26.png`, `godot-gamepad-pause-2026-10-26.png`.
+  move, A presses (main adds A to `ui_accept`; Godot 4.7 leaves it out). Garage with a pad: see
+  Garage. Not built yet: a second local player, rumble. Evidence:
+  `godot-gamepad-hud-2026-10-26.png`, `godot-gamepad-pause-2026-10-26.png`.
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
