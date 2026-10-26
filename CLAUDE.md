@@ -76,7 +76,8 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build al
   plain Controls in a fixed 1280×720 frame, centered; long names shrink to fit (`fit`). FIGHT /
   Enter emits `fight(loadout)`; main.gd starts the match with it. L toggles the language.
   `--garage[=<tab 0..7>]` opens it, `--hover=<id>` fakes a hover for screenshots (the real
-  mouse over the window wins). Evidence: `production/qa/evidence/godot-garage-*-2026-10-26.png`.
+  mouse over the window wins). Evidence: `production/qa/evidence/godot-garage-*-2026-10-26.png`
+  (every tab in both languages: `godot-garage-all-tabs-{english,spanish}-2026-10-26.png`).
 - **Flow (same as JS):** the game opens on the garage; FIGHT saves your bot to
   `user://loadout.cfg` (`ConfigFile`, read back through `Sim.normalize`) and starts the match.
   Esc pauses with three buttons in hud.gd (Resume, Restart match, Quit to garage); Enter after
