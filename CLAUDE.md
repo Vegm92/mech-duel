@@ -48,7 +48,8 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   to pick your two weapons (e.g. `--hands=mortar,rivet`; use `--at=200`, later ticks often show a
   broken, drooping arm). `--head=<id>` picks your head (e.g. `--head=demon`), `--core=<id>` your
   core (e.g. `--core=titan`; pair it with `--hands=rivet,rivet` so no blade hides the chest),
-  `--arms=<id>` your arms (pair it with `--hands=laser,ricochet` so both forearms show).
+  `--arms=<id>` your arms (pair it with `--hands=laser,ricochet` so both forearms show), `--legs=<id>`
+  your legs.
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
@@ -57,9 +58,9 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   (`art/light.blend`; build script = text block `light_build.py`; re-run it, then export the
   Light collection as .glb). Objects: Head (pivot at the neck, 1.44), Chest_light /
   Chest_standard / Chest_heavy (incl. shoulder pads, back boosters and the core socket), Hips,
-  UpperArm_L/R (pivot at the shoulder) + Forearm_L/R (pivot at the elbow, incl. the fist), both modeled hanging down, Leg_L/R (pivot at the hip; used by every
-  two-legged leg kind, `stompers`/`skates` scale it). The light `Head`, `UpperArm_*` and `Forearm_*`
-  objects are no longer loaded: heads come from `heads.glb`, arms from `arms.glb` (below).
+  UpperArm_L/R (pivot at the shoulder) + Forearm_L/R (pivot at the elbow, incl. the fist), both modeled hanging down, Leg_L/R (pivot at the hip). The light `Head`,
+  `UpperArm_*`, `Forearm_*` and `Leg_*` objects are no longer loaded: heads come from `heads.glb`,
+  arms from `arms.glb`, legs from `legs.glb` (below).
   **Braced arm pose (Victor 2026-10-26: "readiness to tank the recoil", elbow bent, not stretched
   out):** `build` tilts the upper arm `ARM_UP` (0.2 rad) forward and puts the forearm level at
   `ELBOW`, fist at `FIST` (mech.gd consts, in the shoulder pivot's space).
@@ -98,6 +99,20 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   into the chest. Fists scale 0.85–1.3×, still inside every gauntlet. At the game camera held
   guns cover most of the arm; the difference reads in close-ups.
   Evidence: `production/qa/evidence/godot-arms-2026-10-26.png`.
+- **Legs** are `godot/assets/models/legs.glb` (`art/legs.blend`, build script = text block
+  `legs_build.py`; re-run it, export the Legs collection; Preview = each kind on a standard body,
+  never exported). One shape per leg kind, made to match its dash: greaves (light-frame leg +
+  calf thruster), hover (flared skirt on a glow ring), treads (two tank tracks), spider (4 thin
+  splayed bug legs), wheels (2 big wheels), jets (slim legs, jet pods, glowing soles), stompers
+  (huge legs, toed grey feet), skates (inline skate boots on a rail), quad (4 sturdy animal legs
+  with paws, hips 0.64 apart front-to-back on a fixed strut frame `quad`; Victor 2026-10-26: they
+  clipped into each other, so they're spread and `sync` swings them at 0.55× the usual stride),
+  mono (one wheel in a fork). Objects are named `<kind>` (fixed), `<kind>_leg*` (swings
+  at its pivot while walking) and `<kind>_tire*` (rolls); each object's position in the .glb is its
+  pivot, in hips space. `build_legs` adds every object whose name is the kind or starts with
+  `<kind>_` (sorted, so the 4-leg gait order is leg1..4), read through `Mech.models(file)` (mesh +
+  position). Never name a part `*_wheel`: Godot's importer turns it into a `VehicleWheel3D`. Look
+  flag: `--legs=<id>`. Evidence: `production/qa/evidence/godot-legs-2026-10-26.png`.
 - Guns are `godot/assets/models/guns.glb` (one object per gun id, +X = barrel), made in Blender
   (`art/guns.blend`, build script = text block `guns_build.py`; re-run it, export the Guns
   collection as .glb; the Preview collection poses 3 robots for a fit check, never exported).

@@ -16,7 +16,6 @@ static var _mats := {}
 static var _meshes := {}
 static var _glb := {}
 
-const TO_Z := Vector3(PI / 2, 0, 0)
 const ARM_UP := 0.2
 const ELBOW := Vector3(0.048, -0.235, 0)
 const FIST := Vector3(0.438, -0.235, 0)
@@ -139,16 +138,20 @@ static func add(parent: Node3D, mesh: Mesh, m: Material, pos := Vector3.ZERO, ro
 	return mi
 
 
-static func add_part(parent: Node3D, part: String, mats: Dictionary, file := "light") -> MeshInstance3D:
+static func models(file: String) -> Dictionary:
 	if not _glb.has(file):
 		var s: Node = load("res://assets/models/%s.glb" % file).instantiate()
-		var meshes := {}
+		var found := {}
 		for c in s.get_children():
-			meshes[String(c.name)] = c.mesh
+			found[String(c.name)] = [c.mesh, c.position]
 		s.free()
-		_glb[file] = meshes
+		_glb[file] = found
+	return _glb[file]
+
+
+static func add_part(parent: Node3D, part: String, mats: Dictionary, file := "light") -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	mi.mesh = _glb[file][part]
+	mi.mesh = models(file)[part][0]
 	for i in mi.mesh.get_surface_count():
 		mi.set_surface_override_material(i, mats[mi.mesh.surface_get_material(i).resource_name])
 	parent.add_child(mi)
@@ -191,7 +194,7 @@ func build(lo: Dictionary, t: int) -> void:
 	add_child(hips)
 	torso = Node3D.new()
 	add_child(torso)
-	build_legs(lo.legs, joint, trim)
+	build_legs(lo.legs, parts)
 	add_part(hips, "Hips", parts)
 	var size: String = Sim.CORES[lo.core].series
 	shoulder = SHOULDER[size]
@@ -261,52 +264,20 @@ func build(lo: Dictionary, t: int) -> void:
 	add_child(trail)
 
 
-func build_legs(kind: String, joint: Material, trim: Material) -> void:
+func build_legs(kind: String, parts: Dictionary) -> void:
 	legs_kind = kind
-	match kind:
-		"treads":
-			for s in [-1, 1]:
-				add(hips, box(Vector3(1.5, 0.5, 0.38)), joint, Vector3(0, 0.28, s * 0.5))
-				add(hips, box(Vector3(1.3, 0.1, 0.4)), trim, Vector3(0, 0.56, s * 0.5))
-		"wheels":
-			for s in [-1, 1]:
-				var w := Node3D.new()
-				w.position = Vector3(0, 0.42, s * 0.58)
-				hips.add_child(w)
-				add(w, cyl(0.42, 0.42, 0.24, 16), joint, Vector3.ZERO, TO_Z)
-				add(w, box(Vector3(0.5, 0.1, 0.26)), trim)
-				spin.append(w)
-		"mono":
-			var w := Node3D.new()
-			w.position = Vector3(0, 0.6, 0)
-			hips.add_child(w)
-			add(w, cyl(0.6, 0.6, 0.44, 18), joint, Vector3.ZERO, TO_Z)
-			add(w, box(Vector3(0.9, 0.12, 0.46)), trim)
-			spin.append(w)
-		"hover":
-			add(hips, cyl(0.85, 0.65, 0.26, 16), trim, Vector3(0, 0.42, 0))
-			add(hips, cyl(0.6, 0.6, 0.06, 16), boost_mat, Vector3(0, 0.27, 0))
-		"spider", "quad":
-			for i in 4:
-				var sx := 1.0 if i < 2 else -1.0
-				var sz := 1.0 if i % 2 == 0 else -1.0
-				var p := Node3D.new()
-				p.position = Vector3(sx * 0.3, 0.78, sz * 0.32)
-				p.rotation = Vector3(-sz * 0.6, 0, sx * 0.35)
-				hips.add_child(p)
-				add(p, box(Vector3(0.16, 0.95, 0.16)), joint, Vector3(0, -0.42, 0))
-				add(p, box(Vector3(0.22, 0.14, 0.22)), trim, Vector3(0, -0.88, 0))
-				swing.append(p)
-		_:
-			var k := 1.35 if kind == "stompers" else (0.8 if kind == "skates" else 1.0)
-			for s in [-1, 1]:
-				var p := Node3D.new()
-				p.position = Vector3(0, 0.8, s * 0.18)
-				hips.add_child(p)
-				add_part(p, "Leg_L" if s < 0 else "Leg_R", {"body": body_mat, "trim": trim, "joint": joint}).scale = Vector3(k, 1, k)
-				if kind == "jets":
-					add(p, cyl(0.07, 0.1, 0.18, 10), boost_mat, Vector3(-0.2, -0.45, 0))
-				swing.append(p)
+	var all := models("legs")
+	var names: Array = all.keys().filter(func(n): return n == kind or n.begins_with(kind + "_"))
+	names.sort()
+	for n in names:
+		var p := Node3D.new()
+		p.position = all[n][1]
+		hips.add_child(p)
+		add_part(p, n, parts, "legs")
+		if "_tire" in n:
+			spin.append(p)
+		elif "_leg" in n:
+			swing.append(p)
 
 
 func sync(m: Dictionary, tick: int, dt: float) -> void:
@@ -319,12 +290,12 @@ func sync(m: Dictionary, tick: int, dt: float) -> void:
 	if sp > 0.4:
 		hips.rotation.y = lerp_angle(hips.rotation.y, -atan2(m.vy, m.vx), 0.35)
 	walk += sp * dt * 2.4
-	var k := minf(sp / 6.0, 1.0)
+	var k := minf(sp / 6.0, 1.0) * (0.55 if legs_kind == "quad" else 1.0)
 	for i in swing.size():
 		swing[i].rotation.z = sin(walk + i * PI * (0.5 if swing.size() == 4 else 1.0)) * 0.55 * k
 	for w in spin:
 		if w.get_parent() == hips:
-			w.rotation.z -= sp * dt / 0.5
+			w.rotation.z -= sp * dt / 0.36
 		else:
 			w.rotation.y += dt * 18.0
 	for w in whirl:
