@@ -28,6 +28,7 @@ var tapped := {}
 var shake := 0.0
 var frozen := false
 var cam_mode := 0
+var hands_arg := PackedStringArray()
 var target := 0
 var orbit := Vector2.ZERO
 var zoom := 1.0
@@ -46,6 +47,8 @@ func _ready() -> void:
 			shot_at = a.substr(5).to_int()
 		elif a.begins_with("--cam="):
 			cam_mode = a.substr(6).to_int() % CAMS.size()
+		elif a.begins_with("--hands="):
+			hands_arg = a.substr(8).split(",")
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 	cam = Camera3D.new()
 	cam.fov = 40.0
@@ -63,7 +66,11 @@ func _ready() -> void:
 func new_match() -> void:
 	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
 	var rival := Bot.random_loadout(Bot.create_brain(s))
-	state = Sim.create_state([Sim.DEFAULT_LOADOUT, rival])
+	var mine := Sim.DEFAULT_LOADOUT.duplicate()
+	if hands_arg.size() == 2:
+		mine.left = hands_arg[0]
+		mine.right = hands_arg[1]
+	state = Sim.create_state([mine, rival])
 	brain = Bot.create_brain(s + 1)
 	pilot = Bot.create_brain(s + 2)
 	view.reset(state)
