@@ -46,29 +46,44 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
   saves that tick's frame and quits. Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
   to pick your two weapons (e.g. `--hands=mortar,rivet`; use `--at=200`, later ticks often show a
-  broken, drooping arm). `--head=<id>` picks your head (e.g. `--head=demon`).
+  broken, drooping arm). `--head=<id>` picks your head (e.g. `--head=demon`), `--core=<id>` your
+  core (e.g. `--core=titan`; pair it with `--hands=rivet,rivet` so no blade hides the chest).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
 - Body is the **light frame** `godot/assets/models/light.glb` (Victor 2026-10-26: chibi blocky
   style, cube head + spike, visor eyes, grey pads, wheel-heel feet), made in Blender
   (`art/light.blend`; build script = text block `light_build.py`; re-run it, then export the
-  Light collection as .glb). Objects: Head (pivot at the neck, 1.44), Chest (incl. shoulder pads
-  and back boosters), Hips, UpperArm_L/R (pivot at the shoulder) + Forearm_L/R (pivot at the
-  elbow, incl. the fist), both modeled hanging down, Leg_L/R (pivot at the hip; used by every
+  Light collection as .glb). Objects: Head (pivot at the neck, 1.44), Chest_light /
+  Chest_standard / Chest_heavy (incl. shoulder pads, back boosters and the core socket), Hips,
+  UpperArm_L/R (pivot at the shoulder) + Forearm_L/R (pivot at the elbow, incl. the fist), both modeled hanging down, Leg_L/R (pivot at the hip; used by every
   two-legged leg kind, `stompers`/`skates` scale it). The light `Head` object is no longer loaded:
   heads come from `heads.glb` (below).
   **Braced arm pose (Victor 2026-10-26: "readiness to tank the recoil", elbow bent, not stretched
   out):** `build` tilts the upper arm `ARM_UP` (0.2 rad) forward and puts the forearm level at
   `ELBOW`, fist at `FIST` (mech.gd consts, in the shoulder pivot's space).
   `Mech.add_part(parent, part, mats, file)` loads a mesh by object name from `<file>.glb` and swaps
-  materials by name (body/trim/joint/gem/boost) for the team ones. The old chassis
+  materials by name (body/trim/joint/gem/boost/core) for the team ones. The old chassis
   (`art/chassis.blend`, `chassis.glb`) is no longer loaded.
 - Heads are `godot/assets/models/heads.glb` (one full head per head id, pivot at the neck, +X =
   face), made in Blender (`art/heads.blend`, build script = text block `heads_build.py`; re-run it,
   export the Heads collection as .glb; the Preview collection puts each head on a light body linked
   from `light.blend`, never exported). Light heads are built at 0.9×, heavy at 1.08×. Extra
   material: `heal` (Medic Dome cross). `build` loads one with `add_part(torso, lo.head, …, "heads")`.
+- **Cores (Victor 2026-10-26: "3 sizes but reuse as much as possible").** The chest comes in 3
+  sizes from one recipe, `chest(size)` in `light_build.py` (`SIZES`: width, depth, pad scale,
+  shoulder z), picked by the core's `series`. Neck, waist and pad tops stay put on all 3, so every
+  head, leg and shoulder gun fits unchanged; only the arm pivot moves out (`SHOULDER` in mech.gd,
+  0.41 / 0.46 / 0.52; `streak` uses the same `shoulder`). Every chest has the same socket (frame +
+  gem in material `core`) at `SOCKET` (0.271 × depth, y 1.22). Each core adds one small piece from
+  `godot/assets/models/cores.glb` (`art/cores.blend`, build script = text block `cores_build.py`;
+  re-run it, export the Cores collection; Preview = each core on its body, never exported), built
+  in chest space (origin = chest origin, so `build` adds it at the torso origin), from shared bits
+  (rod, disc, spike, bar, slats, dome, ring, hoop). Material `core` is painted `CORE_C[core]` (same
+  colors as mechart.js) so a core's color says which R skill it carries. Two parts spin
+  (`WHIRL`: `flywheel_disc`, `gravity_ring`; separate objects built around their spin center).
+  Evidence: `production/qa/evidence/godot-cores-2026-10-26.png`. At the game camera a core is a
+  few pixels: chest width and glow color are what read there, the shapes read in close-ups.
 - Guns are `godot/assets/models/guns.glb` (one object per gun id, +X = barrel), made in Blender
   (`art/guns.blend`, build script = text block `guns_build.py`; re-run it, export the Guns
   collection as .glb; the Preview collection poses 3 robots for a fit check, never exported).

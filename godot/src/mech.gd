@@ -9,6 +9,9 @@ static var EYES := [Color8(255, 214, 120), Color8(150, 235, 255), Color8(215, 25
 static var BOOST_C := {"arc": Color8(150, 205, 255), "flame": Color8(255, 150, 60), "frost": Color8(170, 240, 255), "smoke": Color8(190, 190, 200), "magnet": Color8(205, 125, 255), "clean": Color8(255, 232, 170)}
 static var STEEL := Color8(170, 180, 198)
 static var DARK := Color8(44, 48, 58)
+static var CORE_C := {"furnace": Color8(255, 150, 60), "coolant": Color8(110, 230, 255), "reactor": Color8(190, 255, 90), "leech": Color8(225, 40, 80), "titan": Color8(190, 202, 220), "volt": Color8(255, 230, 70), "fury": Color8(255, 64, 48), "flywheel": Color8(228, 232, 242), "aegis": Color8(90, 150, 255), "glass": Color8(255, 140, 210), "phantom": Color8(200, 220, 255), "gravity": Color8(150, 90, 255), "bastion": Color8(255, 210, 90), "meltdown": Color8(255, 90, 40), "deflector": Color8(90, 255, 230), "mirror": Color8(235, 245, 255), "rail": Color8(90, 200, 255), "shroud": Color8(160, 160, 175)}
+static var SHOULDER := {"light": 0.41, "standard": 0.46, "heavy": 0.52}
+static var WHIRL := {"flywheel": ["flywheel_disc", Vector3(0.346, 1.22, 0), Vector3.RIGHT, 8.0], "gravity": ["gravity_ring", Vector3(0.4085, 1.22, 0), Vector3(0.35, 1, 0.5).normalized(), 3.0]}
 static var _mats := {}
 static var _meshes := {}
 static var _glb := {}
@@ -40,6 +43,8 @@ var turned := {}
 var legs_kind := ""
 var swing := []
 var spin := []
+var whirl := []
+var shoulder := 0.41
 var shield: Node3D
 var shield_mesh: MeshInstance3D
 var bubble: MeshInstance3D
@@ -180,7 +185,7 @@ func build(lo: Dictionary, t: int) -> void:
 	boost_mat.emission = bc
 	var trim := mat(STEEL, 0.0, 0.55, 0.5)
 	var joint := mat(DARK, 0.0, 0.4, 0.6)
-	var parts := {"body": body_mat, "trim": trim, "joint": joint, "gem": gem_mat, "boost": boost_mat}
+	var parts := {"body": body_mat, "trim": trim, "joint": joint, "gem": gem_mat, "boost": boost_mat, "core": glow(CORE_C[lo.core], 3.0)}
 	var gun_mats := parts.merged({"glow": glow(TEAM_LIGHT[t], 1.6), "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)})
 	hips = Node3D.new()
 	add_child(hips)
@@ -188,12 +193,19 @@ func build(lo: Dictionary, t: int) -> void:
 	add_child(torso)
 	build_legs(lo.legs, joint, trim)
 	add_part(hips, "Hips", parts)
-	add_part(torso, "Chest", parts)
+	var size: String = Sim.CORES[lo.core].series
+	shoulder = SHOULDER[size]
+	add_part(torso, "Chest_" + size, parts)
+	add_part(torso, lo.core, parts, "cores")
+	if WHIRL.has(lo.core):
+		var wh: Array = WHIRL[lo.core]
+		whirl.append([add_part(torso, wh[0], parts, "cores"), wh[2], wh[3]])
+		whirl[-1][0].position = wh[1]
 	add_part(torso, lo.head, parts.merged({"heal": glow(Color8(90, 255, 150), 3.0)}), "heads").position.y = 1.44
 	for hand in Sim.HANDS:
 		var side := -1.0 if hand == "left" else 1.0
 		var p := Node3D.new()
-		p.position = Vector3(0, 1.32, side * 0.41)
+		p.position = Vector3(0, 1.32, side * shoulder)
 		torso.add_child(p)
 		var s := "_L" if hand == "left" else "_R"
 		add_part(p, "UpperArm" + s, parts).rotation.z = ARM_UP
@@ -315,6 +327,8 @@ func sync(m: Dictionary, tick: int, dt: float) -> void:
 			w.rotation.z -= sp * dt / 0.5
 		else:
 			w.rotation.y += dt * 18.0
+	for w in whirl:
+		w[0].rotate_object_local(w[1], w[2] * dt)
 	if legs_kind == "hover":
 		hips.position.y = 0.06 * sin(clock * 3.0)
 	var dashing: bool = m.act != null and m.act.k == "dash" and m.act.ph == "go"
@@ -426,7 +440,7 @@ func streak(hand: String, key: String, r0: float, r1: float, sp0: float, sp1: fl
 	for i in range(0 if fresh_stroke else 1, n + 1):
 		var t := float(i) / n
 		var q := pose_of(hand, key, lerpf(r0, r1, t), droop)
-		var tf := global_transform * Transform3D(Basis.from_euler(Vector3(0, yaw + q[3] + lerpf(sp0, sp1, t), 0))) * Transform3D(Basis.from_euler(q[0]), Vector3(q[1], 1.32, s * 0.41)) * Transform3D(Basis.from_euler(q[2]), FIST)
+		var tf := global_transform * Transform3D(Basis.from_euler(Vector3(0, yaw + q[3] + lerpf(sp0, sp1, t), 0))) * Transform3D(Basis.from_euler(q[0]), Vector3(q[1], 1.32, s * shoulder)) * Transform3D(Basis.from_euler(q[2]), FIST)
 		if thrust and i == 0:
 			live[hand].pts.append([tf * (edge[0] - Vector3(TAIL, 0, 0)), tf * (edge[1] - Vector3(TAIL, 0, 0)), TRAIL_LIFE * 0.5])
 		live[hand].pts.append([tf * edge[0], tf * edge[1], dt * (n - i) / n])

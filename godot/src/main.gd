@@ -30,6 +30,7 @@ var frozen := false
 var cam_mode := 0
 var hands_arg := PackedStringArray()
 var head_arg := ""
+var core_arg := ""
 var target := 0
 var orbit := Vector2.ZERO
 var zoom := 1.0
@@ -52,6 +53,8 @@ func _ready() -> void:
 			hands_arg = a.substr(8).split(",")
 		elif a.begins_with("--head="):
 			head_arg = a.substr(7)
+		elif a.begins_with("--core="):
+			core_arg = a.substr(7)
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 	cam = Camera3D.new()
 	cam.fov = 40.0
@@ -75,6 +78,8 @@ func new_match() -> void:
 		mine.right = hands_arg[1]
 	if head_arg != "":
 		mine.head = head_arg
+	if core_arg != "":
+		mine.core = core_arg
 	state = Sim.create_state([mine, rival])
 	brain = Bot.create_brain(s + 1)
 	pilot = Bot.create_brain(s + 2)
