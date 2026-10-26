@@ -26,7 +26,7 @@ Godot is portable at `C:\Users\victo\Tools\Godot\` (not on PATH).
 G=/c/Users/victo/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
 $G --path godot                                                # play
 $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs node for the JS check)
-$G --headless --path godot -s res://tests/garage_parts_test.gd  # every part has a model and builds alone
+$G --headless --path godot -s res://tests/garage_parts_test.gd  # every part builds alone; garage hover/click/Tab/FIGHT
 ```
 
 - `godot/src/sim.gd` and `godot/src/bot.gd` are line-by-line ports of `src/sim.js` and `src/bot.js`:
@@ -61,9 +61,22 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # every part has
   of that slot alone instead of a match (add `--shot=<abs>.png`).
 - Parts alone: `Mech.build_part(slot, key, team)` builds one part (core = its chest size + add-on,
   arms = the right arm in the braced pose, weapon = held weapon). `part_view.gd` is a
-  `SubViewportContainer` with its own 3D world that frames whatever it shows (`show_part`,
-  `show_mech`) from its bounds, light fixed to the camera, boosters seen from behind. It renders
-  once and stays a still picture until `turn(true)`.
+  `TextureRect` showing its own `SubViewport` (own 3D world, sized to the real screen pixels so a
+  maximized window stays sharp). `show_part` frames the part from its bounds; `show_mech` puts a
+  whole mech on a glowing stand with fixed framing (`FRAME`), so hovering never zooms. Light is
+  fixed to the camera, boosters are seen from behind. It renders once and stays a still picture
+  until `turn(true)`.
+- **Garage** (`garage.gd`, a port of `src/garage.js`; Victor 2026-10-26: "the full ui/ux so we can
+  customize our bot"). Same layout and rules: PARTS / WEAPONS / SETS main tabs, 8 sub tabs
+  (`SLOTS`, Tab / Shift+Tab), a card per part with its 3D part alone (spins while hovered),
+  series or type, the R skill / dash move / trail line and stat bars (`card_stats`, same
+  formulas as JS); set cards show the whole build. Right side: the turntable tries on the
+  hovered part, L/R weapon slots and the R skill slot jump to their tab, MECH INFO (`sheet`)
+  shows ▲/▼ for the hovered change, the info box has the description and skill. Built from
+  plain Controls in a fixed 1280×720 frame, centered; long names shrink to fit (`fit`). FIGHT /
+  Enter emits `fight(loadout)`; main.gd starts the match with it. L toggles the language.
+  `--garage[=<tab 0..7>]` opens it, `--hover=<id>` fakes a hover for screenshots (the real
+  mouse over the window wins). Evidence: `production/qa/evidence/godot-garage-*-2026-10-26.png`.
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

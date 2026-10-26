@@ -6,6 +6,7 @@ const View = preload("res://src/view.gd")
 const Hud = preload("res://src/hud.gd")
 const I18n = preload("res://src/i18n.gd")
 const PartView = preload("res://src/part_view.gd")
+const Garage = preload("res://src/garage.gd")
 
 const PITCH := deg_to_rad(60.0)
 const CAMS := [[], [0.6, 0.3, 5.0, true], [PI / 2, 0.12, 5.0, true], [PI + 0.6, 0.4, 5.0, true], [PI / 2, PITCH, 6.0, false]]
@@ -37,6 +38,10 @@ var legs_arg := ""
 var booster_arg := ""
 var set_arg := ""
 var parts_arg := ""
+var garage_arg := -1
+var hover_arg := ""
+var loadout: Dictionary
+var garage: CanvasLayer
 var target := 0
 var orbit := Vector2.ZERO
 var zoom := 1.0
@@ -71,6 +76,10 @@ func _ready() -> void:
 			set_arg = a.substr(6)
 		elif a.begins_with("--parts="):
 			parts_arg = a.substr(8)
+		elif a == "--garage" or a.begins_with("--garage="):
+			garage_arg = a.substr(9).to_int() if a.contains("=") else 0
+		elif a.begins_with("--hover="):
+			hover_arg = a.substr(8)
 	if parts_arg != "":
 		part_sheet(parts_arg)
 		return
@@ -85,12 +94,18 @@ func _ready() -> void:
 	view.build()
 	hud = Hud.new()
 	add_child(hud)
-	new_match()
+	loadout = flag_loadout()
+	garage = Garage.new()
+	add_child(garage)
+	garage.fight.connect(start)
+	if garage_arg >= 0:
+		to_garage()
+	else:
+		garage.visible = false
+		new_match()
 
 
-func new_match() -> void:
-	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
-	var rival: Dictionary = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
+func flag_loadout() -> Dictionary:
 	var mine: Dictionary = Sim.SETS.get(set_arg, Sim.DEFAULT_LOADOUT).duplicate()
 	if hands_arg.size() == 2:
 		mine.left = hands_arg[0]
@@ -105,7 +120,37 @@ func new_match() -> void:
 		mine.legs = legs_arg
 	if booster_arg != "":
 		mine.booster = booster_arg
-	state = Sim.create_state([mine, rival])
+	return mine
+
+
+func to_garage() -> void:
+	paused = false
+	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	view.visible = false
+	hud.visible = false
+	get_viewport().disable_3d = true
+	garage.open(loadout, garage_arg)
+	if hover_arg != "":
+		garage.set_hover({"set": hover_arg} if garage.SLOTS[garage.tab] == "set" else {"slot": garage.SLOTS[garage.tab], "key": hover_arg})
+	if shot_path != "":
+		for i in 8:
+			await get_tree().process_frame
+		take_shot()
+
+
+func start(lo: Dictionary) -> void:
+	loadout = lo
+	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+	garage.visible = false
+	view.visible = true
+	get_viewport().disable_3d = false
+	new_match()
+
+
+func new_match() -> void:
+	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
+	var rival: Dictionary = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
+	state = Sim.create_state([loadout.duplicate(), rival])
 	brain = Bot.create_brain(s + 1)
 	pilot = Bot.create_brain(s + 2)
 	view.reset(state)
@@ -149,6 +194,8 @@ func aim_point() -> Vector3:
 
 
 func _input(event: InputEvent) -> void:
+	if garage.visible:
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.physical_keycode:
 			KEY_Q:
@@ -194,6 +241,8 @@ func _notification(what: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if garage.visible:
+		return
 	aim = aim_point()
 	if not paused and not frozen:
 		var me = Bot.bot_input(state, pilot, 0) if autopilot else player_input()
