@@ -34,6 +34,7 @@ var active := []
 var tick := 0
 var shake := 0.0
 var stop := 0
+var slow := 0.0
 var marks: Node3D
 var pylons := []
 var crushers := []
@@ -270,6 +271,9 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 	tick += 1
 	for i in mechs.size():
 		mechs[i].sync(state.mechs[i], tick, dt)
+		var act = state.mechs[i].act
+		if act != null and act.k == "dash" and act.get("ph") == "go" and tick % Fx.DASH.every == 0:
+			Fx.ghost(self, mechs[i], Mech.TEAM[state.mechs[i].team])
 	reticle.position = aim + Vector3(0, 0.05, 0)
 	reticle.visible = state.phase == "fight" and not state.mechs[0].ko
 	for f in state.fx:
@@ -450,7 +454,7 @@ func trail(state: Dictionary, tr: Dictionary) -> void:
 	n.rotation = Vector3(0, -d.angle(), 0)
 	n.scale = Vector3(d.length() + w, h, w)
 	var c: Color = Mech.BOOST_C[tr.kind]
-	n.material_override = Mech.glow(c, 0.3, 0.45) if smoky else Mech.glow(c, 3.0, 0.6)
+	n.material_override = Mech.flat(Color(c, 0.4)) if smoky else Mech.flat(Color(c, 0.3), true)
 	n.transparency = 1.0 - clampf(float(tr.t) / float(tr.T), 0.0, 1.0)
 	settle(n)
 
@@ -641,20 +645,21 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 				Fx.ray(self, f, Sim.ULTS.rail.halfWidth * 2.0, "rail", 0.35, true)
 			shake = maxf(shake, 0.35)
 		"parry":
-			pop(p, 1.2, Color8(150, 220, 255), 0.3)
-			sparks(p, Color8(170, 220, 255), 16, 6.0)
+			stop = maxi(stop, Fx.parry(self, f))
+			shake = maxf(shake, 0.2)
 		"break":
-			sparks(p, Color8(255, 140, 60), 40, 10.0, 0.7)
+			stop = maxi(stop, Fx.shatter(self, mechs[f.id] if f.id < mechs.size() else null, f, Mech.TEAM[team_of(state, f.id)]))
 			shake = maxf(shake, 0.45)
 		"ko":
-			pop(p, 4.0, Color8(255, 150, 60), 0.6, false)
-			pop(ground, 4.0, Color8(255, 120, 50), 0.6)
-			sparks(p, Color8(255, 180, 90), 60, 12.0, 0.9)
+			stop = maxi(stop, Fx.ko(self, marks, f, Mech.TEAM[team_of(state, f.id)]))
+			slow = Fx.KO.slow_secs
 			shake = maxf(shake, 1.2)
 		"dash":
-			pop(ground, 0.9, Color8(200, 225, 255), 0.25)
+			var act = state.mechs[f.id].act
+			var dir := Vector2(act.dx, act.dy) if act != null and act.has("dx") else Vector2.RIGHT
+			Fx.dash(self, f, Mech.TEAM[team_of(state, f.id)], dir)
 		"land":
-			pop(ground, f.r, Color8(255, 210, 140), 0.35)
+			Fx.land(self, marks, f, Mech.TEAM[team_of(state, f.id)])
 			shake = maxf(shake, 0.25)
 		"emp":
 			pop(p, f.r, Color8(130, 190, 255), 0.4, false)

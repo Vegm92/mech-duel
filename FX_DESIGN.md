@@ -46,9 +46,11 @@ bright thing, thin needle sparks, rings and starbursts. Read from it:
 | Blaster: muzzle starburst + dashed tracer | `Fx.muzzle` (flash + 4-ray `star` + needles + puff); bolts = bright head + 3 dashes (`DASHES` in view.gd) |
 | Hit: directional sparks + white star flash | `Fx.hit`: flash, `star`, needles in the shooter's color away from the source |
 | Damage number + hit marker | the number + a ring that opens at the hit point (`HIT.marker`) |
-| Landing shockwave: ring | `Fx.ring`, used by boom; land/dash next |
-| Armor break: metal fragments | chips today; break recipe next |
-| Shield ripple, boost afterimage, grapple endpoint | not built yet |
+| Landing shockwave: ring | `Fx.land` |
+| Boost dash: afterimage + ground streak | `Fx.ghost` + `Fx.dash` |
+| Armor break: metal fragments | `Fx.shatter` |
+| Destruction: debris + energy shards | `Fx.ko` |
+| Shield ripple, grapple endpoint | not built yet |
 
 Particle settings follow the Godot 4 particles guide (godot-mcp.abyo.net): high damping so
 sparks start fast and stop short, scale curves that shrink sparks to nothing (`shrink`) or grow
@@ -59,7 +61,10 @@ smoke (`grow`), spin on debris, sphere emission for fireballs, box emission alon
 `--sandbox[=<weapon id>]` (main.gd): your mech and a target stand still `gap` apart (from the
 weapon's range, `SANDBOX`), you fire at it every time the gun is ready, its armor refills, the
 clock never runs out. ←/→ switch weapon (both hands), T toggles auto-fire, R fires your R skill
-(`--core=<id>` picks it), F freezes, C close cameras, mouse wheel zooms. Combine with `--shot`
+(`--core=<id>` picks it), F freezes, C close cameras, mouse wheel zooms. G (`--guard`): the target
+raises a perfect shield before each shot lands (parry). K (`--norefill`): armor stops refilling, so
+parts break and the target gets K.O.'d. J (`--dash`): your mech dashes every `SANDBOX.dash` ticks
+(add `--legs=jets` or `--legs=stompers` for the landing hit). Combine with `--shot`
 and `--at` for screenshots of any weapon.
 
 ## Recipes
@@ -83,8 +88,13 @@ and `--at` for screenshots of any weapon.
 2. **Done:** neon look; muzzle, tracers, flame color by age, missile smoke trail, laser / lance /
    rail (`Fx.ray`), tesla lightning (`Fx.arc`), boom with floor scorch marks (`BOOM.marks` max,
    cleared each round), un-glowed mortar warning; the sandbox.
-3. Directional shake (camera pushed along the hit line, not random jitter).
-4. parry, break, ko (with slow-mo), land, dash, shield, hook endpoint.
+3. **Done:** parry (`Fx.parry`, cyan star + rings, hit-stop 4), break (`Fx.shatter`: starburst,
+   chunks in the mech's team color, 3 s of black smoke from the mech, hit-stop 4), K.O. (`Fx.ko`:
+   big boom + team ring + shards, hit-stop 8, then `Engine.time_scale` 0.3 for 0.6 real seconds),
+   land (`Fx.land`: team + white rings, needle spikes and dust on a ring, floor crack), dash
+   (`Fx.dash`: ring, backward needles, dust; `Fx.ghost` afterimages every 3 ticks while dashing).
+   Booster trails are flat now too.
+4. Directional shake (camera pushed along the hit line, not random jitter); shield, hook endpoint.
 5. Pool particle nodes if many hits per second cost frames (today each burst is a new node).
 
 Later: chips bouncing on the floor; calming the white arena lamps, which are bloomy too.

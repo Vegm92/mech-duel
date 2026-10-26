@@ -13,6 +13,12 @@ const BOOM := {"size": 1.4, "small": 0.45, "flash": 0.5, "flash_secs": 0.05, "st
 const RAY := {"core": 0.3, "thin": 0.12, "edge": 0.6}
 const ARC := {"segs": 7, "jitter": 0.45, "width": 0.13, "secs": 0.16}
 const MUZZLE := {"flash": 0.28, "secs": 0.05, "star": 0.8, "star_secs": 0.06}
+const PARRY := {"flash": 0.6, "star": 2.4, "secs": 0.13, "ring": 2.2, "ring_secs": 0.26, "stop": 4}
+const BREAK := {"flash": 0.6, "star": 2.0, "smoke_secs": 3.0, "stop": 4}
+const KO := {"r": 2.0, "ring": 1.8, "ring_secs": 0.45, "stop": 8, "slow": 0.3, "slow_secs": 0.6}
+const LAND := {"ring": 1.15, "ring_secs": 0.3, "spikes": 0.75, "dust": 0.55, "crack": 0.6}
+const DASH := {"every": 3, "ghost_secs": 0.22, "ghost_alpha": 0.4}
+const SHIELD_C := Color8(110, 220, 255)
 
 const LAYERS := {
 	"hit_sparks": {"mesh": "needle", "ramp": "spark", "n": Vector2(8, 18), "speed": Vector2(10, 24), "life": 0.34, "spread": 28.0, "gravity": -10.0, "damp": 25.0, "align": true, "shrink": true, "add": true},
@@ -26,19 +32,31 @@ const LAYERS := {
 	"boom_chips": {"mesh": "chip", "ramp": "chip", "n": Vector2(4, 9), "speed": Vector2(4, 9), "life": 0.8, "spread": 70.0, "gravity": -24.0, "spin": 540.0},
 	"ray_sparks": {"mesh": "needle_s", "ramp": "laser", "n": Vector2(7, 7), "speed": Vector2(6, 14), "life": 0.25, "spread": 70.0, "gravity": -10.0, "damp": 20.0, "align": true, "shrink": true, "add": true},
 	"beam_sparks": {"mesh": "needle_s", "ramp": "lance", "n": Vector2(28, 28), "speed": Vector2(3, 9), "life": 0.35, "spread": 60.0, "gravity": -8.0, "damp": 12.0, "align": true, "shrink": true, "add": true},
+	"parry_sparks": {"mesh": "needle", "ramp": "shield", "n": Vector2(20, 20), "speed": Vector2(10, 22), "life": 0.3, "spread": 180.0, "gravity": 0.0, "damp": 24.0, "align": true, "shrink": true, "add": true},
+	"break_sparks": {"mesh": "needle", "ramp": "spark", "n": Vector2(22, 22), "speed": Vector2(10, 22), "life": 0.45, "spread": 180.0, "gravity": -16.0, "damp": 16.0, "align": true, "shrink": true, "add": true},
+	"break_chunks": {"mesh": "chunk", "ramp": "chip", "n": Vector2(7, 7), "speed": Vector2(4, 9), "life": 1.0, "spread": 80.0, "gravity": -26.0, "spin": 420.0},
+	"break_smoke": {"mesh": "puff_s", "ramp": "smoke_dark", "n": Vector2(36, 36), "speed": Vector2(0.8, 1.8), "life": 1.2, "spread": 20.0, "gravity": 1.6, "damp": 1.5, "grow": 3.0},
+	"ko_shards": {"mesh": "needle", "ramp": "spark", "n": Vector2(40, 40), "speed": Vector2(14, 30), "life": 0.55, "spread": 180.0, "gravity": -8.0, "damp": 14.0, "align": true, "shrink": true, "add": true},
+	"land_spikes": {"mesh": "needle", "ramp": "spark", "n": Vector2(18, 18), "speed": Vector2(5, 10), "life": 0.3, "spread": 12.0, "gravity": 0.0, "damp": 14.0, "align": true, "shrink": true, "add": true},
+	"land_dust": {"mesh": "puff_s", "ramp": "dust", "n": Vector2(14, 14), "speed": Vector2(1, 3), "life": 0.8, "spread": 70.0, "gravity": 0.5, "damp": 4.0, "grow": 2.5},
+	"dash_streaks": {"mesh": "needle", "ramp": "spark", "n": Vector2(12, 12), "speed": Vector2(8, 16), "life": 0.25, "spread": 12.0, "gravity": 0.0, "damp": 18.0, "align": true, "shrink": true, "add": true},
+	"dash_dust": {"mesh": "puff_s", "ramp": "dust", "n": Vector2(5, 5), "speed": Vector2(0.5, 1.5), "life": 0.6, "spread": 60.0, "gravity": 0.4, "damp": 3.0, "grow": 2.0},
 	"missile_trail": {"mesh": "puff_s", "ramp": "smoke_thin", "n": Vector2(48, 48), "speed": Vector2(1, 2), "life": 0.55, "spread": 15.0, "gravity": 0.6, "damp": 3.0, "grow": 2.5},
 }
 const MESHES := {
 	"needle": [Vector3(0.08, 0.9, 0.08), 0], "needle_s": [Vector3(0.065, 0.55, 0.065), 0],
-	"chip": [Vector3(0.14, 0.14, 0.14), 0], "puff": [0.42, 14], "puff_s": [0.2, 10],
+	"chip": [Vector3(0.14, 0.14, 0.14), 0], "chunk": [Vector3(0.26, 0.18, 0.22), 0], "puff": [0.42, 14], "puff_s": [0.2, 10],
 }
 const RAMPS := {
 	"spark": [Color8(255, 240, 180), Color8(255, 190, 80), Color8(255, 120, 40), Color8(255, 90, 30, 0)],
 	"smoke": [Color(0.62, 0.62, 0.66, 0.75), Color(0.36, 0.36, 0.4, 0.7), Color(0.2, 0.2, 0.23, 0)],
 	"smoke_late": [Color(0.4, 0.4, 0.44, 0), Color(0.36, 0.36, 0.4, 0.75), Color(0.24, 0.24, 0.27, 0.6), Color(0.18, 0.18, 0.2, 0)],
 	"smoke_thin": [Color(0.72, 0.72, 0.76, 0.5), Color(0.4, 0.4, 0.44, 0.3), Color(0.25, 0.25, 0.28, 0)],
-	"fire": [Color8(255, 225, 130), Color8(255, 150, 50), Color8(235, 85, 30, 210), Color8(120, 30, 15, 0)],
+	"fire": [Color8(255, 225, 130), Color8(255, 150, 50), Color8(235, 85, 30, 120), Color8(120, 30, 15, 0)],
 	"chip": [Color8(78, 82, 92), Color8(78, 82, 92), Color8(40, 42, 48, 0)],
+	"smoke_dark": [Color(0.16, 0.16, 0.18, 0.0), Color(0.12, 0.12, 0.14, 0.8), Color(0.1, 0.1, 0.12, 0.5), Color(0.08, 0.08, 0.1, 0)],
+	"dust": [Color(0.78, 0.74, 0.66, 0.55), Color(0.6, 0.57, 0.52, 0.35), Color(0.45, 0.43, 0.4, 0)],
+	"shield": [Color8(200, 245, 255), Color8(110, 220, 255), Color8(70, 160, 255, 0)],
 	"laser": [Color8(255, 170, 190), Color8(255, 80, 120), Color8(255, 60, 100, 0)],
 	"arc": [Color8(200, 230, 255), Color8(120, 200, 255), Color8(80, 150, 255, 0)],
 	"lance": [Color8(255, 225, 160), Color8(255, 190, 90), Color8(255, 140, 50, 0)],
@@ -283,6 +301,101 @@ static func arc(parent: Node3D, f: Dictionary) -> void:
 		fade(bar(parent, mid + Vector3(0, 0.01, 0), Mech.box(Vector3.ONE), Color.WHITE, Vector3(d.length(), w * 0.4, w * 0.8), rot), ARC.secs, Vector3(d.length(), w * 0.1, w * 0.2))
 	star(parent, Vector3(b.x, 1.05, b.y), 1.0, 0.1, c)
 	burst(parent, Vector3(b.x, 1.05, b.y), Vector3.UP, LAYERS.ray_sparks, 1.0, 1.0, ramp("arc"))
+
+
+static func metal(c: Color) -> Gradient:
+	var key := "metal/" + c.to_html()
+	if not _ramps.has(key):
+		_ramps[key] = gradient([c, c.darkened(0.25), Color(c.darkened(0.5), 0)])
+	return _ramps[key]
+
+
+static func mark(marks: Node3D, p: Vector3, m: Mesh, scale_: Vector3) -> void:
+	bar(marks, Vector3(p.x, 0.025, p.z), m, Color(0.03, 0.03, 0.04, 0.6), scale_, Vector3.ZERO, false)
+	if marks.get_child_count() > BOOM.marks:
+		marks.get_child(0).queue_free()
+
+
+static func on_ring(s: CPUParticles3D, r: float) -> void:
+	s.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	s.emission_ring_axis = Vector3.UP
+	s.emission_ring_radius = r
+	s.emission_ring_inner_radius = r * 0.85
+	s.emission_ring_height = 0.05
+
+
+static func parry(parent: Node3D, f: Dictionary) -> int:
+	var p := Vector3(f.x, 1.05, f.y)
+	flash(parent, p, PARRY.flash, 0.06)
+	star(parent, p, PARRY.star, PARRY.secs, SHIELD_C)
+	ring(parent, p, 0.3, PARRY.ring, PARRY.ring_secs, SHIELD_C)
+	ring(parent, p, 0.2, PARRY.ring * 0.6, PARRY.ring_secs * 0.7, Color.WHITE)
+	burst(parent, p, Vector3.UP, LAYERS.parry_sparks)
+	return PARRY.stop
+
+
+static func shatter(parent: Node3D, mech: Node3D, f: Dictionary, c: Color) -> int:
+	var p := Vector3(f.x, 1.2, f.y)
+	flash(parent, p, BREAK.flash, 0.06)
+	star(parent, p, BREAK.star, HIT.star_secs * 1.5, Color8(255, 170, 70))
+	burst(parent, p, Vector3.UP, LAYERS.break_sparks)
+	burst(parent, p, Vector3.UP, LAYERS.break_chunks, 1.0, 1.0, metal(c))
+	burst(parent, p, Vector3.UP, LAYERS.boom_chips)
+	if mech != null:
+		var s := emitter(LAYERS.break_smoke)
+		s.direction = Vector3.UP
+		s.local_coords = false
+		s.position = Vector3(0, 1.3, 0)
+		mech.add_child(s)
+		s.emitting = true
+		var tw := s.create_tween()
+		tw.tween_interval(BREAK.smoke_secs)
+		tw.tween_callback(func(): s.emitting = false)
+		tw.tween_interval(s.lifetime)
+		tw.tween_callback(s.queue_free)
+	return BREAK.stop
+
+
+static func ko(parent: Node3D, marks: Node3D, f: Dictionary, c: Color) -> int:
+	var ground := Vector3(f.x, 0.1, f.y)
+	boom(parent, marks, {"x": f.x, "y": f.y, "r": KO.r, "big": true})
+	ring(parent, ground, 0.5, KO.r * KO.ring, KO.ring_secs, c)
+	burst(parent, Vector3(f.x, 1.0, f.y), Vector3.UP, LAYERS.ko_shards, 1.0, 1.0, tint(c))
+	return KO.stop
+
+
+static func land(parent: Node3D, marks: Node3D, f: Dictionary, c: Color) -> void:
+	var ground := Vector3(f.x, 0.08, f.y)
+	ring(parent, ground, f.r * 0.3, f.r * LAND.ring, LAND.ring_secs, c)
+	ring(parent, ground, f.r * 0.2, f.r * LAND.ring * 0.7, LAND.ring_secs * 0.8, Color.WHITE)
+	on_ring(burst(parent, ground, Vector3.UP, LAYERS.land_spikes, 1.0, 1.0, tint(c)), f.r * LAND.spikes)
+	on_ring(burst(parent, ground, Vector3.UP, LAYERS.land_dust), f.r * LAND.dust)
+	mark(marks, ground, Mech.ring(0.8, 1.0), Vector3(f.r * LAND.crack, 0.05, f.r * LAND.crack))
+
+
+static func dash(parent: Node3D, f: Dictionary, c: Color, dir: Vector2) -> void:
+	var p := Vector3(f.x, 0.35, f.y)
+	var back := Vector3(-dir.x, 0.05, -dir.y).normalized()
+	ring(parent, Vector3(f.x, 0.08, f.y), 0.2, 0.9, 0.2, c)
+	burst(parent, p, back, LAYERS.dash_streaks, 1.0, 1.0, tint(c))
+	burst(parent, Vector3(f.x, 0.15, f.y), back, LAYERS.dash_dust)
+
+
+static func ghost(parent: Node3D, mech: Node3D, c: Color) -> void:
+	var g := mech.duplicate(0) as Node3D
+	var m := Mech.flat(Color(c, DASH.ghost_alpha), true).duplicate() as StandardMaterial3D
+	for n in g.find_children("*", "", true, false):
+		if n is CPUParticles3D or (n is Node3D and n.top_level):
+			n.queue_free()
+		elif n is GeometryInstance3D:
+			n.material_override = m
+			n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	parent.add_child(g)
+	g.global_transform = mech.global_transform
+	var tw := g.create_tween()
+	tw.tween_property(m, "albedo_color:a", 0.0, DASH.ghost_secs)
+	tw.tween_callback(g.queue_free)
 
 
 static func trail(parent: Node3D) -> CPUParticles3D:

@@ -3,6 +3,7 @@ extends Node3D
 const Sim = preload("res://src/sim.gd")
 const Bot = preload("res://src/bot.gd")
 const View = preload("res://src/view.gd")
+const Fx = preload("res://src/fx.gd")
 const Hud = preload("res://src/hud.gd")
 const I18n = preload("res://src/i18n.gd")
 const PartView = preload("res://src/part_view.gd")
@@ -16,7 +17,7 @@ const REACH := 16.0
 const LOOKBACK := 6
 const PAD := {"dash": JOY_BUTTON_LEFT_SHOULDER, "shield": JOY_BUTTON_RIGHT_SHOULDER, "hook": JOY_BUTTON_LEFT_STICK, "ult": JOY_BUTTON_RIGHT_STICK}
 const TRIGGER := {"left": JOY_AXIS_TRIGGER_LEFT, "right": JOY_AXIS_TRIGGER_RIGHT}
-const SANDBOX := {"gap": 0.8, "pad": 0.8, "min": 2.4, "max": 10.0, "refill": 0.5, "cam": 1.1}
+const SANDBOX := {"gap": 0.8, "pad": 0.8, "min": 2.4, "max": 10.0, "refill": 0.5, "cam": 1.1, "guard": 2.5, "dash": 80}
 
 var state: Dictionary
 var brain: Dictionary
@@ -36,9 +37,13 @@ var shooting := false
 var tapped := {}
 var shake := 0.0
 var stop := 0
+var slow := 0.0
 var sandbox := false
 var gun := -1
 var auto_fire := true
+var guard := false
+var refill := true
+var auto_dash := false
 var frozen := false
 var cam_mode := 0
 var hands_arg := PackedStringArray()
@@ -99,6 +104,12 @@ func _ready() -> void:
 			garage_arg = a.substr(9).to_int() if a.contains("=") else 0
 		elif a.begins_with("--hover="):
 			hover_arg = a.substr(8)
+		elif a == "--guard":
+			guard = true
+		elif a == "--norefill":
+			refill = false
+		elif a == "--dash":
+			auto_dash = true
 		elif a == "--sandbox" or a.begins_with("--sandbox="):
 			sandbox = true
 			gun = Sim.WEAPONS.keys().find(a.substr(10)) if a.contains("=") else -1
@@ -197,6 +208,8 @@ func start(lo: Dictionary) -> void:
 func new_match() -> void:
 	paused = false
 	stop = 0
+	slow = 0.0
+	Engine.time_scale = 1.0
 	tapped.clear()
 	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
 	var rival: Dictionary = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
@@ -313,6 +326,12 @@ func _input(event: InputEvent) -> void:
 					new_match()
 			KEY_T:
 				auto_fire = not auto_fire
+			KEY_G:
+				guard = not guard
+			KEY_K:
+				refill = not refill
+			KEY_J:
+				auto_dash = not auto_dash
 	elif event is InputEventMouseMotion and frozen and cam_mode > 0 and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
 		orbit += event.relative * 0.01
 	elif event is InputEventMouseButton and event.pressed:
@@ -360,9 +379,16 @@ func _physics_process(delta: float) -> void:
 			me.ay = t.y
 			if auto_fire:
 				me.left = state.tick % 2 == 0
+			if auto_dash and state.tick % SANDBOX.dash == 0:
+				me.dash = true
+				me.my = -1.0
 			foe = Sim.IDLE.duplicate()
 			foe.ax = state.mechs[0].x
 			foe.ay = state.mechs[0].y
+			if guard:
+				for s in state.shots:
+					if s.owner == 0 and Vector2(s.x - t.x, s.y - t.y).length() < SANDBOX.guard:
+						foe.shield = true
 		Sim.step(state, [me, foe])
 	if not frozen and not held:
 		view.sync(state, aim, delta)
@@ -370,6 +396,8 @@ func _physics_process(delta: float) -> void:
 	view.shake = 0.0
 	stop = maxi(stop, view.stop)
 	view.stop = 0
+	slow = maxf(slow, view.slow)
+	view.slow = 0.0
 	view.process_mode = Node.PROCESS_MODE_DISABLED if stop > 0 else Node.PROCESS_MODE_INHERIT
 	if cam_mode == 0:
 		follow(delta)
@@ -386,20 +414,24 @@ func _physics_process(delta: float) -> void:
 func pin() -> void:
 	var w: Dictionary = Sim.WEAPONS[loadout.left]
 	var gap := clampf(w.get("range", 3.0) * SANDBOX.gap + SANDBOX.pad, SANDBOX.min, SANDBOX.max)
+	if state.phase == "over":
+		state.score.fill(0)
+		Sim.reset_round(state)
 	if state.phase == "countdown":
 		state.phase = "fight"
 		state.timer = 0
 	state.clock = Sim.MATCH.time
 	for i in 2:
 		var m = state.mechs[i]
-		m.x = Sim.CX + gap * (i - 0.5)
-		m.y = Sim.CY
-		m.vx = 0.0
-		m.vy = 0.0
 		m.heat = 0.0
 		m.overheat = 0
+		if m.act == null or m.act.k != "dash":
+			m.x = Sim.CX + gap * (i - 0.5)
+			m.y = Sim.CY
+			m.vx = 0.0
+			m.vy = 0.0
 		for k in m.armor:
-			if m.armor[k] < m.max[k] * SANDBOX.refill:
+			if refill and m.armor[k] < m.max[k] * SANDBOX.refill:
 				m.armor[k] = m.max[k]
 
 
@@ -444,6 +476,9 @@ func close_camera() -> void:
 
 
 func _process(delta: float) -> void:
+	if slow > 0.0:
+		slow -= delta / Engine.time_scale
+		Engine.time_scale = Fx.KO.slow if slow > 0.0 else 1.0
 	shake = maxf(0.0, shake - delta * 2.5)
 	var s := shake * shake
 	cam.h_offset = randf_range(-1.0, 1.0) * s * 0.6

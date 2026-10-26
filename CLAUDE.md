@@ -49,11 +49,12 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build al
   never bloom). Hit-stop: `view.stop` asks main.gd to hold sim + view for N physics frames
   (`view.process_mode` disabled, camera shake keeps going). Rebuilt in the crisp neon look
   (additive `Mech.flat(c, true)`, team colors): hit, muzzle, bolts, flame, missile, laser, lance,
-  rail, tesla, boom (+ scorch marks in `view.marks`), mortar warning; parry, break, ko, land, dash
-  still use `sparks`/`pop` with `Mech.glow`. **Sandbox:** `$G --path godot -- --sandbox=<weapon>`
-  (two pinned mechs, auto-fire, ←/→ weapon, T auto-fire; see `FX_DESIGN.md`). Evidence:
+  rail, tesla, boom (+ scorch marks in `view.marks`), mortar warning, parry, break, K.O. (+ slow-mo:
+  `view.slow` → main.gd sets `Engine.time_scale`), land, dash (+ `Fx.ghost` afterimages), booster
+  trails. **Sandbox:** `$G --path godot -- --sandbox=<weapon>` (two pinned mechs, auto-fire, ←/→
+  weapon, T auto-fire, G guard, K refill, J dash; see `FX_DESIGN.md`). Evidence:
   `production/qa/evidence/godot-hit-fx-before-after-2026-10-26.png`,
-  `godot-weapon-fx-before-after-2026-10-27.png`.
+  `godot-weapon-fx-before-after-2026-10-27.png`, `godot-moves-fx-before-after-2026-10-27.png`.
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
   saves that tick's frame and quits. Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
   to pick your two weapons (e.g. `--hands=mortar,rivet`; use `--at=200`, later ticks often show a
