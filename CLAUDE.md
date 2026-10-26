@@ -48,9 +48,15 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
-- Chassis (hips, torso, shoulders) is `godot/assets/models/chassis.glb`, made in Blender
-  (`art/chassis.blend`; its build script is the text block `chassis_build.py`). `Mech.add_part`
-  swaps its materials by name (body/trim/joint/gem/boost) for the team ones.
+- Body is the **light frame** `godot/assets/models/light.glb` (Victor 2026-10-26: chibi blocky
+  style, cube head + spike, visor eyes, grey pads, wheel-heel feet), made in Blender
+  (`art/light.blend`; build script = text block `light_build.py`; re-run it, then export the
+  Light collection as .glb). Objects: Head (pivot at the neck, 1.44), Chest (incl. shoulder pads
+  and back boosters), Hips, Arm_L/R (pivot at the shoulder, mesh hangs down; `build` raises it
+  1.4 rad and puts the weapon at the fist), Leg_L/R (pivot at the hip; used by every two-legged
+  leg kind, `stompers`/`skates` scale it). Head kinds add their extras on top of the light head.
+  `Mech.add_part` swaps materials by name (body/trim/joint/gem/boost) for the team ones. The old
+  chassis (`art/chassis.blend`, `chassis.glb`) is no longer loaded.
 
 ## Layout
 

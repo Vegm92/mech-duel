@@ -123,7 +123,7 @@ static func add(parent: Node3D, mesh: Mesh, m: Material, pos := Vector3.ZERO, ro
 
 static func add_part(parent: Node3D, part: String, mats: Dictionary) -> MeshInstance3D:
 	if _chassis.is_empty():
-		var s: Node = load("res://assets/models/chassis.glb").instantiate()
+		var s: Node = load("res://assets/models/light.glb").instantiate()
 		for c in s.get_children():
 			_chassis[String(c.name)] = c.mesh
 		s.free()
@@ -256,16 +256,16 @@ func build(lo: Dictionary, t: int) -> void:
 	add_child(torso)
 	build_legs(lo.legs, joint, trim)
 	add_part(hips, "Hips", parts)
-	add_part(torso, "Torso", parts)
-	build_head(lo.head, eye, trim)
+	add_part(torso, "Chest", parts)
+	build_head(lo.head, eye, trim, parts)
 	for hand in Sim.HANDS:
 		var side := -1.0 if hand == "left" else 1.0
 		var p := Node3D.new()
-		p.position = Vector3(0.05, 1.12, side * 0.74)
+		p.position = Vector3(0, 1.32, side * 0.41)
 		torso.add_child(p)
-		add_part(p, "Shoulder_L" if hand == "left" else "Shoulder_R", parts)
+		add_part(p, "Arm_L" if hand == "left" else "Arm_R", parts).rotation.z = 1.4
 		var w := weapon_node(lo[hand], t)
-		w.position = Vector3(0.28, -0.08, 0)
+		w.position = Vector3(0.5, -0.1, 0)
 		p.add_child(w)
 		for c in w.get_children():
 			if c.has_meta("spin"):
@@ -297,18 +297,16 @@ func build(lo: Dictionary, t: int) -> void:
 	add_child(smoke)
 
 
-func build_head(kind: String, eye: Material, trim: Material) -> void:
+func build_head(kind: String, eye: Material, trim: Material, parts: Dictionary) -> void:
+	var base := Node3D.new()
+	base.position = Vector3(0, 1.44, 0)
+	torso.add_child(base)
+	add_part(base, "Head", parts)
 	var h := Node3D.new()
-	h.position = Vector3(0.18, 1.62, 0)
-	torso.add_child(h)
-	if kind == "orb":
-		add(h, ball(0.3, 16), body_mat)
-	else:
-		add(h, box(Vector3(0.5, 0.38, 0.5)), body_mat)
-	add(h, box(Vector3(0.08, 0.1, 0.42 if kind != "visor" else 0.56)), eye, Vector3(0.26, 0.02, 0))
+	h.position = Vector3(0, 0.33, 0)
+	h.scale = Vector3.ONE * 1.1
+	base.add_child(h)
 	match kind:
-		"horn":
-			add(h, cyl(0.0, 0.08, 0.5, 8), trim, Vector3(0.3, 0.3, 0), Vector3(0, 0, -0.9))
 		"demon":
 			for s in [-1, 1]:
 				add(h, cyl(0.0, 0.07, 0.45, 8), trim, Vector3(0.05, 0.32, s * 0.2), Vector3(s * 0.4, 0, -0.3))
@@ -369,17 +367,11 @@ func build_legs(kind: String, joint: Material, trim: Material) -> void:
 			var k := 1.35 if kind == "stompers" else (0.8 if kind == "skates" else 1.0)
 			for s in [-1, 1]:
 				var p := Node3D.new()
-				p.position = Vector3(0, 0.8, s * 0.3)
+				p.position = Vector3(0, 0.8, s * 0.18)
 				hips.add_child(p)
-				add(p, box(Vector3(0.28 * k, 0.48, 0.28 * k)), joint, Vector3(0, -0.22, 0))
-				add(p, box(Vector3(0.24 * k, 0.4, 0.24 * k)), trim, Vector3(0.02, -0.56, 0))
+				add_part(p, "Leg_L" if s < 0 else "Leg_R", {"body": body_mat, "trim": trim, "joint": joint}).scale = Vector3(k, 1, k)
 				if kind == "jets":
-					add(p, cyl(0.1, 0.14, 0.12, 10), boost_mat, Vector3(0, -0.77, 0))
-				elif kind == "skates":
-					add(p, cyl(0.1, 0.1, 0.12, 10), joint, Vector3(0.12, -0.74, 0), TO_Z)
-					add(p, cyl(0.1, 0.1, 0.12, 10), joint, Vector3(-0.12, -0.74, 0), TO_Z)
-				else:
-					add(p, box(Vector3(0.5 * k, 0.14, 0.34 * k)), joint, Vector3(0.08, -0.74, 0))
+					add(p, cyl(0.07, 0.1, 0.18, 10), boost_mat, Vector3(-0.2, -0.45, 0))
 				swing.append(p)
 
 
