@@ -44,6 +44,12 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build al
   (mechs from primitive meshes + shared mesh/material helpers), `hud.gd`, `i18n.gd` (en + es built
   as `Translation` objects in code; L toggles). Sim (x, y) maps to `Vector3(x, height, y)`. The view
   tags state dicts with `seen` (fx) and `_n` (pooled node); the sim ignores both.
+- **Effects** follow `FX_DESIGN.md` ("punch, not glow", Victor 2026-10-26): `fx.gd` holds the
+  recipes and their knobs (`Fx.HIT`), drawn with `Mech.flat` (unshaded, no emission, so effects
+  never bloom). Hit-stop: `view.stop` asks main.gd to hold sim + view for N physics frames
+  (`view.process_mode` disabled, camera shake keeps going). Only `hit` is rebuilt so far; the
+  rest still use `sparks`/`pop` with `Mech.glow`. Evidence:
+  `production/qa/evidence/godot-hit-fx-before-after-2026-10-26.png`.
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
   saves that tick's frame and quits. Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
   to pick your two weapons (e.g. `--hands=mortar,rivet`; use `--at=200`, later ticks often show a

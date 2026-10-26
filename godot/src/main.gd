@@ -34,6 +34,7 @@ var shot_at := -1
 var shooting := false
 var tapped := {}
 var shake := 0.0
+var stop := 0
 var frozen := false
 var cam_mode := 0
 var hands_arg := PackedStringArray()
@@ -186,6 +187,7 @@ func start(lo: Dictionary) -> void:
 
 func new_match() -> void:
 	paused = false
+	stop = 0
 	tapped.clear()
 	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
 	var rival: Dictionary = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
@@ -323,13 +325,19 @@ func _physics_process(delta: float) -> void:
 	if garage.visible:
 		return
 	aim = aim_point()
-	if not paused and not frozen:
+	var held := stop > 0
+	if held:
+		stop -= 1
+	if not paused and not frozen and not held:
 		var me = Bot.bot_input(state, pilot, 0) if autopilot else player_input()
 		Sim.step(state, [me, Bot.bot_input(state, brain, 1)])
-	if not frozen:
+	if not frozen and not held:
 		view.sync(state, aim, delta)
 	shake = maxf(shake, view.shake)
 	view.shake = 0.0
+	stop = maxi(stop, view.stop)
+	view.stop = 0
+	view.process_mode = Node.PROCESS_MODE_DISABLED if stop > 0 else Node.PROCESS_MODE_INHERIT
 	if cam_mode == 0:
 		follow(delta)
 	else:

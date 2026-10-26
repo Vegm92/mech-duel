@@ -2,6 +2,7 @@ extends Node3D
 
 const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
+const Fx = preload("res://src/fx.gd")
 
 const FLOOR_SHADER := """
 shader_type spatial;
@@ -30,6 +31,7 @@ var pool := {}
 var active := []
 var tick := 0
 var shake := 0.0
+var stop := 0
 var pylons := []
 var crushers := []
 var items := []
@@ -578,9 +580,10 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 	match f.k:
 		"hit":
 			var head: bool = f.get("head", false)
-			sparks(p, Color8(255, 210, 120), 22 if head else 12, 7.0)
+			Fx.hit(self, f)
 			number(p + Vector3(0, 1.3, 0), str(int(f.n)), Color8(255, 230, 120) if head else Color.WHITE, 80 if head else 60)
-			shake = maxf(shake, 0.25 if head else 0.08)
+			shake = maxf(shake, Fx.shake_of(f))
+			stop = maxi(stop, Fx.stop_of(f))
 		"boom":
 			var big: bool = f.get("big", false)
 			pop(p, f.r, Color8(255, 150, 60), 0.4, false)

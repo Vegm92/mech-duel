@@ -81,6 +81,20 @@ static func glow(c: Color, emit := 4.0, alpha := 1.0) -> StandardMaterial3D:
 	return mat(Color(c, alpha), emit, 0.0, 1.0, false)
 
 
+static func flat(c: Color) -> StandardMaterial3D:
+	var key := "flat/%s" % c.to_html()
+	if _mats.has(key):
+		return _mats[key]
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = c
+	m.vertex_color_use_as_albedo = true
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_mats[key] = m
+	return m
+
+
 static func box(size: Vector3) -> Mesh:
 	var key := "b%s" % size
 	if not _meshes.has(key):
