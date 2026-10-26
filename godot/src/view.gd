@@ -572,24 +572,6 @@ func pop(p: Vector3, r: float, c: Color, secs: float, flat := true) -> void:
 	fx_node(mi, secs, 1.6 if flat else 2.8)
 
 
-func slash(state: Dictionary, f: Dictionary) -> void:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var r0 := 0.7
-	var r1: float = f.range + Sim.MECH_R
-	var n := 16
-	for i in n:
-		var a0: float = f.a - f.arc + 2.0 * f.arc * i / n
-		var a1: float = f.a - f.arc + 2.0 * f.arc * (i + 1) / n
-		var p0 := Vector3(cos(a0), 0, sin(a0))
-		var p1 := Vector3(cos(a1), 0, sin(a1))
-		for v in [p0 * r0, p0 * r1, p1 * r1, p0 * r0, p1 * r1, p1 * r0]:
-			st.add_vertex(v)
-	var c: Color = Mech.TEAM_LIGHT[team_of(state, f.id)]
-	var mi := one(st.commit(), Mech.glow(c, 3.0, 0.55), Vector3(f.x, 1.0, f.y))
-	fx_node(mi, 0.2)
-
-
 func spawn(state: Dictionary, f: Dictionary) -> void:
 	var p := Vector3(f.get("x", 0.0), 1.0, f.get("y", 0.0))
 	var ground := Vector3(p.x, 0.08, p.z)
@@ -607,8 +589,6 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			shake = maxf(shake, 0.6 if big else 0.2)
 		"muzzle":
 			fx_node(one(Mech.ball(0.22, 8), Mech.glow(Mech.TEAM_LIGHT[team_of(state, f.id)], 4.0), Vector3(p.x, 1.05, p.z)), 0.09, 1.8)
-		"slash":
-			slash(state, f)
 		"zap":
 			var c := Color8(255, 80, 120) if f.kind == "laser" else Color8(170, 210, 255)
 			beam(f.x1, f.y1, f.x2, f.y2, 0.35 if f.kind == "laser" else 0.22, c, 0.16, 7.0)

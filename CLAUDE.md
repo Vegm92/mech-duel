@@ -80,7 +80,18 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   ricochet). Melee weapons live in the same `guns.glb` (same script, origin = fist, +X = reach;
   claws, bunker and fist are gauntlets over the fist), held in a raised, outward guard (Victor:
   "ready state but not just in front"). The saw's blade is its own object `saw_disc`, flat in
-  XZ, placed at x 0.75 by `weapon_node` and spun around Y.
+  XZ, placed at x 0.75 by `weapon_node` and spun around Y. Swings (`reach` + `pose` in mech.gd)
+  follow the JS curve (`reach` in mechart.js): pull back in wind/combo, snap to the hit (eased over
+  ~3 ticks), hold for 45% of recovery, ease back to guard. Styles: thrust (`THRUST`: always level
+  and pointing along the aim, only slides back/forward; Victor 2026-10-26), overhead slam
+  (hammer), sweep (the rest, follow-through = the weapon's `arc`; the torso twists along).
+  **Melee hit fx = weapon trail** (Victor 2026-10-26 chose it over the old flat wedge, which is
+  gone): `streak` samples `pose_of` between ticks along the edge in `TRAIL` (weapon space) from
+  guard to hit, `draw_trail` draws a fading additive ribbon (`TRAIL_LIFE`, world space,
+  top-level `ImmediateMesh`); thrusts add a `TAIL` streak behind the tip. **Dash-swing** (wind
+  act with `follow`, the sim's 360° `spinDmg` hit): `spin_of` turns the torso one full turn in the
+  swing's direction over the first half of recovery, linear (keeps each tick under 180° so
+  physics interpolation can't spin it backwards); the trail follows, so it draws a full ring.
 
 ## Layout
 

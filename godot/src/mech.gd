@@ -18,6 +18,10 @@ const ARM_UP := 0.2
 const ELBOW := Vector3(0.048, -0.235, 0)
 const FIST := Vector3(0.438, -0.235, 0)
 const MOUNT := {"rivet": "arm", "scatter": "arm", "gatling": "arm", "tesla": "arm", "flamer": "shoulder", "missiles": "shoulder", "mortar": "shoulder"}
+const THRUST := ["drill", "bunker", "fist", "whip"]
+const TRAIL := {"saw": [Vector3(0.85, 0, 0), Vector3(1.28, 0, 0)], "hammer": [Vector3(0.8, 0, 0), Vector3(1.12, 0, 0)], "claws": [Vector3(0.55, 0, 0), Vector3(0.92, -0.06, 0)], "katana": [Vector3(0.8, 0, 0), Vector3(1.47, -0.04, 0)], "bash": [Vector3(0.42, 0, -0.45), Vector3(0.42, 0, 0.45)], "flail": [Vector3(0.95, 0, 0), Vector3(1.42, 0, 0)], "drill": [Vector3(1.3, 0, -0.08), Vector3(1.3, 0, 0.08)], "bunker": [Vector3(1.15, 0, -0.08), Vector3(1.15, 0, 0.08)], "fist": [Vector3(0.66, 0, -0.14), Vector3(0.66, 0, 0.14)], "whip": [Vector3(1.75, 0, -0.06), Vector3(1.75, 0, 0.06)]}
+const TAIL := 1.6
+const TRAIL_LIFE := 0.16
 
 var team := 0
 var body_mat: StandardMaterial3D
@@ -26,7 +30,13 @@ var boost_mat: StandardMaterial3D
 var torso: Node3D
 var hips: Node3D
 var hands := {}
-var hand_dead := {}
+var held := {}
+var shown := {}
+var trail: MeshInstance3D
+var strokes := []
+var live := {}
+var spun := {}
+var turned := {}
 var legs_kind := ""
 var swing := []
 var spin := []
@@ -194,14 +204,12 @@ func build(lo: Dictionary, t: int) -> void:
 		fore.visible = mount != "arm"
 		var w := weapon_node(lo[hand], gun_mats)
 		w.position = ELBOW if mount == "arm" else (Vector3(0, 0.15, side * 0.02) if mount == "shoulder" else FIST)
-		if Sim.WEAPONS[lo[hand]].kind == "melee":
-			w.rotation = Vector3(0, -side * 0.5, 0.6)
 		p.add_child(w)
 		for c in w.get_children():
 			if c.has_meta("spin"):
 				spin.append(c)
 		hands[hand] = p
-		hand_dead[hand] = false
+		held[hand] = w
 	shield = Node3D.new()
 	add_child(shield)
 	shield_mesh = add(shield, box(Vector3(0.12, 1.4, 2.3)), glow(Color8(120, 190, 255), 2.5, 0.55), Vector3(1.25, 1.05, 0))
@@ -225,6 +233,20 @@ func build(lo: Dictionary, t: int) -> void:
 	smoke.material_override = mat(Color(0.12, 0.12, 0.14, 0.6), 0.0, 0.0, 1.0)
 	smoke.position = Vector3(0, 1.2, 0)
 	add_child(smoke)
+	var tm := StandardMaterial3D.new()
+	tm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tm.vertex_color_use_as_albedo = true
+	tm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	tm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	tm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	tm.albedo_color = Color(1.3, 1.3, 1.3)
+	trail = MeshInstance3D.new()
+	trail.mesh = ImmediateMesh.new()
+	trail.material_override = tm
+	trail.top_level = true
+	trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	trail.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	add_child(trail)
 
 
 func build_legs(kind: String, joint: Material, trim: Material) -> void:
@@ -314,11 +336,26 @@ func sync(m: Dictionary, tick: int, dt: float) -> void:
 		aim_line.scale = Vector3(length, 1.0, 0.25 + 1.2 * p)
 		aim_line.position = Vector3(length / 2.0 + Sim.MECH_R, 1.08, 0)
 		aim_line.transparency = 0.8 - 0.6 * p
+	if fresh:
+		strokes.clear()
+		live.clear()
 	for hand in Sim.HANDS:
-		var j := Sim.jammed(m, Sim.ARM_OF[hand])
-		if j != hand_dead[hand]:
-			hand_dead[hand] = j
-			hands[hand].rotation.z = -0.55 if j else 0.0
+		var key: String = m.loadout[hand]
+		var r := reach(m, hand)
+		var prev: float = shown.get(hand, 0.0)
+		var cur := r if r <= prev else lerpf(prev, r, 0.6)
+		shown[hand] = cur
+		var droop := -0.55 if Sim.jammed(m, Sim.ARM_OF[hand]) else 0.0
+		var turn := spin_of(m, hand)
+		var turn0: float = turned.get(hand, 0.0)
+		turned[hand] = turn
+		pose(hand, key, cur, droop)
+		torso.rotation.y += turn
+		if TRAIL.has(key) and cur > -0.3 and (cur > prev + 0.01 or absf(turn) > absf(turn0) + 0.001 or (key in THRUST and r >= 1.0)):
+			streak(hand, key, maxf(prev, -0.3), cur, turn0 if absf(turn) >= absf(turn0) else turn, turn, droop, -m.aim, dt)
+		else:
+			live.erase(hand)
+	draw_trail(dt)
 	var flash := 0.0
 	if m.stagger > 0 and (tick / 3) % 2 == 0:
 		flash = 0.9
@@ -337,3 +374,105 @@ func sync(m: Dictionary, tick: int, dt: float) -> void:
 		gem_mat.emission_energy_multiplier = 0.0
 	if fresh and is_inside_tree():
 		reset_physics_interpolation()
+
+
+static func reach(m: Dictionary, hand: String) -> float:
+	var a = m.act
+	if a == null or a.k != hand:
+		return 0.0
+	if a.ph == "rec":
+		return minf(1.0, a.t / (Sim.recovery_of(m, hand) * 0.55))
+	var full: float = Sim.WEAPONS[m.loadout[hand]].gap if a.ph == "combo" else Sim.windup_of(m, hand)
+	return -clampf(1.0 - a.t / full, 0.0, 1.0)
+
+
+func pose(hand: String, key: String, r: float, droop: float) -> void:
+	var p: Node3D = hands[hand]
+	if Sim.WEAPONS[key].kind != "melee":
+		p.rotation = Vector3(0, 0, droop)
+		return
+	var q := pose_of(hand, key, r, droop)
+	p.rotation = q[0]
+	p.position.x = q[1]
+	held[hand].rotation = q[2]
+	torso.rotation.y += q[3]
+
+
+func spin_of(m: Dictionary, hand: String) -> float:
+	var a = m.act
+	if a == null or a.k != hand:
+		return 0.0
+	if a.ph == "wind":
+		spun[hand] = a.get("follow", false) and Sim.WEAPONS[m.loadout[hand]].kind == "melee"
+	if a.ph != "rec" or not spun.get(hand, false):
+		return 0.0
+	return (-1.0 if hand == "left" else 1.0) * TAU * clampf((1.0 - a.t / Sim.recovery_of(m, hand)) / 0.5, 0.0, 1.0)
+
+
+func streak(hand: String, key: String, r0: float, r1: float, sp0: float, sp1: float, droop: float, yaw: float, dt: float) -> void:
+	var spinning := sp1 != 0.0
+	var thrust := key in THRUST and not spinning
+	var edge: Array = TRAIL[key]
+	if key in THRUST and spinning:
+		edge = [Vector3(edge[0].x - 0.5, 0, 0), Vector3(edge[0].x, 0, 0)]
+		if live.has(hand) and not live[hand].spin:
+			live.erase(hand)
+	var fresh_stroke := not live.has(hand)
+	if fresh_stroke:
+		live[hand] = {"pts": [], "soft": 1.0 if thrust else 0.0, "spin": spinning}
+		strokes.append(live[hand])
+	var s := -1.0 if hand == "left" else 1.0
+	var n := maxi(1, maxi(ceili(absf(r1 - r0) / 0.08), ceili(absf(sp1 - sp0) / 0.2)))
+	for i in range(0 if fresh_stroke else 1, n + 1):
+		var t := float(i) / n
+		var q := pose_of(hand, key, lerpf(r0, r1, t), droop)
+		var tf := global_transform * Transform3D(Basis.from_euler(Vector3(0, yaw + q[3] + lerpf(sp0, sp1, t), 0))) * Transform3D(Basis.from_euler(q[0]), Vector3(q[1], 1.32, s * 0.41)) * Transform3D(Basis.from_euler(q[2]), FIST)
+		if thrust and i == 0:
+			live[hand].pts.append([tf * (edge[0] - Vector3(TAIL, 0, 0)), tf * (edge[1] - Vector3(TAIL, 0, 0)), TRAIL_LIFE * 0.5])
+		live[hand].pts.append([tf * edge[0], tf * edge[1], dt * (n - i) / n])
+
+
+func draw_trail(dt: float) -> void:
+	var im: ImmediateMesh = trail.mesh
+	im.clear_surfaces()
+	var c: Color = TEAM_LIGHT[team]
+	var hot := c.lerp(Color.WHITE, 0.6)
+	for st in strokes:
+		for pt in st.pts:
+			pt[2] += dt
+		while not st.pts.is_empty() and st.pts[0][2] > TRAIL_LIFE:
+			st.pts.pop_front()
+		if st.pts.size() < 2:
+			continue
+		im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+		for pt in st.pts:
+			var a: float = 1.0 - pt[2] / TRAIL_LIFE
+			im.surface_set_color(Color(c, a * st.soft))
+			im.surface_add_vertex(pt[0])
+			im.surface_set_color(Color(hot, a))
+			im.surface_add_vertex(pt[1])
+		im.surface_end()
+	strokes = strokes.filter(func(st): return not st.pts.is_empty())
+
+
+func pose_of(hand: String, key: String, r: float, droop: float) -> Array:
+	var back := r < 0
+	if key in THRUST:
+		return [Vector3(0, 0, droop), r * (0.14 if back else 0.32), Vector3.ZERO, 0.0]
+	var s := -1.0 if hand == "left" else 1.0
+	var arm: Vector3
+	var x: float
+	var tool: Vector3
+	var twist: float
+	if key == "hammer":
+		arm = Vector3(0, -0.2 * s, 0.5) if back else Vector3(0, 0.2 * s, -0.25)
+		x = -0.05 if back else 0.15
+		tool = Vector3(0, -0.2 * s, 1.5) if back else Vector3(0, 0.2 * s, -0.6)
+		twist = 0.1
+	else:
+		arm = Vector3(0, -0.6 * s, 0.1) if back else Vector3(0, 0.45 * s, -0.05)
+		x = -0.05 if back else 0.12
+		tool = Vector3(0, -1.2 * s, 0.9) if back else Vector3(0, Sim.WEAPONS[key].arc * 0.5 * s, 0.05)
+		twist = 0.3
+	var k := absf(r)
+	return [arm * k + Vector3(0, 0, droop), x * k, Vector3(0, -s * 0.5, 0.6).lerp(tool, k), twist * s * r]
