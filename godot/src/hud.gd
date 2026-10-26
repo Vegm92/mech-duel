@@ -2,6 +2,7 @@ extends CanvasLayer
 
 const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
+const Garage = preload("res://src/garage.gd")
 
 const PANEL := Color(0.04, 0.11, 0.23, 0.82)
 const EDGE := Color(0.31, 0.59, 0.9, 0.5)
@@ -12,12 +13,17 @@ const HEAT_C := Color(1.0, 0.36, 0.24)
 const PARTS := ["head", "larm", "rarm", "legs"]
 const SLOTS := [["left", "capLmb"], ["right", "capRmb"], ["shield", "capQ"], ["hook", "capE"], ["dash", "capSpace"], ["ult", "capR"]]
 
+signal resume
+signal restart
+signal quit
+
 var state: Dictionary
 var paused := false
 var canvas: Control
 var font: Font
 var top := {}
 var last := {}
+var menu: VBoxContainer
 
 
 func _ready() -> void:
@@ -27,9 +33,30 @@ func _ready() -> void:
 	canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	canvas.draw.connect(paint)
 	add_child(canvas)
+	menu = VBoxContainer.new()
+	menu.add_theme_constant_override("separation", 10)
+	menu.set_anchors_preset(Control.PRESET_CENTER)
+	menu.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	menu.offset_top = -40
+	for row in [["mResume", resume], ["mRestart", restart], ["mGarage", quit]]:
+		var b := Button.new()
+		b.text = row[0]
+		b.custom_minimum_size = Vector2(280, 46)
+		b.focus_mode = Control.FOCUS_NONE
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		b.add_theme_font_size_override("font_size", 18)
+		b.add_theme_stylebox_override("normal", Garage.plate(Garage.CARD, Garage.LINE, 1, 8))
+		for s in ["hover", "pressed", "hover_pressed"]:
+			b.add_theme_stylebox_override(s, Garage.plate(Garage.SEL, Garage.HI, 2, 8))
+		b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		b.pressed.connect(row[1].emit)
+		menu.add_child(b)
+	menu.visible = false
+	add_child(menu)
 
 
 func _process(_dt: float) -> void:
+	menu.visible = paused and visible
 	canvas.queue_redraw()
 
 
@@ -68,8 +95,8 @@ func paint() -> void:
 	callouts(size)
 	if paused:
 		canvas.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.5))
-		label(tr("mPaused"), Vector2(0, size.y * 0.45), 72, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10)
-		label(tr("pauseHint"), Vector2(0, size.y * 0.45 + 46), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6)
+		label(tr("mPaused"), Vector2(0, size.y * 0.3), 72, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10)
+		label(tr("pauseHint"), Vector2(0, size.y * 0.3 + 46), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6)
 
 
 func mech_panel(m: Dictionary, at: Vector2, title: String) -> void:
@@ -194,7 +221,7 @@ func callouts(size: Vector2) -> void:
 		"over":
 			var won: bool = state.score[0] > state.score[1]
 			label(tr("victory") if won else tr("defeat"), Vector2(0, cy + 30), 120, Mech.TEAM_LIGHT[0] if won else Mech.TEAM_LIGHT[1], HORIZONTAL_ALIGNMENT_CENTER, w, 14)
-			label(tr("again"), Vector2(0, cy + 84), 26, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 8)
+			label(tr("rematch"), Vector2(0, cy + 84), 26, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 8)
 		"fight":
 			var go = has_fx("fight")
 			if go != null:

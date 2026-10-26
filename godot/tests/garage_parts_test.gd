@@ -11,6 +11,7 @@ var failed := 0
 func _initialize() -> void:
 	await run("every_part_builds_alone_with_a_model", test_every_part_builds_alone_with_a_model)
 	await run("garage_previews_on_hover_and_equips_on_click", test_garage_previews_on_hover_and_equips_on_click)
+	await run("match_flow_comes_back_to_the_garage", test_match_flow_comes_back_to_the_garage)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -106,6 +107,33 @@ func test_garage_previews_on_hover_and_equips_on_click() -> int:
 	g.go()
 	bad += ensure(sent.size() == 1 and sent[0] == Sim.SETS.brawler, "FIGHT sends the built loadout")
 	g.queue_free()
+	return int(bad > 0)
+
+
+func test_match_flow_comes_back_to_the_garage() -> int:
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	root.add_child(m)
+	await process_frame
+	var bad := ensure(not m.garage.visible, "autopilot starts in a match")
+	m.state.phase = "over"
+	var enter := InputEventKey.new()
+	enter.physical_keycode = KEY_ENTER
+	enter.pressed = true
+	root.push_input(enter)
+	await process_frame
+	bad += ensure(m.garage.visible, "Enter after the match opens the garage and stays there")
+	m.garage.equip({"set": "tank"})
+	m.garage.go()
+	await physics_frame
+	bad += ensure(not m.garage.visible and m.state.mechs[0].loadout == Sim.SETS.tank, "FIGHT starts a match with the built bot")
+	m.paused = true
+	await process_frame
+	await process_frame
+	var quit: Button = m.hud.menu.get_child(2)
+	await mouse(quit.get_global_rect().get_center(), true)
+	bad += ensure(m.garage.visible and m.garage.loadout == Sim.SETS.tank, "Quit to garage keeps your bot")
+	m.queue_free()
 	return int(bad > 0)
 
 

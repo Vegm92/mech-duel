@@ -9,6 +9,7 @@ const PartView = preload("res://src/part_view.gd")
 const Garage = preload("res://src/garage.gd")
 
 const PITCH := deg_to_rad(60.0)
+const SAVE := "user://loadout.cfg"
 const CAMS := [[], [0.6, 0.3, 5.0, true], [PI / 2, 0.12, 5.0, true], [PI + 0.6, 0.4, 5.0, true], [PI / 2, PITCH, 6.0, false]]
 
 var state: Dictionary
@@ -98,7 +99,10 @@ func _ready() -> void:
 	garage = Garage.new()
 	add_child(garage)
 	garage.fight.connect(start)
-	if garage_arg >= 0:
+	hud.resume.connect(resume)
+	hud.restart.connect(new_match)
+	hud.quit.connect(to_garage)
+	if garage_arg >= 0 or not (autopilot or shot_at >= 0):
 		to_garage()
 	else:
 		garage.visible = false
@@ -106,7 +110,8 @@ func _ready() -> void:
 
 
 func flag_loadout() -> Dictionary:
-	var mine: Dictionary = Sim.SETS.get(set_arg, Sim.DEFAULT_LOADOUT).duplicate()
+	var base := Sim.DEFAULT_LOADOUT if autopilot or shot_path != "" else saved_loadout()
+	var mine: Dictionary = Sim.SETS.get(set_arg, base).duplicate()
 	if hands_arg.size() == 2:
 		mine.left = hands_arg[0]
 		mine.right = hands_arg[1]
@@ -121,6 +126,23 @@ func flag_loadout() -> Dictionary:
 	if booster_arg != "":
 		mine.booster = booster_arg
 	return mine
+
+
+func saved_loadout() -> Dictionary:
+	var cfg := ConfigFile.new()
+	cfg.load(SAVE)
+	return Sim.normalize(cfg.get_value("garage", "loadout", {}))
+
+
+func save_loadout() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("garage", "loadout", loadout)
+	cfg.save(SAVE)
+
+
+func resume() -> void:
+	paused = false
+	tapped.clear()
 
 
 func to_garage() -> void:
@@ -140,6 +162,8 @@ func to_garage() -> void:
 
 func start(lo: Dictionary) -> void:
 	loadout = lo
+	if not autopilot and shot_path == "":
+		save_loadout()
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 	garage.visible = false
 	view.visible = true
@@ -148,6 +172,8 @@ func start(lo: Dictionary) -> void:
 
 
 func new_match() -> void:
+	paused = false
+	tapped.clear()
 	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
 	var rival: Dictionary = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
 	state = Sim.create_state([loadout.duplicate(), rival])
@@ -210,7 +236,8 @@ func _input(event: InputEvent) -> void:
 				paused = not paused
 			KEY_ENTER, KEY_KP_ENTER:
 				if state.phase == "over":
-					new_match()
+					to_garage()
+					get_viewport().set_input_as_handled()
 			KEY_L:
 				I18n.toggle()
 			KEY_F:

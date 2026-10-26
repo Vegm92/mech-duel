@@ -26,7 +26,7 @@ Godot is portable at `C:\Users\victo\Tools\Godot\` (not on PATH).
 G=/c/Users/victo/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
 $G --path godot                                                # play
 $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs node for the JS check)
-$G --headless --path godot -s res://tests/garage_parts_test.gd  # every part builds alone; garage hover/click/Tab/FIGHT
+$G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow
 ```
 
 - `godot/src/sim.gd` and `godot/src/bot.gd` are line-by-line ports of `src/sim.js` and `src/bot.js`:
@@ -77,6 +77,14 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # every part bui
   Enter emits `fight(loadout)`; main.gd starts the match with it. L toggles the language.
   `--garage[=<tab 0..7>]` opens it, `--hover=<id>` fakes a hover for screenshots (the real
   mouse over the window wins). Evidence: `production/qa/evidence/godot-garage-*-2026-10-26.png`.
+- **Flow (same as JS):** the game opens on the garage; FIGHT saves your bot to
+  `user://loadout.cfg` (`ConfigFile`, read back through `Sim.normalize`) and starts the match.
+  Esc pauses with three buttons in hud.gd (Resume, Restart match, Quit to garage); Enter after
+  the match goes back to the garage (main marks that Enter handled, or the garage would take it
+  as FIGHT). Look checks (`--autopilot`, `--shot` with `--at`) skip the garage, start from
+  `DEFAULT_LOADOUT` and never save. While the garage is open the main 3D view is off
+  (`disable_3d`) and main.gd ignores input. Evidence: `godot-pause-menu-2026-10-26.png`,
+  `godot-match-over-2026-10-26.png`.
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
