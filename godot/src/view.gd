@@ -3,6 +3,8 @@ extends Node3D
 const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
 const Fx = preload("res://src/fx.gd")
+const TRACER := 0.028
+const DASHES := [0.4, 0.25, 0.15]
 
 const FLOOR_SHADER := """
 shader_type spatial;
@@ -32,6 +34,7 @@ var active := []
 var tick := 0
 var shake := 0.0
 var stop := 0
+var marks: Node3D
 var pylons := []
 var crushers := []
 var items := []
@@ -63,6 +66,8 @@ func build() -> void:
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
+	marks = Node3D.new()
+	add_child(marks)
 	var sun := DirectionalLight3D.new()
 	sun.light_energy = 2.4
 	sun.light_color = Color(1.0, 0.95, 0.88)
@@ -247,10 +252,18 @@ func reset(state: Dictionary) -> void:
 		n.visible = false
 		pool[n.get_meta("kind")].append(n)
 	active.clear()
+	for c in marks.get_children():
+		c.queue_free()
 
 
 func team_of(state: Dictionary, id) -> int:
 	return state.mechs[id].team if id != null and id >= 0 and id < state.mechs.size() else 0
+
+
+func shooter_color(state: Dictionary, f: Dictionary) -> Color:
+	if state.score.size() == 2:
+		return Mech.TEAM[1 - team_of(state, f.id)]
+	return Color8(255, 210, 120)
 
 
 func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
@@ -295,6 +308,8 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 			keep.append(n)
 		else:
 			n.visible = false
+			if n.get_meta("kind") == "missile":
+				n.get_child(2).emitting = false
 			pool[n.get_meta("kind")].append(n)
 	active = keep
 	arena(state)
@@ -324,13 +339,20 @@ func settle(n: Node3D) -> void:
 func make(kind: String) -> Node3D:
 	var n: Node3D
 	match kind:
-		"bolt", "flame":
+		"bolt":
+			n = Node3D.new()
+			add_child(n)
+			Mech.add(n, Mech.ball(1.0, 10), null)
+			for i in DASHES.size():
+				Mech.add(n, Mech.box(Vector3.ONE), null)
+		"flame":
 			n = Mech.add(self, Mech.ball(1.0, 10), null)
 		"missile":
 			n = Node3D.new()
 			add_child(n)
 			Mech.add(n, Mech.box(Vector3(0.6, 0.18, 0.18)), Mech.mat(Mech.STEEL, 0.0, 0.7, 0.3))
-			Mech.add(n, Mech.ball(0.14, 8), Mech.glow(Color8(255, 140, 60), 6.0), Vector3(-0.38, 0, 0))
+			Mech.add(n, Mech.ball(0.14, 8), Mech.flat(Color8(255, 200, 110), true), Vector3(-0.38, 0, 0))
+			Fx.trail(n).position = Vector3(-0.42, 0, 0)
 		"hook":
 			n = Node3D.new()
 			add_child(n)
@@ -339,9 +361,9 @@ func make(kind: String) -> Node3D:
 		"lob":
 			n = Node3D.new()
 			add_child(n)
-			Mech.add(n, Mech.ring(0.9, 1.0), Mech.glow(Color8(255, 90, 50), 3.0, 0.9))
-			Mech.add(n, Mech.cyl(1.0, 1.0, 0.02, 24), Mech.glow(Color8(255, 90, 50), 1.5, 0.35))
-			Mech.add(n, Mech.ball(0.25, 8), Mech.glow(Color8(255, 200, 120), 4.0))
+			Mech.add(n, Mech.ring(0.9, 1.0), Mech.flat(Color8(255, 100, 55, 230)))
+			Mech.add(n, Mech.cyl(1.0, 1.0, 0.02, 24), Mech.flat(Color8(255, 90, 50, 80)))
+			Mech.add(n, Mech.ball(0.25, 8), Mech.flat(Color8(255, 210, 130)))
 		"mine":
 			n = Node3D.new()
 			add_child(n)
@@ -369,12 +391,29 @@ func shot(state: Dictionary, s: Dictionary) -> void:
 	var team := team_of(state, s.owner)
 	match kind:
 		"bolt":
-			n.scale = Vector3(s.r * 2.6, s.r, s.r)
-			n.material_override = Mech.glow(Mech.TEAM[team].lightened(0.25), 3.0)
+			var head: MeshInstance3D = n.get_child(0)
+			var ln := clampf(Vector2(s.vx, s.vy).length() * TRACER, 0.8, 2.4)
+			var c: Color = Mech.TEAM[team]
+			head.scale = Vector3(s.r * 1.6, s.r * 0.7, s.r * 0.7)
+			head.material_override = Mech.flat(c.lightened(0.7), true)
+			var x: float = -s.r
+			for i in DASHES.size():
+				var dash: MeshInstance3D = n.get_child(i + 1)
+				var dl: float = ln * DASHES[i]
+				dash.scale = Vector3(dl, s.r * 0.5, s.r * 0.6)
+				dash.position = Vector3(x - dl / 2.0, 0, 0)
+				dash.material_override = Mech.flat(Color(c, 1.0 - 0.3 * i), true)
+				x -= dl + ln * 0.12
 		"flame":
-			var r: float = s.r * (1.4 - 0.6 * clampf(s.left / 6.0, 0.0, 1.0))
+			var age := 1.0 - clampf(s.left / 6.0, 0.0, 1.0)
+			var r: float = s.r * (0.8 + 0.6 * age)
 			n.scale = Vector3(r, r, r)
-			n.material_override = Mech.glow(Color8(255, 130, 40), 5.0, 0.75)
+			n.material_override = Mech.flat(Fx.ramp("fire").sample(snappedf(age * 0.6, 0.1)), true)
+		"missile":
+			var tr: CPUParticles3D = n.get_child(2)
+			if n.get_meta("fresh"):
+				tr.restart()
+			tr.emitting = true
 		"hook":
 			var o = state.mechs[s.owner]
 			var back := Vector2(o.x - s.x, o.y - s.y)
@@ -580,26 +619,26 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 	match f.k:
 		"hit":
 			var head: bool = f.get("head", false)
-			Fx.hit(self, f)
+			Fx.hit(self, f, shooter_color(state, f))
 			number(p + Vector3(0, 1.3, 0), str(int(f.n)), Color8(255, 230, 120) if head else Color.WHITE, 80 if head else 60)
 			shake = maxf(shake, Fx.shake_of(f))
 			stop = maxi(stop, Fx.stop_of(f))
 		"boom":
 			var big: bool = f.get("big", false)
-			pop(p, f.r, Color8(255, 150, 60), 0.4, false)
-			pop(ground, f.r, Color8(255, 110, 50), 0.35)
-			sparks(p, Color8(255, 170, 80), 30 if big else 14, 9.0)
+			stop = maxi(stop, Fx.boom(self, marks, f))
 			shake = maxf(shake, 0.6 if big else 0.2)
 		"muzzle":
-			fx_node(one(Mech.ball(0.22, 8), Mech.glow(Mech.TEAM_LIGHT[team_of(state, f.id)], 4.0), Vector3(p.x, 1.05, p.z)), 0.09, 1.8)
+			Fx.muzzle(self, f, Mech.TEAM[team_of(state, f.id)])
 		"zap":
-			var c := Color8(255, 80, 120) if f.kind == "laser" else Color8(170, 210, 255)
-			beam(f.x1, f.y1, f.x2, f.y2, 0.35 if f.kind == "laser" else 0.22, c, 0.16, 7.0)
+			if f.kind == "laser":
+				Fx.ray(self, f, 0.35, "laser", 0.16)
+			else:
+				Fx.arc(self, f)
 		"beam":
 			if f.kind == "lance":
-				beam(f.x1, f.y1, f.x2, f.y2, Sim.LANCE.halfWidth * 2.0, Color8(255, 190, 90), 0.35, 8.0)
+				Fx.ray(self, f, Sim.LANCE.halfWidth * 2.0, "lance", 0.35, true)
 			else:
-				beam(f.x1, f.y1, f.x2, f.y2, Sim.ULTS.rail.halfWidth * 2.0, Color8(120, 240, 255), 0.35, 8.0)
+				Fx.ray(self, f, Sim.ULTS.rail.halfWidth * 2.0, "rail", 0.35, true)
 			shake = maxf(shake, 0.35)
 		"parry":
 			pop(p, 1.2, Color8(150, 220, 255), 0.3)

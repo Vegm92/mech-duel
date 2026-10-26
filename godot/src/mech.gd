@@ -81,8 +81,8 @@ static func glow(c: Color, emit := 4.0, alpha := 1.0) -> StandardMaterial3D:
 	return mat(Color(c, alpha), emit, 0.0, 1.0, false)
 
 
-static func flat(c: Color) -> StandardMaterial3D:
-	var key := "flat/%s" % c.to_html()
+static func flat(c: Color, add := false) -> StandardMaterial3D:
+	var key := "flat/%s/%s" % [c.to_html(), add]
 	if _mats.has(key):
 		return _mats[key]
 	var m := StandardMaterial3D.new()
@@ -91,6 +91,8 @@ static func flat(c: Color) -> StandardMaterial3D:
 	m.vertex_color_use_as_albedo = true
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if add:
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	_mats[key] = m
 	return m
 
