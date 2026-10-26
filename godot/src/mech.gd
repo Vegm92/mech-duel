@@ -169,28 +169,70 @@ static func weapon_node(name: String, mats: Dictionary) -> Node3D:
 	return n
 
 
+static func paints(lo: Dictionary, t: int) -> Dictionary:
+	var body := StandardMaterial3D.new()
+	body.albedo_color = TEAM[t]
+	body.metallic = 0.3
+	body.roughness = 0.5
+	body.emission_enabled = true
+	body.emission = Color.BLACK
+	var gem := StandardMaterial3D.new()
+	gem.albedo_color = EYES[t]
+	gem.emission_enabled = true
+	gem.emission = EYES[t]
+	gem.emission_energy_multiplier = 3.0
+	var boost := StandardMaterial3D.new()
+	var bc: Color = BOOST_C[Sim.BOOSTERS[lo.booster].trail]
+	boost.albedo_color = bc
+	boost.emission_enabled = true
+	boost.emission = bc
+	return {"body": body, "trim": mat(STEEL, 0.0, 0.55, 0.5), "joint": mat(DARK, 0.0, 0.4, 0.6), "gem": gem, "boost": boost, "core": glow(CORE_C[lo.core], 3.0), "heal": glow(Color8(90, 255, 150), 3.0), "glow": glow(TEAM_LIGHT[t], 1.6), "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)}
+
+
+static func arm(p: Node3D, kind: String, s: String, parts: Dictionary) -> MeshInstance3D:
+	add_part(p, kind + "_upper" + s, parts, "arms").rotation.z = ARM_UP
+	var fore := add_part(p, kind + "_fore" + s, parts, "arms")
+	fore.position = ELBOW
+	fore.rotation.z = PI / 2
+	return fore
+
+
+func add_core(core: String, parts: Dictionary) -> void:
+	add_part(torso, "Chest_" + Sim.CORES[core].series, parts)
+	add_part(torso, core, parts, "cores")
+	if WHIRL.has(core):
+		var wh: Array = WHIRL[core]
+		whirl.append([add_part(torso, wh[0], parts, "cores"), wh[2], wh[3]])
+		whirl[-1][0].position = wh[1]
+
+
+func build_part(slot: String, key: String, t: int) -> void:
+	var lo: Dictionary = Sim.DEFAULT_LOADOUT.duplicate()
+	lo[slot] = key
+	var parts := paints(lo, t)
+	torso = self
+	hips = self
+	match slot:
+		"head":
+			add_part(self, key, parts, "heads")
+		"core":
+			add_core(key, parts)
+		"arms":
+			arm(self, key, "_R", parts)
+		"legs":
+			build_legs(key, parts)
+		"booster":
+			add_part(self, key, parts, "boosters")
+		_:
+			add_child(weapon_node(key, parts))
+
+
 func build(lo: Dictionary, t: int) -> void:
 	team = t
-	body_mat = StandardMaterial3D.new()
-	body_mat.albedo_color = TEAM[t]
-	body_mat.metallic = 0.3
-	body_mat.roughness = 0.5
-	body_mat.emission_enabled = true
-	body_mat.emission = Color.BLACK
-	gem_mat = StandardMaterial3D.new()
-	gem_mat.albedo_color = EYES[t]
-	gem_mat.emission_enabled = true
-	gem_mat.emission = EYES[t]
-	gem_mat.emission_energy_multiplier = 3.0
-	boost_mat = StandardMaterial3D.new()
-	var bc: Color = BOOST_C[Sim.BOOSTERS[lo.booster].trail]
-	boost_mat.albedo_color = bc
-	boost_mat.emission_enabled = true
-	boost_mat.emission = bc
-	var trim := mat(STEEL, 0.0, 0.55, 0.5)
-	var joint := mat(DARK, 0.0, 0.4, 0.6)
-	var parts := {"body": body_mat, "trim": trim, "joint": joint, "gem": gem_mat, "boost": boost_mat, "core": glow(CORE_C[lo.core], 3.0)}
-	var gun_mats := parts.merged({"glow": glow(TEAM_LIGHT[t], 1.6), "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)})
+	var parts := paints(lo, t)
+	body_mat = parts.body
+	gem_mat = parts.gem
+	boost_mat = parts.boost
 	hips = Node3D.new()
 	add_child(hips)
 	torso = Node3D.new()
@@ -199,27 +241,18 @@ func build(lo: Dictionary, t: int) -> void:
 	add_part(hips, "Hips", parts)
 	var size: String = Sim.CORES[lo.core].series
 	shoulder = SHOULDER[size]
-	add_part(torso, "Chest_" + size, parts)
-	add_part(torso, lo.core, parts, "cores")
+	add_core(lo.core, parts)
 	add_part(torso, lo.booster, parts, "boosters").position.x = -BACK[size]
-	if WHIRL.has(lo.core):
-		var wh: Array = WHIRL[lo.core]
-		whirl.append([add_part(torso, wh[0], parts, "cores"), wh[2], wh[3]])
-		whirl[-1][0].position = wh[1]
-	add_part(torso, lo.head, parts.merged({"heal": glow(Color8(90, 255, 150), 3.0)}), "heads").position.y = 1.44
+	add_part(torso, lo.head, parts, "heads").position.y = 1.44
 	for hand in Sim.HANDS:
 		var side := -1.0 if hand == "left" else 1.0
 		var p := Node3D.new()
 		p.position = Vector3(0, 1.32, side * shoulder)
 		torso.add_child(p)
-		var s := "_L" if hand == "left" else "_R"
-		add_part(p, lo.arms + "_upper" + s, parts, "arms").rotation.z = ARM_UP
-		var fore := add_part(p, lo.arms + "_fore" + s, parts, "arms")
-		fore.position = ELBOW
-		fore.rotation.z = PI / 2
+		var fore := arm(p, lo.arms, "_L" if hand == "left" else "_R", parts)
 		var mount: String = MOUNT.get(lo[hand], "hand")
 		fore.visible = mount != "arm"
-		var w := weapon_node(lo[hand], gun_mats)
+		var w := weapon_node(lo[hand], parts)
 		w.position = ELBOW if mount == "arm" else (Vector3(0, 0.15, side * 0.02) if mount == "shoulder" else FIST)
 		p.add_child(w)
 		for c in w.get_children():

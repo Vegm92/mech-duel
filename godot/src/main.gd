@@ -5,6 +5,7 @@ const Bot = preload("res://src/bot.gd")
 const View = preload("res://src/view.gd")
 const Hud = preload("res://src/hud.gd")
 const I18n = preload("res://src/i18n.gd")
+const PartView = preload("res://src/part_view.gd")
 
 const PITCH := deg_to_rad(60.0)
 const CAMS := [[], [0.6, 0.3, 5.0, true], [PI / 2, 0.12, 5.0, true], [PI + 0.6, 0.4, 5.0, true], [PI / 2, PITCH, 6.0, false]]
@@ -35,6 +36,7 @@ var arms_arg := ""
 var legs_arg := ""
 var booster_arg := ""
 var set_arg := ""
+var parts_arg := ""
 var target := 0
 var orbit := Vector2.ZERO
 var zoom := 1.0
@@ -67,6 +69,11 @@ func _ready() -> void:
 			booster_arg = a.substr(10)
 		elif a.begins_with("--set="):
 			set_arg = a.substr(6)
+		elif a.begins_with("--parts="):
+			parts_arg = a.substr(8)
+	if parts_arg != "":
+		part_sheet(parts_arg)
+		return
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 	cam = Camera3D.new()
 	cam.fov = 40.0
@@ -249,6 +256,34 @@ func _process(delta: float) -> void:
 	var s := shake * shake
 	cam.h_offset = randf_range(-1.0, 1.0) * s * 0.6
 	cam.v_offset = randf_range(-1.0, 1.0) * s * 0.6
+
+
+func part_sheet(slot: String) -> void:
+	set_process(false)
+	set_physics_process(false)
+	set_process_input(false)
+	var layer := CanvasLayer.new()
+	add_child(layer)
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.05, 0.11)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(bg)
+	var grid := GridContainer.new()
+	grid.columns = 6
+	grid.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(grid)
+	for key in Sim.CATALOG[slot]:
+		var v := PartView.new()
+		v.custom_minimum_size = Vector2(210, 170)
+		v.show_part(slot, key)
+		var tag := Label.new()
+		tag.text = key
+		v.add_child(tag)
+		grid.add_child(v)
+	if shot_path != "":
+		for i in 4:
+			await get_tree().process_frame
+		take_shot()
 
 
 func take_shot() -> void:
