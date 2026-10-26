@@ -44,7 +44,9 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   as `Translation` objects in code; L toggles). Sim (x, y) maps to `Vector3(x, height, y)`. The view
   tags state dicts with `seen` (fx) and `_n` (pooled node); the sim ignores both.
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
-  saves that tick's frame and quits. Add `--cam=1..4` for a close-up.
+  saves that tick's frame and quits. Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
+  to pick your two weapons (e.g. `--hands=mortar,rivet`; use `--at=200`, later ticks often show a
+  broken, drooping arm).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
@@ -52,11 +54,25 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   style, cube head + spike, visor eyes, grey pads, wheel-heel feet), made in Blender
   (`art/light.blend`; build script = text block `light_build.py`; re-run it, then export the
   Light collection as .glb). Objects: Head (pivot at the neck, 1.44), Chest (incl. shoulder pads
-  and back boosters), Hips, Arm_L/R (pivot at the shoulder, mesh hangs down; `build` raises it
-  1.4 rad and puts the weapon at the fist), Leg_L/R (pivot at the hip; used by every two-legged
-  leg kind, `stompers`/`skates` scale it). Head kinds add their extras on top of the light head.
-  `Mech.add_part` swaps materials by name (body/trim/joint/gem/boost) for the team ones. The old
-  chassis (`art/chassis.blend`, `chassis.glb`) is no longer loaded.
+  and back boosters), Hips, UpperArm_L/R (pivot at the shoulder) + Forearm_L/R (pivot at the
+  elbow, incl. the fist), both modeled hanging down, Leg_L/R (pivot at the hip; used by every
+  two-legged leg kind, `stompers`/`skates` scale it). Head kinds add their extras on top of the light head.
+  **Braced arm pose (Victor 2026-10-26: "readiness to tank the recoil", elbow bent, not stretched
+  out):** `build` tilts the upper arm `ARM_UP` (0.2 rad) forward and puts the forearm level at
+  `ELBOW`, fist at `FIST` (mech.gd consts, in the shoulder pivot's space).
+  `Mech.add_part(parent, part, mats, file)` loads a mesh by object name from `<file>.glb` and swaps
+  materials by name (body/trim/joint/gem/boost) for the team ones. The old chassis
+  (`art/chassis.blend`, `chassis.glb`) is no longer loaded.
+- Guns are `godot/assets/models/guns.glb` (one object per gun id, +X = barrel), made in Blender
+  (`art/guns.blend`, build script = text block `guns_build.py`; re-run it, export the Guns
+  collection as .glb; the Preview collection poses 3 robots for a fit check, never exported).
+  Style follows Victor's "Robot Gladiator Bots" sheets: grey 8-sided barrels, one orange band,
+  dark muzzle holes, glow strips. Extra materials: `glow` (team light), `flame`/`laser`/`arc`/`bounce`.
+  `MOUNT` (mech.gd) places each gun like the sheets: `arm` replaces the forearm (rivet, scatter,
+  gatling, tesla; origin = elbow, forearm hidden), `shoulder` sits on the pad (flamer, missiles,
+  mortar; origin = pad top), anything else is held in the fist (needle = crossbow, laser,
+  ricochet). Melee weapons are still primitives in `weapon_node`, held at the fist in a raised,
+  outward guard (Victor: "ready state but not just in front").
 
 ## Layout
 
