@@ -11,13 +11,14 @@ static var STEEL := Color8(170, 180, 198)
 static var DARK := Color8(44, 48, 58)
 static var _mats := {}
 static var _meshes := {}
-static var _chassis := {}
+static var _glb := {}
 
 const TO_X := Vector3(0, 0, -PI / 2)
 const TO_Z := Vector3(PI / 2, 0, 0)
 const ARM_UP := 0.2
 const ELBOW := Vector3(0.048, -0.235, 0)
 const FIST := Vector3(0.438, -0.235, 0)
+const MOUNT := {"rivet": "arm", "scatter": "arm", "gatling": "arm", "tesla": "arm", "flamer": "shoulder", "missiles": "shoulder", "mortar": "shoulder"}
 
 var team := 0
 var body_mat: StandardMaterial3D
@@ -124,68 +125,31 @@ static func add(parent: Node3D, mesh: Mesh, m: Material, pos := Vector3.ZERO, ro
 	return mi
 
 
-static func add_part(parent: Node3D, part: String, mats: Dictionary) -> MeshInstance3D:
-	if _chassis.is_empty():
-		var s: Node = load("res://assets/models/light.glb").instantiate()
+static func add_part(parent: Node3D, part: String, mats: Dictionary, file := "light") -> MeshInstance3D:
+	if not _glb.has(file):
+		var s: Node = load("res://assets/models/%s.glb" % file).instantiate()
+		var meshes := {}
 		for c in s.get_children():
-			_chassis[String(c.name)] = c.mesh
+			meshes[String(c.name)] = c.mesh
 		s.free()
+		_glb[file] = meshes
 	var mi := MeshInstance3D.new()
-	mi.mesh = _chassis[part]
+	mi.mesh = _glb[file][part]
 	for i in mi.mesh.get_surface_count():
 		mi.set_surface_override_material(i, mats[mi.mesh.surface_get_material(i).resource_name])
 	parent.add_child(mi)
 	return mi
 
 
-static func weapon_node(name: String, t: int) -> Node3D:
+static func weapon_node(name: String, t: int, mats: Dictionary) -> Node3D:
 	var n := Node3D.new()
+	if Sim.WEAPONS[name].kind != "melee":
+		add_part(n, name, mats, "guns")
+		return n
 	var steel := mat(STEEL, 0.0, 0.55, 0.5)
 	var dark := mat(DARK, 0.0, 0.5, 0.5)
 	var hot := glow(TEAM_LIGHT[t], 1.6)
 	match name:
-		"rivet":
-			add(n, box(Vector3(0.42, 0.26, 0.26)), dark, Vector3(0.05, 0, 0))
-			add(n, cyl(0.08, 0.1, 0.8), steel, Vector3(0.6, 0.02, 0), TO_X)
-			add(n, ring(0.07, 0.12), hot, Vector3(0.98, 0.02, 0), Vector3(0, 0, PI / 2))
-		"needle":
-			add(n, box(Vector3(0.5, 0.22, 0.22)), dark, Vector3(0.05, 0, 0))
-			add(n, cyl(0.05, 0.06, 1.4), steel, Vector3(0.95, 0.02, 0), TO_X)
-			add(n, box(Vector3(0.35, 0.1, 0.1)), hot, Vector3(0.3, 0.18, 0))
-		"scatter":
-			add(n, box(Vector3(0.45, 0.3, 0.32)), dark, Vector3(0.05, 0, 0))
-			add(n, cyl(0.2, 0.16, 0.5), steel, Vector3(0.5, 0, 0), TO_X)
-			add(n, ring(0.13, 0.21), hot, Vector3(0.76, 0, 0), Vector3(0, 0, PI / 2))
-		"gatling":
-			add(n, cyl(0.2, 0.2, 0.4, 8), dark, Vector3(0.1, 0, 0), TO_X)
-			for i in 3:
-				var a := TAU * i / 3.0
-				add(n, cyl(0.045, 0.045, 0.85, 6), steel, Vector3(0.65, cos(a) * 0.1, sin(a) * 0.1), TO_X)
-			add(n, ring(0.1, 0.16), hot, Vector3(1.05, 0, 0), Vector3(0, 0, PI / 2))
-		"flamer":
-			add(n, ball(0.22), dark, Vector3(0.0, 0.05, 0))
-			add(n, cyl(0.06, 0.16, 0.6), steel, Vector3(0.45, 0, 0), TO_X)
-			add(n, ball(0.1), glow(Color8(255, 150, 60), 5.0), Vector3(0.78, 0, 0))
-		"missiles":
-			add(n, box(Vector3(0.6, 0.38, 0.44)), dark, Vector3(0.25, 0.05, 0))
-			for i in 4:
-				add(n, ball(0.06, 8), glow(Color8(255, 120, 60), 5.0), Vector3(0.56, -0.05 + (i / 2) * 0.2, -0.1 + (i % 2) * 0.2))
-		"mortar":
-			add(n, box(Vector3(0.4, 0.3, 0.34)), dark, Vector3(0.05, 0, 0))
-			add(n, cyl(0.17, 0.17, 0.7), steel, Vector3(0.35, 0.3, 0), Vector3(0, 0, -PI / 4))
-			add(n, ring(0.13, 0.2), hot, Vector3(0.6, 0.55, 0), Vector3(0, 0, -PI / 4))
-		"laser":
-			add(n, box(Vector3(0.5, 0.2, 0.24)), dark, Vector3(0.05, 0, 0))
-			add(n, cyl(0.06, 0.08, 1.0), steel, Vector3(0.7, 0, 0), TO_X)
-			add(n, ball(0.09, 8), glow(Color8(255, 80, 120), 6.0), Vector3(1.2, 0, 0))
-		"tesla":
-			add(n, cyl(0.07, 0.07, 0.9), steel, Vector3(0.45, 0, 0), TO_X)
-			for i in 3:
-				add(n, ring(0.1, 0.17), glow(Color8(170, 210, 255), 4.0), Vector3(0.35 + i * 0.22, 0, 0), Vector3(0, 0, PI / 2))
-		"ricochet":
-			add(n, box(Vector3(0.42, 0.26, 0.26)), dark, Vector3(0.05, 0, 0))
-			add(n, cyl(0.09, 0.09, 0.7), steel, Vector3(0.55, 0, 0), TO_X)
-			add(n, ring(0.08, 0.14), glow(Color8(120, 255, 150), 4.0), Vector3(0.9, 0, 0), Vector3(0, 0, PI / 2))
 		"saw":
 			add(n, box(Vector3(0.6, 0.16, 0.16)), dark, Vector3(0.3, 0, 0))
 			var disc := Node3D.new()
@@ -253,6 +217,7 @@ func build(lo: Dictionary, t: int) -> void:
 	var joint := mat(DARK, 0.0, 0.4, 0.6)
 	var eye := glow(EYES[t], 5.0)
 	var parts := {"body": body_mat, "trim": trim, "joint": joint, "gem": gem_mat, "boost": boost_mat}
+	var gun_mats := parts.merged({"glow": glow(TEAM_LIGHT[t], 1.6), "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)})
 	hips = Node3D.new()
 	add_child(hips)
 	torso = Node3D.new()
@@ -271,8 +236,10 @@ func build(lo: Dictionary, t: int) -> void:
 		var fore := add_part(p, "Forearm" + s, parts)
 		fore.position = ELBOW
 		fore.rotation.z = PI / 2
-		var w := weapon_node(lo[hand], t)
-		w.position = FIST
+		var mount: String = MOUNT.get(lo[hand], "hand")
+		fore.visible = mount != "arm"
+		var w := weapon_node(lo[hand], t, gun_mats)
+		w.position = ELBOW if mount == "arm" else (Vector3(0, 0.15, side * 0.02) if mount == "shoulder" else FIST)
 		if Sim.WEAPONS[lo[hand]].kind == "melee":
 			w.rotation = Vector3(0, -side * 0.5, 0.6)
 		p.add_child(w)
