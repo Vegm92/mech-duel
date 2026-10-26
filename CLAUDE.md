@@ -46,7 +46,7 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
   saves that tick's frame and quits. Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
   to pick your two weapons (e.g. `--hands=mortar,rivet`; use `--at=200`, later ticks often show a
-  broken, drooping arm).
+  broken, drooping arm). `--head=<id>` picks your head (e.g. `--head=demon`).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
@@ -56,13 +56,19 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   Light collection as .glb). Objects: Head (pivot at the neck, 1.44), Chest (incl. shoulder pads
   and back boosters), Hips, UpperArm_L/R (pivot at the shoulder) + Forearm_L/R (pivot at the
   elbow, incl. the fist), both modeled hanging down, Leg_L/R (pivot at the hip; used by every
-  two-legged leg kind, `stompers`/`skates` scale it). Head kinds add their extras on top of the light head.
+  two-legged leg kind, `stompers`/`skates` scale it). The light `Head` object is no longer loaded:
+  heads come from `heads.glb` (below).
   **Braced arm pose (Victor 2026-10-26: "readiness to tank the recoil", elbow bent, not stretched
   out):** `build` tilts the upper arm `ARM_UP` (0.2 rad) forward and puts the forearm level at
   `ELBOW`, fist at `FIST` (mech.gd consts, in the shoulder pivot's space).
   `Mech.add_part(parent, part, mats, file)` loads a mesh by object name from `<file>.glb` and swaps
   materials by name (body/trim/joint/gem/boost) for the team ones. The old chassis
   (`art/chassis.blend`, `chassis.glb`) is no longer loaded.
+- Heads are `godot/assets/models/heads.glb` (one full head per head id, pivot at the neck, +X =
+  face), made in Blender (`art/heads.blend`, build script = text block `heads_build.py`; re-run it,
+  export the Heads collection as .glb; the Preview collection puts each head on a light body linked
+  from `light.blend`, never exported). Light heads are built at 0.9×, heavy at 1.08×. Extra
+  material: `heal` (Medic Dome cross). `build` loads one with `add_part(torso, lo.head, …, "heads")`.
 - Guns are `godot/assets/models/guns.glb` (one object per gun id, +X = barrel), made in Blender
   (`art/guns.blend`, build script = text block `guns_build.py`; re-run it, export the Guns
   collection as .glb; the Preview collection poses 3 robots for a fit check, never exported).

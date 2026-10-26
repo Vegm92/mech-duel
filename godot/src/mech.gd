@@ -170,7 +170,6 @@ func build(lo: Dictionary, t: int) -> void:
 	boost_mat.emission = bc
 	var trim := mat(STEEL, 0.0, 0.55, 0.5)
 	var joint := mat(DARK, 0.0, 0.4, 0.6)
-	var eye := glow(EYES[t], 5.0)
 	var parts := {"body": body_mat, "trim": trim, "joint": joint, "gem": gem_mat, "boost": boost_mat}
 	var gun_mats := parts.merged({"glow": glow(TEAM_LIGHT[t], 1.6), "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)})
 	hips = Node3D.new()
@@ -180,7 +179,7 @@ func build(lo: Dictionary, t: int) -> void:
 	build_legs(lo.legs, joint, trim)
 	add_part(hips, "Hips", parts)
 	add_part(torso, "Chest", parts)
-	build_head(lo.head, eye, trim, parts)
+	add_part(torso, lo.head, parts.merged({"heal": glow(Color8(90, 255, 150), 3.0)}), "heads").position.y = 1.44
 	for hand in Sim.HANDS:
 		var side := -1.0 if hand == "left" else 1.0
 		var p := Node3D.new()
@@ -226,36 +225,6 @@ func build(lo: Dictionary, t: int) -> void:
 	smoke.material_override = mat(Color(0.12, 0.12, 0.14, 0.6), 0.0, 0.0, 1.0)
 	smoke.position = Vector3(0, 1.2, 0)
 	add_child(smoke)
-
-
-func build_head(kind: String, eye: Material, trim: Material, parts: Dictionary) -> void:
-	var base := Node3D.new()
-	base.position = Vector3(0, 1.44, 0)
-	torso.add_child(base)
-	add_part(base, "Head", parts)
-	var h := Node3D.new()
-	h.position = Vector3(0, 0.33, 0)
-	h.scale = Vector3.ONE * 1.1
-	base.add_child(h)
-	match kind:
-		"demon":
-			for s in [-1, 1]:
-				add(h, cyl(0.0, 0.07, 0.45, 8), trim, Vector3(0.05, 0.32, s * 0.2), Vector3(s * 0.4, 0, -0.3))
-		"antenna":
-			add(h, cyl(0.02, 0.02, 0.7, 6), trim, Vector3(-0.1, 0.5, 0.15))
-			add(h, ball(0.06, 8), eye, Vector3(-0.1, 0.86, 0.15))
-		"crest":
-			add(h, box(Vector3(0.5, 0.18, 0.06)), trim, Vector3(-0.05, 0.27, 0), Vector3(0, 0, 0.3))
-		"dish":
-			add(h, cyl(0.25, 0.05, 0.08, 12), trim, Vector3(-0.15, 0.3, -0.2), Vector3(0.5, 0, 0.3))
-		"pincer":
-			for s in [-1, 1]:
-				add(h, box(Vector3(0.35, 0.08, 0.06)), trim, Vector3(0.32, -0.12, s * 0.15), Vector3(0, s * 0.3, 0))
-		"medic":
-			add(h, box(Vector3(0.12, 0.3, 0.1)), glow(Color8(90, 255, 150), 3.0), Vector3(0, 0.25, 0))
-			add(h, box(Vector3(0.12, 0.1, 0.3)), glow(Color8(90, 255, 150), 3.0), Vector3(0, 0.25, 0))
-		"dispenser":
-			add(h, cyl(0.1, 0.1, 0.25, 8), trim, Vector3(-0.1, 0.28, 0))
 
 
 func build_legs(kind: String, joint: Material, trim: Material) -> void:
