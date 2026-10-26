@@ -10,7 +10,26 @@ const TEXT := Color(0.91, 0.95, 1.0)
 const DIM := Color(0.5, 0.65, 0.84)
 const SURGE_C := Color(0.77, 0.55, 1.0)
 const HEAT_C := Color(1.0, 0.36, 0.24)
+const WIRE := Color8(94, 240, 232)
+const ACCENT := Color8(255, 154, 60)
+const SEG_OFF := Color(0.24, 0.35, 0.5)
+const PANEL_SIZE := Vector2(220, 142)
+const FIG := Transform2D(0, Vector2(0.6, 0.6), 0, Vector2(23, 5))
 const PARTS := ["head", "larm", "rarm", "legs"]
+const SHAPES := {
+	"head": [[Vector2(135, 50), Vector2(155, 50), Vector2(160, 58), Vector2(158, 68), Vector2(132, 68), Vector2(130, 58), Vector2(135, 50)], [Vector2(136, 60), Vector2(154, 60)], [Vector2(153, 50), Vector2(153, 42)]],
+	"core": [[Vector2(124, 73), Vector2(166, 73), Vector2(170, 92), Vector2(160, 106), Vector2(130, 106), Vector2(120, 92), Vector2(124, 73)], [Vector2(136, 78), Vector2(154, 78), Vector2(154, 98), Vector2(136, 98), Vector2(136, 78)], [Vector2(139, 106), Vector2(151, 106), Vector2(149, 114), Vector2(141, 114), Vector2(139, 106)]],
+	"larm": [[Vector2(112, 82), Vector2(120, 90), Vector2(92, 120), Vector2(84, 112), Vector2(112, 82)]],
+	"rarm": [[Vector2(178, 82), Vector2(170, 90), Vector2(198, 120), Vector2(206, 112), Vector2(178, 82)]],
+	"legs": [[Vector2(128, 116), Vector2(140, 116), Vector2(140, 152), Vector2(126, 152), Vector2(128, 116)], [Vector2(150, 116), Vector2(162, 116), Vector2(164, 152), Vector2(150, 152), Vector2(150, 116)]],
+}
+const BROKEN := {"head": Rect2(134, 50, 22, 18), "larm": Rect2(88, 92, 24, 24), "rarm": Rect2(178, 92, 24, 24), "legs": Rect2(128, 120, 34, 30)}
+const READOUT := {
+	"head": [Vector2(128, 38), 46.0, Vector2(150, 45), HORIZONTAL_ALIGNMENT_RIGHT],
+	"larm": [Vector2(10, 71), 52.0, Vector2(10, 66), HORIZONTAL_ALIGNMENT_LEFT],
+	"rarm": [Vector2(158, 71), 52.0, Vector2(150, 66), HORIZONTAL_ALIGNMENT_RIGHT],
+	"legs": [Vector2(85, 99), 50.0, Vector2(80, 120), HORIZONTAL_ALIGNMENT_CENTER],
+}
 const SLOTS := [["left", "capLmb", "capLt"], ["right", "capRmb", "capRt"], ["shield", "capQ", "capRb"], ["hook", "capE", "capL3"], ["dash", "capSpace", "capLb"], ["ult", "capR", "capR3"]]
 
 signal resume
@@ -22,6 +41,7 @@ var paused := false
 var pad := false
 var canvas: Control
 var font: Font
+var bold: FontVariation
 var top := {}
 var last := {}
 var menu: VBoxContainer
@@ -29,6 +49,9 @@ var menu: VBoxContainer
 
 func _ready() -> void:
 	font = ThemeDB.fallback_font
+	bold = FontVariation.new()
+	bold.base_font = font
+	bold.variation_embolden = 0.9
 	canvas = Control.new()
 	canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
 	canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -74,17 +97,12 @@ func label(s: String, pos: Vector2, size: int, c: Color, align := HORIZONTAL_ALI
 	canvas.draw_string(font, pos, s, align, width, size, c)
 
 
-func bar(r: Rect2, frac: float, c: Color) -> void:
-	canvas.draw_rect(r, Color(0, 0, 0, 0.45))
-	canvas.draw_rect(Rect2(r.position, Vector2(r.size.x * clampf(frac, 0.0, 1.0), r.size.y)), c)
-
-
 func hp_color(f: float) -> Color:
 	if f <= 0:
 		return Color8(58, 63, 72)
 	if f > 0.5:
-		return Color8(111, 211, 138)
-	return Color8(216, 176, 74) if f > 0.25 else Color8(224, 96, 63)
+		return Color8(46, 232, 160)
+	return Color8(232, 192, 80) if f > 0.25 else Color8(255, 90, 60)
 
 
 func paint() -> void:
@@ -92,7 +110,7 @@ func paint() -> void:
 		return
 	var size := canvas.size
 	mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
-	mech_panel(state.mechs[1], Vector2(size.x - 16 - 290, 16), tr("rivalBot"))
+	mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot"))
 	clock(size)
 	slots(size)
 	callouts(size)
@@ -102,30 +120,52 @@ func paint() -> void:
 		label(tr("pauseHint"), Vector2(0, size.y * 0.3 + 46), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6)
 
 
+func segs(at: Vector2, w: float, n: int, frac: float, c: Color) -> void:
+	var sw := (w - 2.0 * (n - 1)) / n
+	var lit := ceili(clampf(frac, 0.0, 1.0) * n)
+	for i in n:
+		var a := at.x + i * (sw + 2.0)
+		var pts := PackedVector2Array([Vector2(a + 2, at.y), Vector2(a + sw, at.y), Vector2(a + sw - 2, at.y + 5), Vector2(a, at.y + 5)])
+		if i < lit:
+			canvas.draw_colored_polygon(pts, c)
+		else:
+			pts.append(pts[0])
+			canvas.draw_polyline(pts, SEG_OFF, 1.0)
+
+
 func mech_panel(m: Dictionary, at: Vector2, title: String) -> void:
 	var t: int = m.team
-	plate(Rect2(at, Vector2(290, 186)))
-	canvas.draw_rect(Rect2(at, Vector2(4, 186)), Mech.TEAM[t])
-	label(title, at + Vector2(16, 28), 19, Mech.TEAM_LIGHT[t])
-	for i in PARTS.size():
-		var p: String = PARTS[i]
-		var y := at.y + 46 + i * 22
+	canvas.draw_style_box(Garage.plate(PANEL, EDGE, 1, 10), Rect2(at, PANEL_SIZE))
+	canvas.draw_rect(Rect2(at + Vector2(0, 10), Vector2(3, PANEL_SIZE.y - 20)), Mech.TEAM[t])
+	label(title, at + Vector2(12, 18), 14, Mech.TEAM_LIGHT[t])
+	canvas.draw_line(at + Vector2(12, 25), at + Vector2(208, 25), Color(ACCENT, 0.4), 1.0)
+	canvas.draw_line(at + Vector2(75, 25), at + Vector2(145, 25), ACCENT, 2.0)
+	var fig := Transform2D(0, at) * FIG
+	for line in SHAPES.core:
+		canvas.draw_polyline(fig * PackedVector2Array(line), WIRE, 1.2, true)
+	for p in PARTS:
 		var f: float = maxf(0.0, m.armor[p]) / float(m.max[p])
-		label(tr(p), Vector2(at.x + 16, y + 12), 14, DIM)
-		bar(Rect2(at.x + 96, y + 2, 140, 12), f, hp_color(f))
-		label(str(int(maxf(0.0, m.armor[p]))), Vector2(at.x + 240, y + 13), 13, TEXT, HORIZONTAL_ALIGNMENT_RIGHT, 38)
-	var hy := at.y + 152
+		var c := hp_color(f)
+		for line in SHAPES[p]:
+			canvas.draw_polyline(fig * PackedVector2Array(line), WIRE if f > 0.5 else c, 1.2, true)
+		if f <= 0:
+			var r: Rect2 = fig * BROKEN[p]
+			canvas.draw_line(r.position, r.end, HEAT_C, 2.0, true)
+			canvas.draw_line(Vector2(r.end.x, r.position.y), Vector2(r.position.x, r.end.y), HEAT_C, 2.0, true)
+		var o: Array = READOUT[p]
+		segs(at + o[0], o[1], 6, f, c)
+		canvas.draw_string(bold, at + o[2], str(int(maxf(0.0, m.armor[p]))), o[3], 60, 17, c)
 	var hot := Sim.hot_of(m)
-	label(tr("heat"), Vector2(at.x + 16, hy), 14, DIM)
-	var hc := HEAT_C if hot or m.overheat > 0 else Color8(255, 170, 90)
-	bar(Rect2(at.x + 70, hy - 10, 74, 10), m.heat / 100.0, hc)
-	if m.overheat > 0:
-		label(tr("overheat"), Vector2(at.x + 16, hy + 20), 12, HEAT_C)
-	elif hot:
-		label(tr("hot"), Vector2(at.x + 16, hy + 20), 12, HEAT_C)
-	label(tr("surge"), Vector2(at.x + 156, hy), 14, DIM)
+	label(tr("heat"), at + Vector2(10, 134), 11, Color8(255, 176, 112))
+	segs(at + Vector2(44, 127), 52, 5, m.heat / 100.0, HEAT_C if hot or m.overheat > 0 else ACCENT)
+	canvas.draw_line(at + Vector2(110, 124), at + Vector2(110, 136), Color(ACCENT, 0.5), 1.0)
 	var full: bool = m.surge >= Sim.SURGE.max
-	bar(Rect2(at.x + 206, hy - 10, 72, 10), m.surge / float(Sim.SURGE.max), SURGE_C if not full else SURGE_C.lightened(0.4))
+	label(tr("surge"), at + Vector2(118, 134), 11, SURGE_C)
+	segs(at + Vector2(158, 127), 52, 5, m.surge / float(Sim.SURGE.max), SURGE_C if not full else SURGE_C.lightened(0.4))
+	if m.overheat > 0:
+		label(tr("overheat"), at + Vector2(12, PANEL_SIZE.y + 16), 12, HEAT_C, HORIZONTAL_ALIGNMENT_LEFT, -1, 4)
+	elif hot:
+		label(tr("hot"), at + Vector2(12, PANEL_SIZE.y + 16), 12, HEAT_C, HORIZONTAL_ALIGNMENT_LEFT, -1, 4)
 
 
 func clock(size: Vector2) -> void:
