@@ -11,6 +11,11 @@ const Garage = preload("res://src/garage.gd")
 const PITCH := deg_to_rad(60.0)
 const SAVE := "user://loadout.cfg"
 const CAMS := [[], [0.6, 0.3, 5.0, true], [PI / 2, 0.12, 5.0, true], [PI + 0.6, 0.4, 5.0, true], [PI / 2, PITCH, 6.0, false]]
+const DEAD := 0.2
+const REACH := 16.0
+const LOOKBACK := 6
+const PAD := {"dash": JOY_BUTTON_LEFT_SHOULDER, "shield": JOY_BUTTON_RIGHT_SHOULDER, "hook": JOY_BUTTON_LEFT_STICK, "ult": JOY_BUTTON_RIGHT_STICK}
+const TRIGGER := {"left": JOY_AXIS_TRIGGER_LEFT, "right": JOY_AXIS_TRIGGER_RIGHT}
 
 var state: Dictionary
 var brain: Dictionary
@@ -46,10 +51,18 @@ var garage: CanvasLayer
 var target := 0
 var orbit := Vector2.ZERO
 var zoom := 1.0
+var pad_id := 0
+var on_pad := false
+var reach := Vector2.ZERO
+var recent: Array[Vector2] = []
 
 
 func _ready() -> void:
 	I18n.setup()
+	var accept := InputEventJoypadButton.new()
+	accept.device = -1
+	accept.button_index = JOY_BUTTON_A
+	InputMap.action_add_event("ui_accept", accept)
 	for a in OS.get_cmdline_user_args():
 		if a == "--autopilot":
 			autopilot = true
@@ -192,24 +205,49 @@ func key(k: Key) -> bool:
 	return Input.is_physical_key_pressed(k)
 
 
+func pad(k: String) -> bool:
+	if TRIGGER.has(k):
+		return Input.get_joy_axis(pad_id, TRIGGER[k]) > 0.5
+	return Input.is_joy_button_pressed(pad_id, PAD[k])
+
+
+func stick(x: JoyAxis, y: JoyAxis) -> Vector2:
+	var v := Vector2(Input.get_joy_axis(pad_id, x), Input.get_joy_axis(pad_id, y)).limit_length(1.0)
+	return v if v.length() > DEAD else Vector2.ZERO
+
+
 func player_input() -> Dictionary:
+	var move := stick(JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y)
 	var inp := {
-		"mx": float(int(key(KEY_D)) - int(key(KEY_A))),
-		"my": float(int(key(KEY_S)) - int(key(KEY_W))),
+		"mx": float(int(key(KEY_D)) - int(key(KEY_A))) + move.x,
+		"my": float(int(key(KEY_S)) - int(key(KEY_W))) + move.y,
 		"ax": aim.x,
 		"ay": aim.z,
-		"left": Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or tapped.has("left"),
-		"right": Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or tapped.has("right"),
-		"shield": key(KEY_Q) or tapped.has("shield"),
-		"hook": key(KEY_E) or tapped.has("hook"),
-		"dash": key(KEY_SPACE) or tapped.has("dash"),
-		"ult": key(KEY_R) or tapped.has("ult"),
+		"left": Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or tapped.has("left") or pad("left"),
+		"right": Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or tapped.has("right") or pad("right"),
+		"shield": key(KEY_Q) or tapped.has("shield") or pad("shield"),
+		"hook": key(KEY_E) or tapped.has("hook") or pad("hook"),
+		"dash": key(KEY_SPACE) or tapped.has("dash") or pad("dash"),
+		"ult": key(KEY_R) or tapped.has("ult") or pad("ult"),
 	}
 	tapped.clear()
 	return inp
 
 
 func aim_point() -> Vector3:
+	var r := stick(JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y) * REACH
+	if r != Vector2.ZERO:
+		on_pad = true
+		reach = r
+		recent.push_back(r)
+		if recent.size() > LOOKBACK:
+			recent.pop_front()
+	elif not recent.is_empty():
+		reach = recent[0]
+		recent.clear()
+	if on_pad:
+		var me = state.mechs[0]
+		return Vector3(me.x + reach.x, 0, me.y + reach.y)
 	var mp := get_viewport().get_mouse_position()
 	var o := cam.project_ray_origin(mp)
 	var d := cam.project_ray_normal(mp)
@@ -222,6 +260,10 @@ func aim_point() -> Vector3:
 func _input(event: InputEvent) -> void:
 	if garage.visible:
 		return
+	if event is InputEventMouseMotion:
+		on_pad = false
+	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+		pad_id = event.device
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.physical_keycode:
 			KEY_Q:
@@ -260,6 +302,16 @@ func _input(event: InputEvent) -> void:
 			zoom = maxf(zoom * 0.9, 0.3)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			zoom = minf(zoom * 1.1, 3.0)
+	elif event is InputEventJoypadButton and event.pressed:
+		var k = PAD.find_key(event.button_index)
+		if k:
+			tapped[k] = true
+		elif event.button_index == JOY_BUTTON_START:
+			paused = not paused
+	elif event is InputEventJoypadMotion and event.axis_value > 0.5:
+		var k = TRIGGER.find_key(event.axis)
+		if k:
+			tapped[k] = true
 
 
 func _notification(what: int) -> void:
@@ -284,6 +336,7 @@ func _physics_process(delta: float) -> void:
 		close_camera()
 	hud.visible = cam_mode == 0
 	hud.paused = paused
+	hud.pad = on_pad
 	if shot_at >= 0 and state.tick >= shot_at and not shooting:
 		shooting = true
 		take_shot()

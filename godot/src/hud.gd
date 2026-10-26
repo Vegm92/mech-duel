@@ -11,7 +11,7 @@ const DIM := Color(0.5, 0.65, 0.84)
 const SURGE_C := Color(0.77, 0.55, 1.0)
 const HEAT_C := Color(1.0, 0.36, 0.24)
 const PARTS := ["head", "larm", "rarm", "legs"]
-const SLOTS := [["left", "capLmb"], ["right", "capRmb"], ["shield", "capQ"], ["hook", "capE"], ["dash", "capSpace"], ["ult", "capR"]]
+const SLOTS := [["left", "capLmb", "capLt"], ["right", "capRmb", "capRt"], ["shield", "capQ", "capRb"], ["hook", "capE", "capL3"], ["dash", "capSpace", "capLb"], ["ult", "capR", "capR3"]]
 
 signal resume
 signal restart
@@ -19,6 +19,7 @@ signal quit
 
 var state: Dictionary
 var paused := false
+var pad := false
 var canvas: Control
 var font: Font
 var top := {}
@@ -42,13 +43,12 @@ func _ready() -> void:
 		var b := Button.new()
 		b.text = row[0]
 		b.custom_minimum_size = Vector2(280, 46)
-		b.focus_mode = Control.FOCUS_NONE
 		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		b.add_theme_font_size_override("font_size", 18)
 		b.add_theme_stylebox_override("normal", Garage.plate(Garage.CARD, Garage.LINE, 1, 8))
 		for s in ["hover", "pressed", "hover_pressed"]:
 			b.add_theme_stylebox_override(s, Garage.plate(Garage.SEL, Garage.HI, 2, 8))
-		b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		b.add_theme_stylebox_override("focus", Garage.plate(Color.TRANSPARENT, Garage.HI, 3, 8))
 		b.pressed.connect(row[1].emit)
 		menu.add_child(b)
 	menu.visible = false
@@ -56,7 +56,10 @@ func _ready() -> void:
 
 
 func _process(_dt: float) -> void:
+	var was := menu.visible
 	menu.visible = paused and visible
+	if menu.visible and not was:
+		menu.get_child(0).grab_focus()
 	canvas.queue_redraw()
 
 
@@ -186,7 +189,7 @@ func slots(size: Vector2) -> void:
 			canvas.draw_rect(Rect2(r.position, Vector2(w, w * frac)), Color(0, 0, 0, 0.6))
 		if lit:
 			canvas.draw_rect(r.grow(2), SURGE_C if key == "ult" else Color8(140, 200, 255), false, 3.0)
-		label(tr(SLOTS[i][1]), r.position + Vector2(0, 30), 15, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 4)
+		label(tr(SLOTS[i][2 if pad else 1]), r.position + Vector2(0, 30), 15, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 4)
 		var fs := 12
 		while fs > 9 and font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 8:
 			fs -= 1

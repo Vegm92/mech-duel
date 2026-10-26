@@ -363,8 +363,9 @@ Rules:
 - No target lock, no aim assist, no snap. Mouse or gamepad.
 - Raw mouse input, cursor confined to the window, crosshair cursor with the range ring of the last
   used skill.
-- **Gamepad** (secondary): LS move, RS aim (ground-target distance = stick tilt × max range),
-  RT = Q, LT = W, A or LB = E, RB = R. Still no aim assist.
+- **Gamepad** (secondary; Godot port only so far): LS move, RS aim (ground-target distance =
+  stick tilt × 16 m; letting go keeps the last aim), LT = left hand, RT = right hand, LB = dash,
+  RB = shield (hold), L3 = hook, R3 = R skill, Start = pause. Still no aim assist.
 - Not offered: LoL-style right-click-to-move. Click-to-move fights the momentum model.
 
 ---

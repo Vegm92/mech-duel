@@ -12,6 +12,7 @@ func _initialize() -> void:
 	await run("every_part_builds_alone_with_a_model", test_every_part_builds_alone_with_a_model)
 	await run("garage_previews_on_hover_and_equips_on_click", test_garage_previews_on_hover_and_equips_on_click)
 	await run("match_flow_comes_back_to_the_garage", test_match_flow_comes_back_to_the_garage)
+	await run("pad_moves_aims_acts_and_pauses", test_pad_moves_aims_acts_and_pauses)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -134,6 +135,88 @@ func test_match_flow_comes_back_to_the_garage() -> int:
 	await mouse(quit.get_global_rect().get_center(), true)
 	bad += ensure(m.garage.visible and m.garage.loadout == Sim.SETS.tank, "Quit to garage keeps your bot")
 	m.queue_free()
+	return int(bad > 0)
+
+
+func axis(a: JoyAxis, v: float) -> void:
+	var e := InputEventJoypadMotion.new()
+	e.device = 0
+	e.axis = a
+	e.axis_value = v
+	Input.parse_input_event(e)
+
+
+func pad(b: JoyButton, down: bool) -> void:
+	var e := InputEventJoypadButton.new()
+	e.device = 0
+	e.button_index = b
+	e.pressed = down
+	Input.parse_input_event(e)
+
+
+func settle() -> void:
+	for i in 2:
+		await physics_frame
+	await process_frame
+	await process_frame
+
+
+func press(b: JoyButton) -> void:
+	pad(b, true)
+	await settle()
+	pad(b, false)
+	await settle()
+
+
+func test_pad_moves_aims_acts_and_pauses() -> int:
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	root.add_child(m)
+	await process_frame
+	m.autopilot = false
+	m.frozen = true
+	axis(JOY_AXIS_LEFT_X, 0.1)
+	axis(JOY_AXIS_RIGHT_X, 1.0)
+	for i in 4:
+		await settle()
+	var bad := ensure(m.on_pad and m.reach == Vector2(16, 0) and m.hud.pad, "full right stick aims 16 m right and the HUD shows pad buttons")
+	bad += ensure(m.player_input().mx == 0.0, "left stick drift inside the dead zone does not walk")
+	axis(JOY_AXIS_RIGHT_X, 0.5)
+	await settle()
+	bad += ensure(m.reach == Vector2(8, 0), "half tilt aims half as far")
+	axis(JOY_AXIS_RIGHT_X, 0.0)
+	await settle()
+	bad += ensure(m.reach == Vector2(16, 0), "letting go keeps the aim from before the stick sprang back")
+	axis(JOY_AXIS_LEFT_X, 1.0)
+	axis(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	pad(JOY_BUTTON_LEFT_SHOULDER, true)
+	pad(JOY_BUTTON_RIGHT_STICK, true)
+	await settle()
+	var inp: Dictionary = m.player_input()
+	bad += ensure(inp.mx == 1.0 and inp.right and inp.dash and inp.ult and not inp.left and not inp.hook, "left stick walks, RT fires the right hand, LB dashes, R3 casts the R skill")
+	pad(JOY_BUTTON_LEFT_SHOULDER, false)
+	pad(JOY_BUTTON_RIGHT_STICK, false)
+	axis(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	await settle()
+	m.player_input()
+	await press(JOY_BUTTON_LEFT_STICK)
+	inp = m.player_input()
+	bad += ensure(inp.hook and not inp.dash and not inp.ult, "a quick L3 click still throws the hook")
+	var move := InputEventMouseMotion.new()
+	move.relative = Vector2(5, 0)
+	root.push_input(move, true)
+	await settle()
+	bad += ensure(not m.on_pad and not m.hud.pad, "moving the mouse hands aim back to the mouse")
+	await press(JOY_BUTTON_START)
+	bad += ensure(m.paused and get_root().gui_get_focus_owner() == m.hud.menu.get_child(0), "Start pauses with Resume picked")
+	await press(JOY_BUTTON_DPAD_DOWN)
+	await press(JOY_BUTTON_DPAD_DOWN)
+	await press(JOY_BUTTON_A)
+	bad += ensure(m.garage.visible, "D-pad down twice and A quits to the garage")
+	axis(JOY_AXIS_LEFT_X, 0.0)
+	await process_frame
+	m.queue_free()
+	await process_frame
 	return int(bad > 0)
 
 

@@ -26,7 +26,7 @@ Godot is portable at `C:\Users\victo\Tools\Godot\` (not on PATH).
 G=/c/Users/victo/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
 $G --path godot                                                # play
 $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs node for the JS check)
-$G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow
+$G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow; gamepad
 ```
 
 - `godot/src/sim.gd` and `godot/src/bot.gd` are line-by-line ports of `src/sim.js` and `src/bot.js`:
@@ -86,6 +86,17 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build al
   `DEFAULT_LOADOUT` and never save. While the garage is open the main 3D view is off
   (`disable_3d`) and main.gd ignores input. Evidence: `godot-pause-menu-2026-10-26.png`,
   `godot-match-over-2026-10-26.png`.
+- **Gamepad, in a match (Victor 2026-10-26 picked "dash on LB").** main.gd reads the pad next to
+  keys and mouse, from `pad_id` (the last pad that sent anything). Left stick walks (analog, `DEAD`
+  0.2 dead zone). Right stick aims at tilt × `REACH` (16 m) from your mech; an idle stick keeps that
+  offset, so the aim follows you. Letting go uses the reading from `LOOKBACK` (6) ticks earlier, so
+  the stick springing back to center doesn't pull a mortar shot in to your feet. Moving the mouse
+  hands aim back to the mouse (`on_pad`). `PAD` / `TRIGGER`: LT left hand, RT right hand, LB dash,
+  RB shield (hold), L3 hook, R3 R skill (Victor: "thumbs always on the joysticks"); Start does
+  what Esc does. Taps latch like keys. While you aim with the pad the HUD slots show pad buttons
+  (`hud.pad`, `cap*` strings). Pause menu: Resume has focus when it opens, D-pad / left stick
+  move, A presses (main adds A to `ui_accept`; Godot 4.7 leaves it out). Not built yet: garage with a pad (still needs the mouse), a second local player,
+  rumble. Evidence: `godot-gamepad-hud-2026-10-26.png`, `godot-gamepad-pause-2026-10-26.png`.
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
