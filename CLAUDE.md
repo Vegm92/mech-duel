@@ -47,7 +47,8 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   saves that tick's frame and quits. Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
   to pick your two weapons (e.g. `--hands=mortar,rivet`; use `--at=200`, later ticks often show a
   broken, drooping arm). `--head=<id>` picks your head (e.g. `--head=demon`), `--core=<id>` your
-  core (e.g. `--core=titan`; pair it with `--hands=rivet,rivet` so no blade hides the chest).
+  core (e.g. `--core=titan`; pair it with `--hands=rivet,rivet` so no blade hides the chest),
+  `--arms=<id>` your arms (pair it with `--hands=laser,ricochet` so both forearms show).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
@@ -57,8 +58,8 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   Light collection as .glb). Objects: Head (pivot at the neck, 1.44), Chest_light /
   Chest_standard / Chest_heavy (incl. shoulder pads, back boosters and the core socket), Hips,
   UpperArm_L/R (pivot at the shoulder) + Forearm_L/R (pivot at the elbow, incl. the fist), both modeled hanging down, Leg_L/R (pivot at the hip; used by every
-  two-legged leg kind, `stompers`/`skates` scale it). The light `Head` object is no longer loaded:
-  heads come from `heads.glb` (below).
+  two-legged leg kind, `stompers`/`skates` scale it). The light `Head`, `UpperArm_*` and `Forearm_*`
+  objects are no longer loaded: heads come from `heads.glb`, arms from `arms.glb` (below).
   **Braced arm pose (Victor 2026-10-26: "readiness to tank the recoil", elbow bent, not stretched
   out):** `build` tilts the upper arm `ARM_UP` (0.2 rad) forward and puts the forearm level at
   `ELBOW`, fist at `FIST` (mech.gd consts, in the shoulder pivot's space).
@@ -84,6 +85,19 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   (`WHIRL`: `flywheel_disc`, `gravity_ring`; separate objects built around their spin center).
   Evidence: `production/qa/evidence/godot-cores-2026-10-26.png`. At the game camera a core is a
   few pixels: chest width and glow color are what read there, the shapes read in close-ups.
+- **Arms (Victor 2026-10-26: "the lower the armor the more skinny it has to look").** One
+  `<id>_upper_L/R` (pivot at the shoulder) + `<id>_fore_L/R` (pivot at the elbow, incl. the fist)
+  per arms id in `godot/assets/models/arms.glb` (`art/arms.blend`, build script = text block
+  `arms_build.py`; re-run it, export the Arms collection; Preview = each arm set on a standard
+  body, never exported). Thin → thick: wire (bare rod + cables, small orange cuff), reed (round
+  tube in segments with dark rings), frame (the old light-frame arm), brace (+ bolted grey plate
+  outside, wrist band), bulwark (chunky, grey top plate, flared orange guard outside), anvil (dark
+  block, orange top plate, grey slab with studs outside). Shoulder, elbow and fist stay at the
+  same spots on all 6 (`ELBOW`/`FIST` unchanged), so every weapon fits; extra armor only grows
+  outward and on top (top = what the game camera sees when the forearm is level), never inward
+  into the chest. Fists scale 0.85–1.3×, still inside every gauntlet. At the game camera held
+  guns cover most of the arm; the difference reads in close-ups.
+  Evidence: `production/qa/evidence/godot-arms-2026-10-26.png`.
 - Guns are `godot/assets/models/guns.glb` (one object per gun id, +X = barrel), made in Blender
   (`art/guns.blend`, build script = text block `guns_build.py`; re-run it, export the Guns
   collection as .glb; the Preview collection poses 3 robots for a fit check, never exported).

@@ -208,8 +208,8 @@ func build(lo: Dictionary, t: int) -> void:
 		p.position = Vector3(0, 1.32, side * shoulder)
 		torso.add_child(p)
 		var s := "_L" if hand == "left" else "_R"
-		add_part(p, "UpperArm" + s, parts).rotation.z = ARM_UP
-		var fore := add_part(p, "Forearm" + s, parts)
+		add_part(p, lo.arms + "_upper" + s, parts, "arms").rotation.z = ARM_UP
+		var fore := add_part(p, lo.arms + "_fore" + s, parts, "arms")
 		fore.position = ELBOW
 		fore.rotation.z = PI / 2
 		var mount: String = MOUNT.get(lo[hand], "hand")
