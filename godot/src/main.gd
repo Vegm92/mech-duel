@@ -16,6 +16,7 @@ const REACH := 16.0
 const LOOKBACK := 6
 const PAD := {"dash": JOY_BUTTON_LEFT_SHOULDER, "shield": JOY_BUTTON_RIGHT_SHOULDER, "hook": JOY_BUTTON_LEFT_STICK, "ult": JOY_BUTTON_RIGHT_STICK}
 const TRIGGER := {"left": JOY_AXIS_TRIGGER_LEFT, "right": JOY_AXIS_TRIGGER_RIGHT}
+const SANDBOX := {"gap": 0.8, "pad": 0.8, "min": 2.4, "max": 10.0, "refill": 0.5, "cam": 1.1}
 
 var state: Dictionary
 var brain: Dictionary
@@ -35,6 +36,9 @@ var shooting := false
 var tapped := {}
 var shake := 0.0
 var stop := 0
+var sandbox := false
+var gun := -1
+var auto_fire := true
 var frozen := false
 var cam_mode := 0
 var hands_arg := PackedStringArray()
@@ -95,6 +99,9 @@ func _ready() -> void:
 			garage_arg = a.substr(9).to_int() if a.contains("=") else 0
 		elif a.begins_with("--hover="):
 			hover_arg = a.substr(8)
+		elif a == "--sandbox" or a.begins_with("--sandbox="):
+			sandbox = true
+			gun = Sim.WEAPONS.keys().find(a.substr(10)) if a.contains("=") else -1
 	if parts_arg != "":
 		part_sheet(parts_arg)
 		return
@@ -116,7 +123,9 @@ func _ready() -> void:
 	hud.resume.connect(resume)
 	hud.restart.connect(new_match)
 	hud.quit.connect(to_garage)
-	if garage_arg >= 0 or not (autopilot or shot_at >= 0):
+	if sandbox and gun < 0:
+		gun = maxi(0, Sim.WEAPONS.keys().find(loadout.left))
+	if garage_arg >= 0 or not (autopilot or shot_at >= 0 or sandbox):
 		to_garage()
 	else:
 		garage.visible = false
@@ -124,7 +133,7 @@ func _ready() -> void:
 
 
 func flag_loadout() -> Dictionary:
-	var base := Sim.DEFAULT_LOADOUT if autopilot or shot_path != "" else saved_loadout()
+	var base := Sim.DEFAULT_LOADOUT if autopilot or sandbox or shot_path != "" else saved_loadout()
 	var mine: Dictionary = Sim.SETS.get(set_arg, base).duplicate()
 	if hands_arg.size() == 2:
 		mine.left = hands_arg[0]
@@ -191,7 +200,12 @@ func new_match() -> void:
 	tapped.clear()
 	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
 	var rival: Dictionary = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
+	if sandbox:
+		loadout.left = Sim.WEAPONS.keys()[gun]
+		loadout.right = loadout.left
 	state = Sim.create_state([loadout.duplicate(), rival])
+	if sandbox:
+		pin()
 	brain = Bot.create_brain(s + 1)
 	pilot = Bot.create_brain(s + 2)
 	view.reset(state)
@@ -293,6 +307,12 @@ func _input(event: InputEvent) -> void:
 				zoom = 1.0
 			KEY_TAB:
 				target = (target + 1) % state.mechs.size()
+			KEY_LEFT, KEY_RIGHT:
+				if sandbox:
+					gun = posmod(gun + (1 if event.physical_keycode == KEY_RIGHT else -1), Sim.WEAPONS.size())
+					new_match()
+			KEY_T:
+				auto_fire = not auto_fire
 	elif event is InputEventMouseMotion and frozen and cam_mode > 0 and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
 		orbit += event.relative * 0.01
 	elif event is InputEventMouseButton and event.pressed:
@@ -329,8 +349,21 @@ func _physics_process(delta: float) -> void:
 	if held:
 		stop -= 1
 	if not paused and not frozen and not held:
-		var me = Bot.bot_input(state, pilot, 0) if autopilot else player_input()
-		Sim.step(state, [me, Bot.bot_input(state, brain, 1)])
+		var me = Bot.bot_input(state, pilot, 0) if autopilot and not sandbox else player_input()
+		var foe = Bot.bot_input(state, brain, 1)
+		if sandbox:
+			pin()
+			var t = state.mechs[1]
+			me.mx = 0.0
+			me.my = 0.0
+			me.ax = t.x
+			me.ay = t.y
+			if auto_fire:
+				me.left = state.tick % 2 == 0
+			foe = Sim.IDLE.duplicate()
+			foe.ax = state.mechs[0].x
+			foe.ay = state.mechs[0].y
+		Sim.step(state, [me, foe])
 	if not frozen and not held:
 		view.sync(state, aim, delta)
 	shake = maxf(shake, view.shake)
@@ -350,6 +383,26 @@ func _physics_process(delta: float) -> void:
 		take_shot()
 
 
+func pin() -> void:
+	var w: Dictionary = Sim.WEAPONS[loadout.left]
+	var gap := clampf(w.get("range", 3.0) * SANDBOX.gap + SANDBOX.pad, SANDBOX.min, SANDBOX.max)
+	if state.phase == "countdown":
+		state.phase = "fight"
+		state.timer = 0
+	state.clock = Sim.MATCH.time
+	for i in 2:
+		var m = state.mechs[i]
+		m.x = Sim.CX + gap * (i - 0.5)
+		m.y = Sim.CY
+		m.vx = 0.0
+		m.vy = 0.0
+		m.heat = 0.0
+		m.overheat = 0
+		for k in m.armor:
+			if m.armor[k] < m.max[k] * SANDBOX.refill:
+				m.armor[k] = m.max[k]
+
+
 func follow(delta: float) -> void:
 	var me = state.mechs[0]
 	var foe = state.mechs[1]
@@ -357,6 +410,8 @@ func follow(delta: float) -> void:
 	var b := Vector3(foe.x, 0, foe.y)
 	var target := (a + b) / 2.0
 	var want := clampf(maxf(absf(a.x - b.x) * 0.9 + 8.0, absf(a.z - b.z) * 2.0 + 12.0), 28.0, 64.0)
+	if sandbox:
+		want = maxf(absf(a.x - b.x) * SANDBOX.cam + 8.0, 10.0) * zoom
 	var dead := 1.5
 	var ease := 3.5
 	if state.phase == "ko" and state.finalKo >= 0:
