@@ -15,6 +15,9 @@ static var _chassis := {}
 
 const TO_X := Vector3(0, 0, -PI / 2)
 const TO_Z := Vector3(PI / 2, 0, 0)
+const ARM_UP := 0.2
+const ELBOW := Vector3(0.048, -0.235, 0)
+const FIST := Vector3(0.438, -0.235, 0)
 
 var team := 0
 var body_mat: StandardMaterial3D
@@ -263,9 +266,15 @@ func build(lo: Dictionary, t: int) -> void:
 		var p := Node3D.new()
 		p.position = Vector3(0, 1.32, side * 0.41)
 		torso.add_child(p)
-		add_part(p, "Arm_L" if hand == "left" else "Arm_R", parts).rotation.z = 1.4
+		var s := "_L" if hand == "left" else "_R"
+		add_part(p, "UpperArm" + s, parts).rotation.z = ARM_UP
+		var fore := add_part(p, "Forearm" + s, parts)
+		fore.position = ELBOW
+		fore.rotation.z = PI / 2
 		var w := weapon_node(lo[hand], t)
-		w.position = Vector3(0.5, -0.1, 0)
+		w.position = FIST
+		if Sim.WEAPONS[lo[hand]].kind == "melee":
+			w.rotation = Vector3(0, -side * 0.5, 0.6)
 		p.add_child(w)
 		for c in w.get_children():
 			if c.has_meta("spin"):
