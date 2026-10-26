@@ -49,7 +49,7 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   broken, drooping arm). `--head=<id>` picks your head (e.g. `--head=demon`), `--core=<id>` your
   core (e.g. `--core=titan`; pair it with `--hands=rivet,rivet` so no blade hides the chest),
   `--arms=<id>` your arms (pair it with `--hands=laser,ricochet` so both forearms show), `--legs=<id>`
-  your legs.
+  your legs, `--booster=<id>` your booster (pair it with `--cam=3`, the back view).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
@@ -57,7 +57,7 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   style, cube head + spike, visor eyes, grey pads, wheel-heel feet), made in Blender
   (`art/light.blend`; build script = text block `light_build.py`; re-run it, then export the
   Light collection as .glb). Objects: Head (pivot at the neck, 1.44), Chest_light /
-  Chest_standard / Chest_heavy (incl. shoulder pads, back boosters and the core socket), Hips,
+  Chest_standard / Chest_heavy (incl. shoulder pads and the core socket), Hips,
   UpperArm_L/R (pivot at the shoulder) + Forearm_L/R (pivot at the elbow, incl. the fist), both modeled hanging down, Leg_L/R (pivot at the hip). The light `Head`,
   `UpperArm_*`, `Forearm_*` and `Leg_*` objects are no longer loaded: heads come from `heads.glb`,
   arms from `arms.glb`, legs from `legs.glb` (below).
@@ -113,6 +113,20 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # tests (needs n
   `<kind>_` (sorted, so the 4-leg gait order is leg1..4), read through `Mech.models(file)` (mesh +
   position). Never name a part `*_wheel`: Godot's importer turns it into a `VehicleWheel3D`. Look
   flag: `--legs=<id>`. Evidence: `production/qa/evidence/godot-legs-2026-10-26.png`.
+- **Boosters** are `godot/assets/models/boosters.glb` (`art/boosters.blend`, build script = text
+  block `boosters_build.py`; re-run it, export the Boosters collection; Preview = each booster on a
+  standard body, never exported). One object per booster id, origin = the middle of the chest's
+  back (y in chest space, x 0 = the back face, -X = behind); `build` adds it at `-BACK[size]`
+  (mech.gd: 0.279 / 0.313 / 0.349, the back face of each chest size). The chests no longer have
+  their own back jets. The chest's back belongs to the booster: Furnace's two chimneys sit on the
+  back inner corners of the shoulder pads instead (Victor 2026-10-26: they crowded the boosters). Size grows with dash distance: flicker (slim pack, one nozzle, two spark
+  prongs), wisp (two swept fins with glowing trailing edges), thruster (dark pack, two nozzles),
+  twin (wide pack, two big nozzles, two smoke stacks), comet (one big round engine in two glowing
+  coil rings), rocket (two tall rockets with nose cones, nozzles down). Everything is drawn at
+  `SCALE` (1.5) around `MOUNT` (y 1.2 on the back face; Victor 2026-10-26: "bigger so they look
+  more dramatic"); tune that one knob, not the shapes. Glow parts use material
+  `boost`, painted `BOOST_C[trail]` and brightened while dashing.
+  Evidence: `production/qa/evidence/godot-boosters-2026-10-26.png`.
 - Guns are `godot/assets/models/guns.glb` (one object per gun id, +X = barrel), made in Blender
   (`art/guns.blend`, build script = text block `guns_build.py`; re-run it, export the Guns
   collection as .glb; the Preview collection poses 3 robots for a fit check, never exported).

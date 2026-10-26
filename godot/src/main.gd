@@ -33,6 +33,7 @@ var head_arg := ""
 var core_arg := ""
 var arms_arg := ""
 var legs_arg := ""
+var booster_arg := ""
 var target := 0
 var orbit := Vector2.ZERO
 var zoom := 1.0
@@ -61,6 +62,8 @@ func _ready() -> void:
 			arms_arg = a.substr(7)
 		elif a.begins_with("--legs="):
 			legs_arg = a.substr(7)
+		elif a.begins_with("--booster="):
+			booster_arg = a.substr(10)
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 	cam = Camera3D.new()
 	cam.fov = 40.0
@@ -90,6 +93,8 @@ func new_match() -> void:
 		mine.arms = arms_arg
 	if legs_arg != "":
 		mine.legs = legs_arg
+	if booster_arg != "":
+		mine.booster = booster_arg
 	state = Sim.create_state([mine, rival])
 	brain = Bot.create_brain(s + 1)
 	pilot = Bot.create_brain(s + 2)

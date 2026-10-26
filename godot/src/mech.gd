@@ -11,6 +11,7 @@ static var STEEL := Color8(170, 180, 198)
 static var DARK := Color8(44, 48, 58)
 static var CORE_C := {"furnace": Color8(255, 150, 60), "coolant": Color8(110, 230, 255), "reactor": Color8(190, 255, 90), "leech": Color8(225, 40, 80), "titan": Color8(190, 202, 220), "volt": Color8(255, 230, 70), "fury": Color8(255, 64, 48), "flywheel": Color8(228, 232, 242), "aegis": Color8(90, 150, 255), "glass": Color8(255, 140, 210), "phantom": Color8(200, 220, 255), "gravity": Color8(150, 90, 255), "bastion": Color8(255, 210, 90), "meltdown": Color8(255, 90, 40), "deflector": Color8(90, 255, 230), "mirror": Color8(235, 245, 255), "rail": Color8(90, 200, 255), "shroud": Color8(160, 160, 175)}
 static var SHOULDER := {"light": 0.41, "standard": 0.46, "heavy": 0.52}
+static var BACK := {"light": 0.279, "standard": 0.313, "heavy": 0.349}
 static var WHIRL := {"flywheel": ["flywheel_disc", Vector3(0.346, 1.22, 0), Vector3.RIGHT, 8.0], "gravity": ["gravity_ring", Vector3(0.4085, 1.22, 0), Vector3(0.35, 1, 0.5).normalized(), 3.0]}
 static var _mats := {}
 static var _meshes := {}
@@ -200,6 +201,7 @@ func build(lo: Dictionary, t: int) -> void:
 	shoulder = SHOULDER[size]
 	add_part(torso, "Chest_" + size, parts)
 	add_part(torso, lo.core, parts, "cores")
+	add_part(torso, lo.booster, parts, "boosters").position.x = -BACK[size]
 	if WHIRL.has(lo.core):
 		var wh: Array = WHIRL[lo.core]
 		whirl.append([add_part(torso, wh[0], parts, "cores"), wh[2], wh[3]])
