@@ -1,6 +1,7 @@
 extends TextureRect
 
 const Mech = preload("res://src/mech.gd")
+const Look = preload("res://src/look.gd")
 
 const YAW := 0.6
 const PITCH := 0.32
@@ -29,8 +30,8 @@ func _init() -> void:
 	cam.environment = env()
 	port.add_child(cam)
 	var sun := DirectionalLight3D.new()
-	sun.light_energy = 2.2
-	sun.light_color = Color(1.0, 0.95, 0.88)
+	sun.light_energy = Look.STAGE.garage_key
+	sun.light_color = Look.STAGE.key_color
 	sun.transform = Transform3D(Basis.looking_at(Vector3(0.5, -1.2, -1.0)), Vector3.ZERO)
 	cam.add_child(sun)
 	port.add_child(stand)
@@ -39,14 +40,7 @@ func _init() -> void:
 
 static func env() -> Environment:
 	if _env == null:
-		_env = Environment.new()
-		_env.background_mode = Environment.BG_CLEAR_COLOR
-		_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		_env.ambient_light_color = Color(0.45, 0.5, 0.7)
-		_env.tonemap_mode = Environment.TONE_MAPPER_AGX
-		_env.glow_enabled = true
-		_env.glow_intensity = 0.5
-		_env.glow_hdr_threshold = 2.2
+		_env = Look.env(true)
 	return _env
 
 
@@ -59,8 +53,8 @@ func show_part(slot: String, key: String, t := 0) -> void:
 func show_mech(lo: Dictionary, t := 0) -> void:
 	var m := Mech.new()
 	m.build(lo, t)
-	Mech.add(m, Mech.cyl(1.05, 1.1, 0.08), Mech.mat(Color8(16, 34, 64)), Vector3(0, -0.04, 0))
-	Mech.add(m, Mech.ring(1.08, 1.16), Mech.glow(Color8(95, 180, 255), 2.5), Vector3(0, 0.005, 0))
+	Mech.add(m, Mech.cyl(1.05, 1.1, 0.08), Look.ARENA.dark, Vector3(0, -0.04, 0))
+	Mech.add(m, Mech.ring(1.08, 1.16), Look.ARENA.pad, Vector3(0, 0.005, 0))
 	put(m, YAW, FRAME)
 
 

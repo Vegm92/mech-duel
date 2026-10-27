@@ -3,6 +3,7 @@ extends Node3D
 const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
 const Fx = preload("res://src/fx.gd")
+const Look = preload("res://src/look.gd")
 const TRACER := 0.028
 const DASHES := [0.4, 0.25, 0.15]
 const BLEND := 4.0
@@ -40,8 +41,10 @@ void fragment() {
 const FLOOR_SHADER := """
 shader_type spatial;
 render_mode cull_disabled;
-uniform vec3 base : source_color = vec3(0.34, 0.36, 0.42);
-uniform vec3 line : source_color = vec3(0.42, 0.5, 0.64);
+uniform vec3 base : source_color;
+uniform vec3 line : source_color;
+uniform float metal;
+uniform vec2 rough;
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 uniform float plate = 4.0;
@@ -77,8 +80,8 @@ void fragment() {
 	c *= 1.0 - 0.5 * seam;
 	c *= 0.92 + 0.12 * scuff;
 	ALBEDO = c * (1.15 - 0.35 * smoothstep(0.0, 40.0, r));
-	ROUGHNESS = mix(0.55, 0.95, grime);
-	METALLIC = 0.2;
+	ROUGHNESS = mix(rough.x, rough.y, grime);
+	METALLIC = metal;
 	float e = 0.08;
 	vec2 q = p * 1.2;
 	float h = fbm(q);
@@ -110,14 +113,6 @@ void fragment() {
 
 const ITEM := {"size": 2.4, "lift": 2.2, "tilt": -0.9, "ring": [0.6, 0.8], "shock": 2.4}
 const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "aisle": 0.6}
-const OUTSIDE := Color(0.02, 0.025, 0.045)
-const STAGE := {"ambient": 0.2, "sun": 0.6, "sun_beam": 0.0, "air": 0.0, "haze": 0.04, "haze_height": 5.0, "falloff": 0.6, "haze_color": Color(0.75, 0.8, 0.9), "scatter": 0.5, "fog_length": 70.0, "tower_energy": 45.0, "tower_angle": 5.0, "tower_color": Color(0.85, 0.9, 1.0), "beam": 3.0, "tower_out": 14.0, "tower_height": 14.0, "follow": 3.5, "damp": 0.4, "aim_y": 1.0}
-
-static var ARENA := {"steel": Mech.mat(Color8(62, 70, 88), 0.0, 0.6, 0.4), "dark": Mech.mat(Color8(30, 34, 44), 0.0, 0.5, 0.6), "trim": Mech.mat(Color8(120, 128, 145), 0.0, 0.7, 0.4), "hazard": Mech.mat(Color8(214, 168, 44), 0.0, 0.2, 0.5), "amber": Mech.glow(Color8(255, 176, 60), 2.0), "zap": Mech.glow(Color8(170, 210, 255), 2.0), "pad": Mech.glow(Color8(95, 180, 255), 1.5), "heal": Mech.glow(Color8(90, 255, 150), 2.0), "vent": Mech.glow(Color8(120, 190, 255), 1.5),
-	"concrete": Mech.mat(Color8(48, 54, 70), 0.0, 0.0, 0.85), "tread": Mech.mat(Color8(32, 36, 48), 0.0, 0.1, 0.8), "aisle": Mech.mat(Color8(72, 78, 94), 0.0, 0.2, 0.7), "roof": Mech.mat(Color8(13, 15, 21), 0.0, 0.3, 0.8),
-	"flood": Mech.glow(Color8(235, 240, 255), 2.5), "screen": Mech.glow(Color8(40, 90, 170), 0.8),
-	"seat_a": Mech.mat(Mech.TEAM[0].darkened(0.45), 0.0, 0.0, 0.7), "seat_b": Mech.mat(Mech.TEAM[1].darkened(0.45), 0.0, 0.0, 0.7), "seat_n": Mech.mat(Color8(70, 76, 92), 0.0, 0.0, 0.7),
-	"led_a": Mech.glow(Mech.TEAM[0], 1.5), "led_b": Mech.glow(Mech.TEAM[1], 1.5), "led_n": Mech.glow(Color8(200, 200, 210), 1.2)}
 
 var crowd: MultiMeshInstance3D
 var crowd_mat := ShaderMaterial.new()
@@ -154,85 +149,58 @@ var last_shrink := -1.0
 
 
 func build() -> void:
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = OUTSIDE
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.45, 0.5, 0.7)
-	env.tonemap_mode = Environment.TONE_MAPPER_AGX
-	env.tonemap_exposure = 1.0
-	env.glow_enabled = true
-	env.glow_intensity = 0.5
-	env.glow_hdr_threshold = 2.2
-	env.ssao_enabled = true
-	env.ambient_light_energy = STAGE.ambient
-	env.volumetric_fog_enabled = true
-	env.volumetric_fog_density = STAGE.air
-	env.volumetric_fog_albedo = STAGE.haze_color
-	env.volumetric_fog_anisotropy = STAGE.scatter
-	env.volumetric_fog_length = STAGE.fog_length
-	var haze := FogVolume.new()
-	haze.size = Vector3(Sim.AW + 30, STAGE.haze_height * 2.0, Sim.AH + 30)
-	haze.position = Vector3(Sim.CX, 0, Sim.CY)
-	var fog := FogMaterial.new()
-	fog.density = STAGE.haze
-	fog.albedo = STAGE.haze_color
-	fog.height_falloff = STAGE.falloff
-	haze.material = fog
-	add_child(haze)
+	var S: Dictionary = Look.STAGE
 	var we := WorldEnvironment.new()
-	we.environment = env
+	we.environment = Look.env()
 	add_child(we)
 	marks = Node3D.new()
 	add_child(marks)
 	var sun := DirectionalLight3D.new()
-	sun.light_energy = STAGE.sun
-	sun.light_volumetric_fog_energy = STAGE.sun_beam
-	sun.light_color = Color(1.0, 0.95, 0.88)
+	sun.light_energy = S.key
+	sun.light_color = S.key_color
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 110.0
 	add_child(sun)
-	sun.look_at_from_position(Vector3(-1.0, 2.2, -1.2), Vector3.ZERO)
+	sun.look_at_from_position(S.key_from, Vector3.ZERO)
 	var corners := Sim.arena_corners()
+	var mid := Vector3(Sim.CX, 0, Sim.CY)
 	for i in [1, 3, 5, 7]:
 		var c = corners[i]
 		var out := Vector3(c.x - Sim.CX, 0, c.y - Sim.CY).normalized()
 		var spot := SpotLight3D.new()
-		spot.light_energy = STAGE.tower_energy
+		spot.light_energy = S.spot
 		spot.spot_attenuation = 0.6
 		spot.spot_range = 120.0
-		spot.spot_angle = STAGE.tower_angle
-		spot.light_color = STAGE.tower_color
-		spot.shadow_enabled = true
-		spot.light_volumetric_fog_energy = STAGE.beam
+		spot.spot_angle = S.spot_angle
+		spot.light_color = S.spot_color
 		add_child(spot)
-		var mid := Vector3(Sim.CX, 0, Sim.CY)
-		spot.look_at_from_position(Vector3(c.x, 0, c.y) + out * STAGE.tower_out + Vector3(0, STAGE.tower_height, 0), mid)
+		spot.look_at_from_position(Vector3(c.x, 0, c.y) + out * S.tower_out + Vector3(0, S.tower_height, 0), mid)
 		towers.append({"spot": spot, "at": mid, "v": Vector3.ZERO})
+	for i in corners.size():
+		accent(Vector3(corners[i].x, S.accent_y, corners[i].y).move_toward(mid, S.accent_in), Look.PAL.cyan if i % 2 == 0 else Look.PAL.orange)
+	for p in Sim.PILLARS:
+		accent(Vector3(p.x, S.accent_y, p.y), Look.PAL.cyan)
+	accent(Vector3(Sim.HEAL.x, S.accent_y, Sim.HEAL.y), Look.PAL.cyan)
 	build_floor(corners)
 	build_walls(corners)
 	build_stands(corners)
 	for p in Sim.PILLARS:
-		var pillar := Mech.add_part(self, "pillar", ARENA, "arena")
+		var pillar := Mech.add_part(self, "pillar", Look.ARENA, "arena")
 		pillar.position = Vector3(p.x, 0, p.y)
 		pillar.scale = Vector3(p.r, 1, p.r)
 	for p in Sim.TRAPS.tesla.at:
-		Mech.add_part(self, "tesla", ARENA, "arena").position = Vector3(p.x, 0, p.y)
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color8(170, 210, 255)
-		m.emission_enabled = true
-		m.emission = Color8(170, 210, 255)
-		var top := Mech.add_part(self, "tesla_orb", ARENA.merged({"zap": m}, true), "arena")
+		Mech.add_part(self, "tesla", Look.ARENA, "arena").position = Vector3(p.x, 0, p.y)
+		var m: StandardMaterial3D = Look.ARENA.zap.duplicate()
+		var top := Mech.add_part(self, "tesla_orb", Look.ARENA.merged({"zap": m}, true), "arena")
 		top.position = Vector3(p.x, 2.0, p.y)
 		top.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		pylons.append(m)
 	for p in Sim.TRAPS.crush.at:
-		var warn := StandardMaterial3D.new()
-		warn.albedo_color = Color8(214, 168, 44)
+		var warn: StandardMaterial3D = Look.ARENA.hazard.duplicate()
 		warn.emission_enabled = true
-		warn.emission = Color8(255, 60, 40)
+		warn.emission = Look.PAL.warn
 		warn.emission_energy_multiplier = 0.0
-		var hm := ARENA.merged({"hazard": warn}, true)
+		var hm := Look.ARENA.merged({"hazard": warn}, true)
 		Mech.add_part(self, "crush_plate", hm, "arena").position = Vector3(p.x, 0, p.y)
 		var piston := Node3D.new()
 		add_child(piston)
@@ -240,16 +208,16 @@ func build() -> void:
 		piston.position = Vector3(p.x, 3.0, p.y)
 		crushers.append([piston, warn])
 	for p in Sim.TRAPS.oil.at:
-		Mech.add(self, Mech.cyl(Sim.TRAPS.oil.r, Sim.TRAPS.oil.r, 0.02, 24), Mech.mat(Color8(30, 24, 44), 0.0, 0.3, 0.3), Vector3(p.x, 0.012, p.y))
-	Mech.add_part(self, "heal_pad", ARENA, "arena").position = Vector3(Sim.HEAL.x, 0, Sim.HEAL.y)
-	heal_ring = Mech.add(self, Mech.ring(0.7, 0.95), Mech.glow(Color8(90, 255, 150), 3.0), Vector3(Sim.HEAL.x, 0.16, Sim.HEAL.y))
+		Mech.add(self, Mech.cyl(Sim.TRAPS.oil.r, Sim.TRAPS.oil.r, 0.02, 24), Look.ARENA.oil, Vector3(p.x, 0.012, p.y))
+	Mech.add_part(self, "heal_pad", Look.ARENA, "arena").position = Vector3(Sim.HEAL.x, 0, Sim.HEAL.y)
+	heal_ring = Mech.add(self, Mech.ring(0.7, 0.95), Mech.glow(Look.PAL.heal, 3.0), Vector3(Sim.HEAL.x, 0.16, Sim.HEAL.y))
 	heal_cross = Node3D.new()
 	heal_cross.position = Vector3(Sim.HEAL.x, 1.0, Sim.HEAL.y)
 	add_child(heal_cross)
-	Mech.add(heal_cross, Mech.box(Vector3(0.18, 0.6, 0.18)), Mech.glow(Color8(90, 255, 150), 4.0))
-	Mech.add(heal_cross, Mech.box(Vector3(0.6, 0.18, 0.18)), Mech.glow(Color8(90, 255, 150), 4.0))
+	Mech.add(heal_cross, Mech.box(Vector3(0.18, 0.6, 0.18)), Mech.glow(Look.PAL.heal, 4.0))
+	Mech.add(heal_cross, Mech.box(Vector3(0.6, 0.18, 0.18)), Mech.glow(Look.PAL.heal, 4.0))
 	for p in Sim.PADS:
-		Mech.add_part(self, "pad", ARENA, "arena").position = Vector3(p.x, 0, p.y)
+		Mech.add_part(self, "pad", Look.ARENA, "arena").position = Vector3(p.x, 0, p.y)
 		var holder := Node3D.new()
 		holder.position = Vector3(p.x, 0, p.y)
 		holder.visible = false
@@ -261,7 +229,7 @@ func build() -> void:
 		var ring := Mech.add(holder, Mech.ring(ITEM.ring[0], ITEM.ring[1]), null, Vector3(0, 0.16, 0))
 		items.append({"node": holder, "icon": icon, "ring": ring, "kind": ""})
 	for g in Sim.vents(0.0):
-		var vent := Mech.add_part(self, "vent", ARENA, "arena")
+		var vent := Mech.add_part(self, "vent", Look.ARENA, "arena")
 		vent.position = Vector3(g.x, 0, g.y)
 		vent.rotation.y = -atan2(g.dy, g.dx)
 		var jet := Mech.add(self, Mech.plane(), emp_mats[0])
@@ -295,14 +263,25 @@ func build_floor(corners: Array) -> void:
 	var sh := Shader.new()
 	sh.code = FLOOR_SHADER
 	sm.shader = sh
+	for k in Look.FLOOR:
+		sm.set_shader_parameter(k, Look.FLOOR[k])
 	var floor := MeshInstance3D.new()
 	floor.mesh = st.commit()
 	floor.material_override = sm
 	add_child(floor)
 	var night := StandardMaterial3D.new()
 	night.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	night.albedo_color = OUTSIDE
+	night.albedo_color = Look.PAL.void
 	Mech.add(self, Mech.box(Vector3(400, 0.1, 400)), night, Vector3(Sim.CX, -0.08, Sim.CY))
+
+
+func accent(at: Vector3, c: Color) -> void:
+	var l := OmniLight3D.new()
+	l.light_color = c
+	l.light_energy = Look.STAGE.accent
+	l.omni_range = Look.STAGE.accent_range
+	l.position = at
+	add_child(l)
 
 
 func edge(corners: Array, i: int) -> Array:
@@ -325,14 +304,14 @@ func build_walls(corners: Array) -> void:
 		var count := maxi(1, roundi(a.distance_to(b) / 4.0))
 		var step := a.distance_to(b) / count
 		for k in count:
-			var panel := Mech.add_part(self, "wall", ARENA, "arena")
+			var panel := Mech.add_part(self, "wall", Look.ARENA, "arena")
 			panel.transform = Transform3D(basis.scaled_local(Vector3(step / 4.0, 1, 1)), a.lerp(b, (k + 0.5) / count))
-		Mech.add_part(self, "wall_post", ARENA, "arena").position = b + nrm * 0.15
+		Mech.add_part(self, "wall_post", Look.ARENA, "arena").position = b + nrm * 0.15
 
 
 func build_stands(corners: Array) -> void:
-	Mech.add_part(self, "stadium", ARENA, "arena")
-	Mech.add_part(self, "tower", ARENA, "arena").cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	Mech.add_part(self, "stadium", Look.ARENA, "arena")
+	Mech.add_part(self, "tower", Look.ARENA, "arena").cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var mm := MultiMesh.new()
@@ -447,18 +426,18 @@ func reset(state: Dictionary) -> void:
 	cheer = [0.0, 0.0, 0.0, 0.0]
 	for i in towers.size():
 		var m = state.mechs[i % state.mechs.size()]
-		towers[i].at = Vector3(m.x, STAGE.aim_y, m.y)
+		towers[i].at = Vector3(m.x, Look.STAGE.aim_y, m.y)
 		towers[i].v = Vector3.ZERO
 	follow(state, 0.0)
 
 
 func follow(state: Dictionary, dt: float) -> void:
-	var w: float = STAGE.follow
+	var w: float = Look.STAGE.follow
 	for i in towers.size():
 		var t: Dictionary = towers[i]
 		var m = state.mechs[i % state.mechs.size()]
-		var goal := Vector3(m.x, STAGE.aim_y, m.y)
-		t.v = t.v + (w * w * (goal - t.at) - 2.0 * STAGE.damp * w * t.v) * dt
+		var goal := Vector3(m.x, Look.STAGE.aim_y, m.y)
+		t.v = t.v + (w * w * (goal - t.at) - 2.0 * Look.STAGE.damp * w * t.v) * dt
 		t.at = t.at + t.v * dt
 		t.spot.look_at(t.at)
 
@@ -804,7 +783,7 @@ func arena(state: Dictionary) -> void:
 			it.icon.mesh = Mech.models("arena")["item_" + kind][0]
 			for k in it.icon.mesh.get_surface_count():
 				var mn: String = it.icon.mesh.surface_get_material(k).resource_name
-				it.icon.set_surface_override_material(k, Mech.glow(c, 1.6) if mn == "icon" else ARENA[mn])
+				it.icon.set_surface_override_material(k, Mech.glow(c, 1.6) if mn == "icon" else Look.ARENA[mn])
 			it.ring.material_override = Mech.glow(c, 2.0)
 		it.icon.position.y = ITEM.lift + 0.12 * sin(tick * 0.06 + i)
 		it.icon.rotation = Vector3(ITEM.tilt, 0.3 * sin(tick * 0.03 + i), 0)
