@@ -44,8 +44,7 @@ What happened (2026-10-27):
 
 - `feat/stadium-polish` was already in `main` (PR #7). `feat/stadium-lighting` was merged with
   `main` in the worktree `games/mech-duel-visual`: one conflict in `view.gd` (both sides kept),
-  commit e9567dc, PR #8. Merging PR #8 into `main` is Victor's step: auto mode won't merge into
-  `main`.
+  commit e9567dc, PR #8. Victor merged PR #8 into `main` (auto mode won't merge into `main`).
 - `games/mech-duel` was left untouched (Victor declined stashing it). Its uncommitted sound
   wiring matches `main`, apart from a PowerShell command block in `CLAUDE.md`, now carried over
   on this branch.
@@ -54,7 +53,7 @@ What happened (2026-10-27):
   `games/mech-duel-visual`.
 
 Acceptance:
-- [ ] `main` holds both stadium branches: waiting on PR #8 (polish is in through PR #7)
+- [x] `main` holds both stadium branches: polish through PR #7, lighting through PR #8
 - [x] all 4 test suites pass on the merged code (e9567dc); the headless error and leak lines are
       the same as on `main`
 - [x] the export script reproduces every current `.glb`: all 9, with and without `--build`
