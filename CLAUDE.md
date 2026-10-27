@@ -212,7 +212,7 @@ $P = "$R\godot"
   `zap`), `crush_plate` + `crush_head` (block centered on the origin; `hazard` stripes take the
   per-crusher warn material), `heal_pad`, `pad`, `vent` (+X = into the arena), `wall` (a 4 m
   panel, arena face at z 0; `build_walls` tiles and stretches it per edge) and `wall_post`.
-  `view.gd` `ARENA` maps the material names (steel, dark, trim, hazard, amber, zap, pad, heal,
+  `look.gd` `ARENA` maps the material names (steel, dark, trim, hazard, amber, zap, pad, heal,
   vent). Evidence: `production/qa/evidence/godot-arena-{before,after,wide}-2026-10-27.png`.
   **Stadium** (Victor 2026-10-27: "production ready", no gray box when the camera zooms out):
   `stadium` is the whole bowl in world space (added at the origin): a walkway, 3 tiers with seat
@@ -222,13 +222,14 @@ $P = "$R\godot"
   `tower` = 4 floodlight towers (no shadows). Side materials: `seat_a/b/n`, `led_a/b/n` (left =
   team 0, right = team 1, else neutral). The script copies the arena shape (`AW`, `AH`, `ACUT`,
   `WALLS`) from `sim.gd`, and `view.gd` `STAND` must match the script's `STAND` (fans stand on
-  the tiers and skip the aisles). Outside the stadium is unshaded `OUTSIDE` night color.
+  the tiers and skip the aisles). Outside the stadium is unshaded `Look.PAL.void`.
   Evidence: `godot-stadium-{left,bottom}-before-after-2026-10-27.png`, `godot-stadium-top-2026-10-27.png`.
-  **Stadium lighting** (491b057): four corner SpotLights follow the bots on an underdamped spring
-  (`view.follow`; 2 per bot in 1v1, 1 each in FFA), a low `FogVolume` haze shows their beams (the
-  sun stays out of it), and the floor shader adds steel plates, grime, scuffs and bump. Knobs:
-  `view.gd` `STAGE`. Evidence: `godot-stadium-lighting-before-after-2026-10-27.png`,
-  `godot-stadium-follow-spots-2026-10-27.png`.
+  **Stadium lighting** (491b057, reworked in visual overhaul M1): four corner SpotLights follow
+  the bots on an underdamped spring (`view.follow`; 2 per bot in 1v1, 1 each in FFA), soft and
+  unshadowed, no haze; the key light is the only shadow caster; the floor shader adds steel
+  plates, grime, scuffs and bump. Knobs: `look.gd` `STAGE` and `FLOOR`. Evidence:
+  `godot-stadium-lighting-before-after-2026-10-27.png`, `godot-stadium-follow-spots-2026-10-27.png`
+  (before M1), `visual-m1-*-2026-10-27.png` (after).
   **EMP zones** (Victor 2026-10-27: the fire vents became EMP zones, same spots and timing;
   the sim names stay `vents`/`HAZARDS`): 12 Legs + `HAZARDS.slow` ticks of Slow instead of Heat.
   Drawn with `EMP_SHADER` (additive crackle on a floor plane, `power` 0 = warning outline, 1 =
@@ -302,11 +303,18 @@ $P = "$R\godot"
   `docs/reference/industrial-neon-arena.webp`, branch `feat/visual-overhaul`). The look:
   `docs/art-direction.md`. How visuals are built: `docs/visual-architecture.md`. Starting
   state and numbers: `docs/visual-audit.md`. Milestones, budgets and acceptance:
-  `docs/visual-plan.md`. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>`
-  with `--autopilot`), `tools/look_stats.py` (look numbers vs the reference),
-  `tools/blender_export.py` (headless build + export of one `.blend`; every "export the X
-  collection" step in this file is `blender -b art/<x>.blend --python tools/blender_export.py --
-  --build --save`).
+  `docs/visual-plan.md`. **Look** (M1): `godot/src/look.gd` holds the palette `PAL`, material
+  families (`FAMILY`, `paint`), the light rig and tonemap knobs `STAGE`, the floor shader values
+  `FLOOR`, the arena slot materials `ARENA`, and `env()`, the one Environment for the arena and
+  the garage previews (`env(true)` = see-through background). No other file sets environment
+  colors. The glow threshold stays above stacked effects (`fx_peak`, asserted in `env()`): Godot
+  4.7 multiplies the glow input by exposure before the threshold. Tools: `tools/perf_probe.gd`
+  (GPU ms, draw calls; `-s <absolute path>` with `--autopilot`), `tools/look_stats.py` (look
+  numbers vs the reference), `tools/side_by_side.py` (labeled rows of stills: `out.png
+  Label=img … + Label=img …`), `tools/blender_export.py` (headless build + export of one
+  `.blend`; every "export the X collection" step in this file is `blender -b art/<x>.blend
+  --python tools/blender_export.py -- --build --save`). Sandbox stills need `--seed` (the rival,
+  and so the K.O. tick, follows the seed). Run one Godot window at a time: two at once can hang.
 
 ## Hard rules
 

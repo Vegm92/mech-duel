@@ -36,7 +36,7 @@ one place, `look.gd` (Milestone 1); no other file hard-codes environment colors.
 | Token | Hex | Role |
 |---|---|---|
 | `void` | `#09080d` | deepest shadow, outside the arena |
-| `floor` | `#141418` | floor base color, before light |
+| `floor` | `#141418` | darkest floor tone the eye reads (seams, grime); the plates' albedo is `steel`, since `#141418` as albedo renders near black under a light that keeps the mechs in range (M1) |
 | `gunmetal` | `#29262d` | structures: pillar bodies, walls, frames (the reference's median metal) |
 | `steel` | `#54586c` | raised trim, edges, bolts |
 | `steel_hi` | `#7090a1` | edge catch-light (comes from lighting, not paint) |
@@ -47,6 +47,7 @@ one place, `look.gd` (Milestone 1); no other file hard-codes environment colors.
 | `orange` | `#d38c42` | lamps and hazard lights, small |
 | `hazard` | `#c9a23e` | painted hazard stripes (the reference's `#fbd24b`, toned down for paint) |
 | `heal` | `#4edb69` | heal cross, stays green (`FX_DESIGN.md`: green = heal) |
+| `warn` | `#ff3c28` | warning lights only (crusher warning); never decoration, never a team color |
 
 Team colors stay `Mech.TEAM` (orange, blue, green, purple). The reference's player colors (blue,
 red, green, yellow) are an open option, not adopted (`visual-audit.md` §7.3).
@@ -80,8 +81,11 @@ Shared families: one material per family, variants by parameter, never one mater
 
 ## Lighting
 
-- **Key:** one directional light from high above, cool white, the only shadow caster. High
-  enough that shadows stay short and never read as geometry.
+- **Key:** one directional light from high above, the only shadow caster. High enough that
+  shadows stay short and never read as geometry. It comes from behind the camera (the camera
+  never rotates), so its shine never reflects off the floor into the view. Neutral to slightly
+  warm white: the reference's lit metal is neutral grey, and a cool key under the navy fill
+  turned the whole arena blue (M1).
 - **Fill:** low navy ambient, so shadow sides stay readable.
 - **Accents:** cyan and orange omni or spot lights without shadows at walls, pillar bases and the
   heal pad: low energy, short range. They make the local cyan and orange pools on the floor seen

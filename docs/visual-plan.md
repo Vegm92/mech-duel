@@ -68,15 +68,76 @@ near zero, follow spots soft and unshadowed (if kept). Exposure, AgX contrast an
 glow threshold above stacked effects, restrained glow. A static reflection probe over the arena.
 Camera unchanged (pitch, FOV or distance change only with Victor's OK; the hard rule stays).
 
-Acceptance:
-- [ ] seeds 3 and 7, `--cam=0`: luma p50 35–60, dark (< 40) 30–55 %, bright (> 200) ≤ 2 %
-      (neon targets wait for M2: no strips yet)
-- [ ] both mechs clearly lighter or more saturated than the floor around them in all 4 stills
-- [ ] the garage previews use the same `env()` (garage still)
-- [ ] no effect blooms: sandbox stills of `laser`, `mortar` and a K.O. look as before apart from the background
-- [ ] no environment color literals left in `view.gd` `build` or `part_view.gd` (`grep Color`)
-- [ ] GPU ≤ M0 + 0.8 ms; draw calls ≤ M0
-- [ ] gates
+Acceptance (2026-10-27, code 530b773; numbers in the table below):
+- [x] seeds 3 and 7, `--cam=0`: luma p50 35–60, dark (< 40) 30–55 % (neon targets wait for M2:
+      no strips yet). Seed 3: 45 / 36.1 %. Seed 7: 42 / 45.3 %.
+- [ ] same stills, bright (> 200) ≤ 2 %. Seed 3: 1.01 %. Seed 7: 2.80 %: at tick 700 your lance
+      wind-up bar (`mech.gd` `aim_line`, glow 4.0, unchanged since M0) and the hit effects cover
+      about 2 % of the frame. With effects and that bar hidden: 0.68 %
+      (`visual-m1-seed7-cam0-no-fx-2026-10-27.png`). **Victor's call:** measure this on the arena
+      only, or bring the bar under the bloom rule in M3.
+- [x] both mechs clearly lighter or more saturated than the floor around them in all 4 stills
+      (eye check, `visual-m1-seed{3,7}-cam{0,4}-2026-10-27.png`; the seed 7 close-up follows your
+      mech, the rival is off-frame)
+- [x] the garage previews use the same `env()`: `Look.env(true)` (see-through background).
+      `visual-m1-garage-before-after-2026-10-27.png`: parts unchanged; the stand now uses the arena
+      `dark` and `pad` materials, so its ring glows a little less.
+- [x] no effect blooms: `visual-m1-fx-before-after-2026-10-27.png` (`--seed=3`, laser at tick 55,
+      mortar at 160, K.O. with `--norefill` at 602): same effects, darker background. Threshold
+      2.2, exposure 1 and glow strength 1 are M0's; `env()` asserts
+      `glow_threshold ≥ fx_peak × exposure` (Godot 4.7 multiplies the glow input by exposure
+      before the threshold: `copy.glsl`, glow first pass).
+- [x] no environment color literals left in `view.gd` `build` or `part_view.gd`: `grep Color`
+      finds only type names and the crowd's packed per-fan data
+- [x] GPU ≤ M0 + 0.8 ms; draw calls ≤ M0: 2.32 / 2.90 ms (M0 3.21 / 4.43), 769 (M0 1051)
+- [x] gates: the 4 suites pass (3 + 5 + 15 + 13 tests, golden hash unchanged); their log lines are
+      the same as M0's (garage_parts' two headless "Parameter material is null" and sound's exit
+      leak lines are on M0 too); the look-check runs log nothing
+
+| Still set | Luma p10 / p50 / p90 | Dark | Bright | Neon | GPU ms avg / peak | Draw calls |
+|---|---|---|---|---|---|---|
+| seed 3, `--cam=0` | 22 / 45 / 60 | 36.1 % | 1.01 % | 0.42 % | 2.32 / 2.90 | 769 |
+| seed 7, `--cam=0` | 20 / 42 / 72 | 45.3 % | 2.80 % | 0.30 % | — | — |
+| seed 7, effects and lance bar hidden | 20 / 42 / 69 | 46.3 % | 0.68 % | 0.32 % | — | — |
+
+Also: render CPU 0.48 ms (M0 0.76), 197 k primitives (263 k), 1488 objects (1514), 364 MB VRAM
+(435), 782 nodes (766). Reference | M0 | M1: `visual-m1-side-by-side-2026-10-27.png`.
+
+What changed:
+
+- `godot/src/look.gd`: `PAL` (the art-direction tokens + `warn`), `FAMILY` + `paint()`, `STAGE`,
+  `FLOOR`, `ARENA`, `env()`. `view.gd` places the lights; `part_view.gd` uses `env(true)`.
+- **Key:** the only shadow caster, 0.5, neutral-warm, high (70°) and behind the camera, to its
+  left. From M0's north-west angle its shine put a grey sheen on the lower half of the floor and
+  turned the near oil slick white. A cool key under the navy fill turned the arena blue, while
+  the reference's lit metal is neutral grey (`look_stats.py --palette`); `art-direction.md`
+  updated.
+- **Fill:** navy ambient at 1.0. **Follow spots:** kept, no shadows, no beams, 10 at 7° (M0: 45
+  at 5°, shadowed). **Accents:** 17 unshadowed omni lights, energy 3, range 5 m: cyan at the 8
+  pillar bases and the heal pad, cyan and orange in turn at the 8 wall corners. **Haze:** off
+  (volumetric fog, the `FogVolume` and the `volume_size` project setting removed).
+- **Tonemap:** AgX at Godot's defaults (white 16.29, contrast 1.25), exposure 1; the value targets
+  are met with the lights. Contrast 1.5 was tried: floor too dark (p50 34–37, 57–62 % dark) and
+  it changes how effects fade. **Glow:** intensity 0.5, threshold 2.2, as in M0.
+- **Arena slots:** `dark` → gunmetal, `steel` → painted navy, `trim` → gunmetal in `steel` (pillar
+  caps and tesla coils are no longer the brightest neutrals), `hazard` → hazard family,
+  emissives → palette cyan, orange and heal, crusher warning → `warn`. The stadium slots and the
+  oil slicks keep their old colors, now in `look.gd` (M2 maps them).
+- **Floor:** plate albedo `steel` (the `floor` token as albedo renders near black), metal 0.6,
+  roughness 0.35–0.6, per-plate tint 0.45, grime 0.75.
+
+Left out: the **reflection probe.** Built and measured: at the game camera it changed the frame
+by about 1/255 on average (nothing bright to reflect yet), cost 0.1 ms, took +510 MB VRAM with
+Godot's default atlas (64 probes), and with it Godot 4.7.2 logs "7 RIDs of type Texture were
+leaked" at exit, a new log line. Moved to M2, once strips give it something to reflect.
+
+Three biggest gaps vs the reference after M1 (input for M2): no neon (0.3–0.4 % accents vs
+3.35 %); a floor with soft grime clouds and a plate checker, no paint, bevels or sheen; oil
+slicks that read as black holes on the dark floor. For M3: the lance and rail wind-up bar
+(`aim_line`, glow 4.0) blooms; it should follow the bloom rule.
+
+Process: run one Godot window at a time (two at once hung); sandbox stills need `--seed` (the
+rival, and with it the K.O. tick, follows the seed).
 
 ## M2 — Arena
 
@@ -85,7 +146,9 @@ around crushers, pads and spawns, wear, sheen). Pillars v2 in `arena_build.py`: 
 radius, cyan strips, orange lamps, hazard band, a dark top grille instead of the bright cap.
 Walls and posts with cyan strips and orange lamps. Heal pad v2: octagonal base, cyan rim, hazard
 chevrons, green cross kept. Oil slicks → glossy dark puddles. Tesla and crushers restyled with the
-families; their warning behavior unchanged.
+families; their warning behavior unchanged. The static reflection probe moved here from M1: add
+it once the strips exist, with `rendering/reflections/reflection_atlas/reflection_count` cut to
+what the arena uses, and check the exit log.
 
 Acceptance:
 - [ ] seeds 3 and 7, `--cam=0`: neon accents 1.5–5 %, cyan + blue ≥ 60 % of them, orange present,
