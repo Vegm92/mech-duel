@@ -22,7 +22,9 @@ One milestone at a time. Each ends with evidence and Victor's OK before the next
    the milestone's own shots (sandbox for effects, garage for UI).
 2. **Side by side:** reference | before | after, saved as
    `production/qa/evidence/visual-m<N>-<name>-<date>.png` (UTC date).
-3. **Numbers:** look numbers on the `--cam=0` stills; perf probe, 30 s, seed 3.
+3. **Numbers:** look numbers on the `--cam=0` stills; perf probe, 30 s, seed 3. **Bright** is
+   measured on the arena only, effects and the wind-up bar hidden (Victor, 2026-10-27):
+   `tools/arena_shot.gd`, same seed and tick.
 4. **Loop:** write down the three biggest gaps vs the reference, fix the biggest, re-shoot.
    Repeat until the acceptance list is green.
 5. **Gates (every milestone):** the 4 test suites pass (`sim_rules`, `garage_parts`, `sound`,
@@ -70,11 +72,11 @@ Camera unchanged (pitch, FOV or distance change only with Victor's OK; the hard 
 Acceptance (2026-10-27, code 530b773; numbers in the table below):
 - [x] seeds 3 and 7, `--cam=0`: luma p50 35–60, dark (< 40) 30–55 % (neon targets wait for M2:
       no strips yet). Seed 3: 45 / 36.1 %. Seed 7: 42 / 45.3 %.
-- [ ] same stills, bright (> 200) ≤ 2 %. Seed 3: 1.01 %. Seed 7: 2.80 %: at tick 700 your lance
-      wind-up bar (`mech.gd` `aim_line`, glow 4.0, unchanged since M0) and the hit effects cover
-      about 2 % of the frame. With effects and that bar hidden: 0.68 %
-      (`visual-m1-seed7-cam0-no-fx-2026-10-27.png`). **Victor's call:** measure this on the arena
-      only, or bring the bar under the bloom rule in M3.
+- [x] same stills, bright (> 200) ≤ 2 %, measured on the arena only (Victor, 2026-10-27). Seed 3:
+      1.01 % with effects on. Seed 7: 0.68 % with effects and the wind-up bar hidden
+      (`visual-m1-seed7-cam0-no-fx-2026-10-27.png`); 2.80 % with them, because at tick 700 your
+      lance wind-up bar (`mech.gd` `aim_line`, glow 4.0, unchanged since M0) and the hit effects
+      cover about 2 % of the frame. The bar is fixed in M3.
 - [x] both mechs clearly lighter or more saturated than the floor around them in all 4 stills
       (eye check, `visual-m1-seed{3,7}-cam{0,4}-2026-10-27.png`; the seed 7 close-up follows your
       mech, the rival is off-frame)
@@ -164,9 +166,11 @@ Acceptance:
 Scope: mech materials (metal and roughness per slot, a rim term for separation, team-color
 accents within the bloom rule). A team ground ring and a small overhead arrow per mech (meshes,
 no text). Every effect family checked on the new floor in the sandbox; knobs tuned in `fx.gd`
-only.
+only. The lance and rail wind-up bar (`mech.gd` `aim_line`, glow 4.0) brought under the bloom
+rule (Victor, 2026-10-27).
 
 Acceptance:
+- [ ] the wind-up bar no longer blooms: sandbox still of a lance wind-up
 - [ ] seeds 1–10 at tick 700, `--cam=0`: in every still both mechs can be found and told apart
       by team at a glance (eye check, list kept in this file)
 - [ ] sandbox stills for `rivet` (bolt), `laser` (ray), `mortar` (lob), `flamer` (cone), `saw`
