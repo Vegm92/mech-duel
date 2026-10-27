@@ -168,7 +168,7 @@ void fragment() {
 }
 """
 
-const ITEM := {"size": 2.4, "lift": 2.2, "tilt": -0.9, "ring": [0.6, 0.8], "shock": 2.4}
+const ITEM := {"size": 1.5, "lift": 1.6, "tilt": -0.9, "ring": [0.6, 0.8], "shock": 2.4}
 const MARK := {"ring": [0.9, 1.12], "y": 0.1, "dim": 0.3, "alpha": 0.9, "arrow": Vector3(0.75, 0.6, 0.05), "lift": 2.9}
 const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "aisle": 0.6}
 
