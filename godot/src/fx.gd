@@ -438,7 +438,7 @@ static func shake_of(f: Dictionary) -> float:
 
 
 static func muzzle(parent: Node3D, f: Dictionary, c: Color) -> void:
-	var p := Vector3(f.x, 1.05, f.y)
+	var p := Vector3(f.x, f.get("h", 1.05), f.y)
 	var dir := Vector3(cos(f.a), 0.05, sin(f.a))
 	flash(parent, p, MUZZLE.flash, MUZZLE.secs, c.lightened(0.6))
 	star(parent, p, MUZZLE.star, MUZZLE.star_secs, c)
