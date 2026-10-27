@@ -169,6 +169,7 @@ void fragment() {
 """
 
 const ITEM := {"size": 2.4, "lift": 2.2, "tilt": -0.9, "ring": [0.6, 0.8], "shock": 2.4}
+const MARK := {"ring": [0.9, 1.12], "y": 0.1, "dim": 0.3, "alpha": 0.9, "arrow": Vector3(0.75, 0.6, 0.05), "lift": 2.9}
 const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "aisle": 0.6}
 
 var crowd: MultiMeshInstance3D
@@ -464,6 +465,7 @@ func reset(state: Dictionary) -> void:
 		add_child(node)
 		node.build(m.loadout, m.team)
 		node.smoke = Fx.wreck(node)
+		mark(node, m)
 		mechs.append(node)
 	for n in active:
 		n.visible = false
@@ -483,6 +485,31 @@ func reset(state: Dictionary) -> void:
 		towers[i].at = Vector3(m.x, Look.STAGE.aim_y, m.y)
 		towers[i].v = Vector3.ZERO
 	follow(state, 0.0)
+
+
+## Team markers: a ring on the floor, an arrow over the head and a rim on the edges, all in the team color.
+func mark(node: Node3D, m: Dictionary) -> void:
+	var c := Mech.flat(Color(Mech.TEAM[m.team].darkened(MARK.dim), MARK.alpha))
+	var tri := PrismMesh.new()
+	tri.size = MARK.arrow
+	var ring := Mech.add(node, Mech.ring(MARK.ring[0], MARK.ring[1]), c)
+	var arrow := Mech.add(node, tri, c, Vector3.ZERO, Vector3(-PI / 3.0, 0, PI))
+	for k in [ring, arrow]:
+		k.top_level = true
+	place_marks([ring, arrow], m)
+	ring.reset_physics_interpolation()
+	arrow.reset_physics_interpolation()
+	var rim := Look.shader(Look.RIM_SHADER, Look.RIM.merged({"color": Mech.TEAM[m.team]}))
+	if DisplayServer.get_name() != "headless":
+		for p in node.find_children("*", "MeshInstance3D", true, false):
+			if p.material_override == null:
+				p.material_overlay = rim
+	node.set_meta("marks", [ring, arrow, rim])
+
+
+func place_marks(marks_of: Array, m: Dictionary) -> void:
+	marks_of[0].position = Vector3(m.x, MARK.y, m.y)
+	marks_of[1].position = Vector3(m.x, Sim.height_of(m) + MARK.lift, m.y)
 
 
 func follow(state: Dictionary, dt: float) -> void:
@@ -519,6 +546,12 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		var sm = state.mechs[i]
 		shocks[i].visible = sm.buffs.slow > 2 and not sm.ko
 		shocks[i].position = Vector3(sm.x, 0.06, sm.y)
+		var marks_of: Array = mechs[i].get_meta("marks")
+		var seen := not Sim.hidden(state, sm)
+		place_marks(marks_of, sm)
+		marks_of[0].visible = seen
+		marks_of[1].visible = seen and not sm.ko
+		marks_of[2].set_shader_parameter("strength", Look.RIM.strength if seen else 0.0)
 		var act = state.mechs[i].act
 		if act != null and act.k == "dash" and act.get("ph") == "go" and tick % Fx.DASH.every == 0:
 			Fx.ghost(self, mechs[i], Mech.TEAM[state.mechs[i].team])

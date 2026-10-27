@@ -700,6 +700,7 @@ static func ghost(parent: Node3D, mech: Node3D, c: Color) -> void:
 				continue
 			if n is GeometryInstance3D:
 				n.material_override = m
+				n.material_overlay = null
 				n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			pairs.append([src[i], n])
 		g.set_meta("pairs", pairs)

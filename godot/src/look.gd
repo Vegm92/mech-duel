@@ -92,6 +92,28 @@ void fragment() {
 }
 """
 
+const RIM := {"strength": 0.7, "px": 2.0, "gap": 0.6}
+
+const RIM_SHADER := """
+shader_type spatial;
+render_mode blend_add, unshaded, depth_draw_never;
+uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
+uniform vec3 color : source_color;
+uniform float strength;
+uniform float px;
+uniform float gap;
+void fragment() {
+	float edge = 0.0;
+	for (int i = 0; i < 8; i++) {
+		float a = float(i) * 0.785398;
+		vec2 uv = SCREEN_UV + vec2(cos(a), sin(a)) * px / VIEWPORT_SIZE;
+		vec4 v = INV_PROJECTION_MATRIX * vec4(uv * 2.0 - 1.0, texture(depth_tex, uv).r, 1.0);
+		edge += step(gap, VERTEX.z - v.z / v.w);
+	}
+	ALBEDO = color * strength * min(edge / 3.0, 1.0);
+}
+"""
+
 static var ARENA := {
 	"steel": paint("painted", PAL.navy), "dark": paint("gunmetal", PAL.gunmetal),
 	"trim": paint("gunmetal", PAL.steel), "hazard": shader(HAZARD_SHADER, HAZARD),
