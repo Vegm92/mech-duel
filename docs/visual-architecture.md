@@ -8,10 +8,10 @@ How the look is built, what depends on what, and the rules for changing it. Targ
 | File | Owns |
 |---|---|
 | `godot/main.tscn` | one `Main` node; everything else is created in code |
-| `godot/src/main.gd` | game camera (follow, close-ups, shake, kick), hit-stop, slow-mo, look-check flags, screenshots |
-| `godot/src/look.gd` | palette `PAL`, material families, light rig and tonemap knobs `STAGE`, floor values `FLOOR`, light level `NEON` and `neon()`, hazard stripes `HAZARD` + `HAZARD_SHADER`, shader noise `NOISE`, `shader()`, arena slot materials `ARENA`, `env()` for the arena and the garage |
-| `godot/src/view.gd` | WorldEnvironment, light placement (key, follow spots, accents), floor shader v2 (plates, hazard bands, edge line, spawn chevrons, oil slicks), walls, stands and crowd, arena props, projectiles, traps, the effect dispatch `spawn`, danger zone, reticle |
-| `godot/src/mech.gd` | material helpers (`mat`, `glow`, `flat`), mesh helpers, `.glb` loading (`models`, `add_part`), team colors (`TEAM`, `TEAM_LIGHT`, `TEAM_DARK`, `EYES`, `CORE_C`, `BOOST_C`), mech build and animation |
+| `godot/src/main.gd` | game camera (follow, close-ups, shake, kick), hit-stop, slow-mo, look-check and sandbox flags, screenshots |
+| `godot/src/look.gd` | palette `PAL`, material families, light rig and tonemap knobs `STAGE`, floor values `FLOOR`, light level `NEON` and `neon()`, hazard stripes `HAZARD` + `HAZARD_SHADER`, mech rim `RIM` + `RIM_SHADER`, shader noise `NOISE`, `shader()`, arena slot materials `ARENA`, `env()` for the arena and the garage |
+| `godot/src/view.gd` | WorldEnvironment, light placement (key, follow spots, accents), floor shader v2 (plates, hazard bands, edge line, spawn chevrons, oil slicks), walls, stands and crowd, arena props, team markers (`MARK`, `mark()`: ring, ▼, rim), projectiles, traps, the effect dispatch `spawn`, danger zone, reticle |
+| `godot/src/mech.gd` | material helpers (`mat`, `glow`, `flat`), mech surface knobs `SKIN` and team paint `paints()`, mesh helpers, `.glb` loading (`models`, `add_part`), team colors (`TEAM`, `TEAM_LIGHT`, `TEAM_DARK`, `EYES`, `CORE_C`, `BOOST_C`), mech build and animation |
 | `godot/src/fx.gd` | effect recipes, one knob dict each, particle layers, smoke and fire shaders, node pools |
 | `godot/src/hud.gd`, `garage.gd` | HUD and garage UI; shared plate style `Garage.plate`; UI colors |
 | `godot/src/part_view.gd` | garage 3D previews: own world, camera-fixed light, `Look.env(true)` |
@@ -41,11 +41,11 @@ flowchart LR
     mat["Mech.mat, glow, flat: cached materials"]
     paints["Mech.paints: team materials"]
     arenam["Look.ARENA: arena materials"]
-    look["look.gd: PAL, families, STAGE, FLOOR, NEON, hazard shader, env()"]
+    look["look.gd: PAL, families, STAGE, FLOOR, NEON, hazard and rim shaders, env()"]
     env["view.build: key, spots, accents, floor shader v2 with oil"]
     pv["part_view: garage previews"]
     mech["mech.gd: build, sync, pose, trails"]
-    sync["view.sync: shots, lobs, mines, fields, trails, traps"]
+    sync["view.sync: team markers and rim, shots, lobs, mines, fields, trails, traps"]
     spawn["view.spawn: fx event to recipe"]
     fx["fx.gd: recipes, knobs, pools, smoke and fire shaders"]
     cam["main.gd: camera, shake, kick, hit-stop, slow-mo"]
@@ -59,6 +59,7 @@ flowchart LR
   look --> arenam
   look --> env
   look --> pv
+  look -->|"RIM"| sync
   paints --> models
   arenam --> models
   sim["sim.gd state: pure, no visuals"] --> sync
@@ -92,6 +93,12 @@ flowchart LR
   Per-file changes need a reason in the commit.
 - **The sim is never touched for looks.** Sizes it knows (pillar radius, pad radius, trap spots,
   walls) come from `sim.gd`; the view scales meshes to them. The golden hash must not move.
+- **Mech overlays are the rim.** `view.mark` sets `material_overlay` on every `.glb` part of a
+  match mech (the ones without a `material_override`) to that mech's rim. Another overlay on a
+  mech part would replace it. Dash afterimages (`Fx.ghost`) copy the mech, so they clear it.
+- **Team markers float on their own.** The ring and the ▼ are `top_level`, placed by `view.sync`
+  from the sim (ring on the floor, ▼ over `Sim.height_of`), so a K.O. tilt never moves them and
+  afterimages skip them. They and the rim switch off while `Sim.hidden` is true (smoke).
 - **Effects come from sim events only:** `state.fx` entries, `act` states, shots, lobs, trails.
   `view.spawn` maps `f.k` to an `Fx` recipe. A new fx kind also needs a `RECIPES` row in
   `sfx.gd`, or `sound_test` fails.
@@ -171,12 +178,33 @@ the crowd and the effects, and moving them buys nothing.
 - **Floor rings:** pillars, tesla towers and the heal pad carry a thin cyan `strip` ring on the
   floor at their base, in their mesh.
 
+## Robots (Milestone 3)
+
+- **Surfaces:** `mech.gd` `SKIN` sets metal and roughness per slot (body paint 0.35 / 0.4, steel
+  trim 0.75 / 0.35, joints 0.6 / 0.55). The `glow` slot is a team-color light on a black base at
+  0.9, the same trick as the arena's `neon()`; before M3 it was `TEAM_LIGHT` at 1.6, which AgX
+  turned near white. These are shared with the garage previews.
+- **Rim:** `look.gd` `RIM_SHADER`, an additive overlay. Each mech pixel looks 2 px out in 8
+  directions in the depth texture; where the scene behind is more than 0.6 m farther (floor,
+  props), it adds the team color. So the rim follows the outer silhouette at a fixed pixel width
+  and skips the edges where the mech's own parts overlap. Godot's `rim` property was tried first:
+  it lights faces seen edge-on, and the mechs' flat faces are never seen that way from the game
+  camera, so it changed nothing. Match only: the garage previews have no rim. Headless runs skip
+  it too (`DisplayServer.get_name()`): Godot's headless renderer logs "Parameter material is null"
+  for a depth-reading overlay. Cost: 0.24 ms GPU and 81 draw calls for two mechs.
+- **Markers:** `view.gd` `MARK`: a ring on the floor (radius 0.9–1.12 m, wider than the arena's
+  thin pad rings) and a ▼ 0.75 m wide, 2.9 m up, both `Mech.flat` (unshaded, normal blend) in the
+  team color darkened by 30 %. Unshaded keeps them out of the light rig; normal blend keeps the
+  floor from tinting them.
+- **Wind-up bar:** `mech.gd` `aim_line` is `Mech.flat(SKIN.aim, true)`, additive like the
+  effects, so it can no longer bloom.
+
 ## Tools
 
 | Tool | Command (PowerShell, from `games/mech-duel`) |
 |---|---|
 | Look check | `& $G --path godot --resolution 1920x1080 -- --autopilot --seed=3 --shot=<abs>.png --at=700 [--cam=4]` |
-| Effects sandbox | `& $G --path godot -- --seed=3 --sandbox=<weapon> --shot=<abs>.png --at=<tick>` (M1 stills: `laser` at 55, `mortar` at 160, `mortar --norefill` at 602 for the K.O.) |
+| Effects sandbox | `& $G --path godot -- --seed=3 --sandbox=<weapon> --shot=<abs>.png --at=<tick>` (M1 stills: `laser` at 55, `mortar` at 160, `mortar --norefill` at 602 for the K.O.; M3: `rivet --ult` at 30 for the lance wind-up) |
 | Perf probe | `& $G --path godot --resolution 1920x1080 -s "$PWD\tools\perf_probe.gd" -- --autopilot --seed=3` → one `PERF …` line after ~40 s |
 | Arena-only still | `& $G --path godot --resolution 1920x1080 -s "$PWD\tools\arena_shot.gd" -- --autopilot --seed=3 --tick=700 --out=<abs>.png [--top]` (effects and the wind-up bar hidden; bright is measured here; `--top` = the whole arena, no HUD) |
 | Look numbers | `python tools\look_stats.py docs\reference\industrial-neon-arena.webp <shot>.png …` (`--palette` adds the 12 main colors) |

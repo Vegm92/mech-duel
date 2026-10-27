@@ -31,6 +31,7 @@ $R = "C:\Users\victo\Proyectos\Claude-Code-Game-Studios\games\mech-duel"
 $P = "$R\godot"
 & $G --path $P                                                  # play
 & $G --path $P -- --sandbox=laser                               # effects sandbox (see FX_DESIGN.md)
+& $G --path $P -- --sandbox=rivet --ult                         # R skill on repeat: the lance wind-up bar
 & $G --headless --path $P -s res://tests/sim_rules_test.gd      # sim tests
 & $G --headless --path $P -s res://tests/garage_parts_test.gd   # garage, parts, flow, gamepad tests
 & $G --headless --path $P -s res://tests/sound_test.gd          # sound tests
@@ -64,7 +65,7 @@ $P = "$R\godot"
   (`view.cone`), shield ripple (`Fx.ripple`, from `view.guard` watching `act.absorbed`), hook
   cable + catch (`view.tether`, `Fx.hooked`), directional camera kick (`view.kick` → main.gd), and emp, heal / pickup, crush, blink, soak, magnet, ping, R charge (`Fx.emp` … `Fx.charge`).
   Effect nodes are pooled (`Fx.take`/`Fx.park`). Smoke and fire puffs use noise shaders (`SMOKE_SHADER`, `FIRE_SHADER` in fx.gd). **Sandbox:** `$G --path godot -- --sandbox=<weapon>` (two pinned mechs, auto-fire, ←/→
-  weapon, T auto-fire, G guard, K refill, J dash, `--block` held shield, `--hook` auto hook; see `FX_DESIGN.md`). Evidence:
+  weapon, T auto-fire, G guard, K refill, J dash, `--block` held shield, `--hook` auto hook, `--ult` R skill on repeat; see `FX_DESIGN.md`). Evidence:
   `production/qa/evidence/godot-hit-fx-before-after-2026-10-26.png`,
   `godot-weapon-fx-before-after-2026-10-27.png`, `godot-moves-fx-before-after-2026-10-27.png`.
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
@@ -319,7 +320,11 @@ $P = "$R\godot"
   4.7 multiplies the glow input by exposure before the threshold. **Arena** (M2): arena lights
   are `neon()`, a black surface that only emits at `NEON` 0.75, because AgX turns a brighter or
   lit light near white; no reflections (a probe and SSR were tried, neither showed at the game
-  camera). Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
+  camera). **Robots** (M3): `mech.gd` `SKIN` sets metal and roughness per slot, and the `glow`
+  slot is a team-color light on a black base (0.9); every match mech gets a team ring on the
+  floor, a ▼ over its head and a 2 px screen-space rim in its team color (`view.gd` `MARK` and
+  `mark()`, `look.gd` `RIM`; not in the garage), all off while the mech hides in smoke
+  (`Sim.hidden`); the lance/rail wind-up bar is `Mech.flat`, so it no longer blooms. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
   `--autopilot`), `tools/arena_shot.gd` (arena-only still with effects and the wind-up bar
   hidden, where bright is measured; `--top` = the whole arena; `-s <absolute path>`, `--tick=N
   --out=<abs png>`), `tools/look_stats.py` (look numbers vs the reference),

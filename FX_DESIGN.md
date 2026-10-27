@@ -66,7 +66,8 @@ raises a perfect shield before each shot lands (parry). K (`--norefill`): armor 
 parts break and the target gets K.O.'d. J (`--dash`): your mech dashes every `SANDBOX.dash` ticks
 (add `--legs=jets` or `--legs=stompers` for the landing hit). `--block`: the target holds its
 shield up all the time (normal blocks, then the shield drops at max hold). `--hook`: your mech
-throws the hook whenever it is ready. Combine with `--shot`
+throws the hook whenever it is ready. `--ult`: your R charge stays full and your mech fires its R
+skill whenever it can (the default core's lance shows the wind-up bar). Combine with `--shot`
 and `--at` for screenshots of any weapon.
 
 ## Recipes
@@ -153,5 +154,7 @@ and `--at` for screenshots of any weapon.
    glowing `view.pop` / `beam` / `sparks` helpers are gone, so no one-shot effect uses `Mech.glow` now (arena props in `view.gd` still
    do: pads, heal station, hazard jets, reticle).
    Evidence: `godot-misc-fx-before-after-2026-10-27.png` (top before, bottom after).
+8. **Done (2026-10-27, visual overhaul M3):** the lance and rail wind-up bar (`mech.gd`
+   `aim_line`) is `Mech.flat` additive (`SKIN.aim`), no longer a glow at 4.0 that bloomed.
 
 Later: chips bouncing on the floor; calming the white arena lamps, which are bloomy too.

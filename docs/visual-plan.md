@@ -255,15 +255,110 @@ no text). Every effect family checked on the new floor in the sandbox; knobs tun
 only. The lance and rail wind-up bar (`mech.gd` `aim_line`, glow 4.0) brought under the bloom
 rule (Victor, 2026-10-27).
 
-Acceptance:
-- [ ] the wind-up bar no longer blooms: sandbox still of a lance wind-up
-- [ ] seeds 1–10 at tick 700, `--cam=0`: in every still both mechs can be found and told apart
-      by team at a glance (eye check, list kept in this file)
-- [ ] sandbox stills for `rivet` (bolt), `laser` (ray), `mortar` (lob), `flamer` (cone), `saw`
-      (melee), a dash and a boom: each effect stands out from floor and props
-- [ ] `FX_DESIGN.md` rules hold; `sound_test` passes (no new fx kinds without sounds)
-- [ ] GPU ≤ M0 + 1.9 ms
-- [ ] gates
+Acceptance (2026-10-27, code d890fba; numbers in the table below):
+- [x] the wind-up bar no longer blooms: sandbox still of a lance wind-up (`--sandbox=rivet --ult`,
+      tick 30) and the same seed 7 frame as M2: `visual-m3-lance-before-after-2026-10-27.png`.
+      With the bar and the effects on screen, seed 7 bright is now 0.79 % (M2 2.75 %): the 2 %
+      target holds without hiding anything.
+- [x] seeds 1–10 at tick 700, `--cam=0`: in all 10, both mechs are found and told apart by team
+      (list below; `visual-m3-seeds-1-10-2026-10-27.png`). Checked at half size, harsher than play.
+- [x] sandbox stills, `--seed=3` (`visual-m3-fx-2026-10-27.png`): `rivet` bolt at 60, `laser` ray
+      at 55, `mortar` lob warning at 130 and boom at 160, `flamer` cone at 60, `saw` swing at 53,
+      a dash (`rivet --dash`) at 86, plus the K.O. at 602 and the lance wind-up at 30. Each stands
+      out from the floor and props. Weakest: the rivet bolt where it crosses the bright heal pad
+      (the sandbox fights on the pad, at the arena center); over the floor it reads. No knob
+      changed.
+- [x] `FX_DESIGN.md` rules hold: no new fx kind, no effect changed, and the wind-up bar now
+      follows rule 2 (flat, additive); `sound_test` passes
+- [x] GPU ≤ M0 + 1.9 ms: 2.94 / 4.02 ms (median of 3 runs: 2.93, 2.94, 3.10; M2 2.69 / 4.10);
+      draw calls 886 (M0 1051). The rim costs 0.24 ms and 81 draw calls (one run without it:
+      2.70 ms, 805); rings and arrows cost nothing measurable.
+- [x] gates: the 4 suites pass (3 + 5 + 15 + 13 tests, golden hash unchanged); `garage_parts`
+      prints the same two headless "Parameter material is null" lines as M0–M2; the look-check
+      runs log nothing new (see "Exit lines")
+
+| Still set | Luma p10 / p50 / p90 | Dark | Bright | Neon (cyan + blue / orange) | GPU ms avg / peak | Draw calls |
+|---|---|---|---|---|---|---|
+| seed 3, `--cam=0` | 27 / 45 / 60 | 34.4 % | 0.76 % | 2.74 % (1.93 / 0.81) | 2.94 / 4.02 | 886 |
+| seed 7, `--cam=0` | 27 / 43 / 71 | 42.6 % | 0.79 % | 2.32 % (2.08 / 0.24) | — | — |
+| seed 3, arena only | 30 / 45 / 59 | 33.8 % | 0.39 % | 2.33 % (1.92 / 0.41) | — | — |
+| seed 7, arena only | 27 / 43 / 63 | 43.1 % | 0.64 % | 1.81 % (1.68 / 0.13) | — | — |
+
+The M1 and M2 targets still hold. The team rings count as neon accents: orange rose on seed 3
+(0.37 → 0.81 %); cyan and blue are 70 % (seed 3) and 90 % (seed 7) of the accents. Also: render
+CPU 0.69–0.86 ms (M2 0.6), 240 k primitives (208 k: the rim draws the mechs a second time), 1696
+objects (1611), 364 MB VRAM (364), ~801 nodes (781). Reference | M2 | M3:
+`visual-m3-side-by-side-2026-10-27.png`. Garage: `visual-m3-garage-before-after-2026-10-27.png`
+(the grey parts read a little darker, as steel; the garage gets no rim and no markers).
+
+Team check, seeds 1–10 (tick 700, `--cam=0`; your mech orange, the rival blue):
+
+| Seed | Your mech | Rival | Note |
+|---|---|---|---|
+| 1 | lower middle | top, behind its shield flash | |
+| 2 | top | middle, in hit sparks | |
+| 3 | close fight | close fight | the rival's shield stands between them |
+| 4 | top, by a pillar | lower middle, in smoke | weakest: your mech is small and a HUD callout sits on it |
+| 5 | middle | top, inside an effect | |
+| 6 | top, under a callout | lower middle | |
+| 7 | top, in hit sparks | middle, under the lance bar | |
+| 8 | close fight | close fight | |
+| 9 | lower middle | top, under a callout | |
+| 10 | top right | lower left | the thick ring reads apart from the thin cyan pad rings |
+
+What changed:
+
+- **Surfaces** (`mech.gd` `SKIN`): metal and roughness per slot. Body paint 0.35 / 0.4 (was 0.3 /
+  0.5), steel trim 0.75 / 0.35 (0.55 / 0.5), joints 0.6 / 0.55 (0.4 / 0.6): the grey parts read
+  as steel with highlights, and the team paint stands out against them. The `glow` slot (gun
+  strips, saw marks) is a team-color light on a black base at 0.9; it was `TEAM_LIGHT` at 1.6,
+  which AgX turned near white. Shared with the garage previews.
+- **Rim** (`look.gd` `RIM`, `RIM_SHADER`): an additive overlay on every `.glb` part of a match
+  mech. Each pixel checks the depth 2 px away in 8 directions; where the scene behind is more than
+  0.6 m farther, it adds the team color at 0.7. A 2 px team edge around the outer silhouette at
+  any zoom, none where the mech's own parts overlap. Not in the garage, and not in headless runs.
+- **Team markers** (`view.gd` `MARK`, `mark()`): a ring on the floor (radius 0.9–1.12 m) and a ▼
+  0.75 m wide, 2.9 m up, in the team color darkened by 30 %, unshaded, normal blend. Both float on
+  their own (`top_level`), placed from the sim every tick: the ring stays on the floor during
+  jumps, the ▼ follows `Sim.height_of`, a K.O. tilt moves neither, and the ▼ hides on a K.O.
+  Ring, ▼ and rim switch off while the mech hides in smoke (`Sim.hidden`), so they never give a
+  hidden mech away. Dash afterimages skip the markers and clear the rim (`Fx.ghost`).
+- **Wind-up bar** (`mech.gd` `aim_line`): `Mech.flat(SKIN.aim, true)`, additive like the
+  effects; same warm color, shape and fade. It was `Mech.glow` at 4.0.
+- **Sandbox** (`main.gd`): `--ult` keeps your R charge full and fires the R skill whenever it can.
+- Effects: no knob changed. Every family reads on the M2 floor.
+
+Exit lines: "N ObjectDB instances were leaked" and "resources still in use" at exit came and went
+between runs of the same command, on the M2 code too (2 of 20 runs before any M3 change, short
+sandbox runs at tick 40) and after (2 of 25 final runs: mortar at 130, the K.O. at 602). Not from
+M3; still not chased (M2: watch it).
+
+Three biggest gaps vs the reference after M3 (input for M4 and M5): pickup icons fight the mechs
+for attention (big, bright, saturated; the power-burst salmon is close to team orange) while the
+hierarchy puts pickups at level 4. Not M3's scope: Victor chose "icons only" (2026-10-27); their
+size and glow are one knob each (`ITEM.size`, the icon glow in `view.arena`). A clean floor with
+no scorch, debris or grates (M4). HUD callouts ("¡BRAZO DERECHO ROTO!", "REPARACIÓN LISTA") sit
+over the top of the play area and can cover a mech there (seeds 4, 6 and 9; M5). Smaller: team
+blue sits close to the arena cyan (hue 208° vs 190°; the thick ring and the ▼ carry it), and the
+aim reticle still blooms (`Mech.glow` at 3.0; M5).
+
+Process:
+
+- **Godot's rim does nothing here.** `StandardMaterial3D.rim` lights faces seen edge-on
+  (`pow(1 - N·V, (1 - roughness) × 16)` per light). The mechs are flat-shaded boxes, and from the
+  game camera no visible face is edge-on: rim 0.5 and 1.0 gave the same frame. The next native
+  option, Godot 4.5's stencil outline, is experimental, sizes its outline in meters (thick in
+  close-ups and the garage) and leaves gaps at box corners. The depth-based overlay has none of
+  these.
+- **Markers added as light came out pale.** Additive team rings at 0.8 measured saturation 0.46
+  (orange) and 0.37 (blue), still 0.51 / 0.44 at 0.5: the floor under them adds grey and AgX
+  desaturates. Solid and darkened by 30 %: 0.86 / 0.67, the body's own saturation.
+- **Thin rings looked like pads.** The first ring (0.14 m wide, a 0.46 m ▼) read like the arena's
+  thin cyan pad rings for the blue team, and the ▼ got lost when the camera zoomed out. Now 0.22 m
+  and 0.75 m.
+- **Headless runs skip the rim.** Godot's headless renderer logs "Parameter material is null" for
+  the depth-reading overlay (6 extra lines in `garage_parts`), so `mark()` adds it only when there
+  is a display. A windowed still with the check is the same as without it.
 
 ## M4 — Atmosphere
 

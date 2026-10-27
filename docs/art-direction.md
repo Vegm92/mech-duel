@@ -71,6 +71,10 @@ Shared families: one material per family, variants by parameter, never one mater
 | Emissive orange | `orange` on a black base | 0 | — | 0.75 | lamps, hazard lights |
 | Oil | `grime`, a thin-film rainbow rim | 0 | 0.05 | — | oil slicks, drawn by the floor shader |
 | Scorched | `grime` → near black | 0.2 | 0.8–0.95 | — | scorch marks, burned edges |
+| Mech paint | team color (`Mech.TEAM`) | 0.35 | 0.4 | — | mech bodies (`mech.gd` `SKIN`) |
+| Mech steel | `Mech.STEEL` | 0.75 | 0.35 | — | mech trim: pads, frames, guns |
+| Mech joint | `Mech.DARK` | 0.6 | 0.55 | — | joints, grips, cables |
+| Team accent | team color on a black base | 0 | — | 0.9 | the `glow` slot: gun strips, saw marks |
 
 - **No textures today** (and no UVs). Wear, grime and scratches come from procedural noise in
   shared shaders (world or object space) and from bevels in the Blender build scripts. Painted
@@ -81,7 +85,15 @@ Shared families: one material per family, variants by parameter, never one mater
 - **Arena lights stay dim (M2):** AgX turns a brighter light, or one lit by the scene's lights,
   near white (saturation ~0.3), so it stops reading as cyan or orange. Arena lights are a black
   surface that only emits, at 0.75 (`look.gd` `neon()`); none of them blooms.
-- **Effects** keep `FX_DESIGN.md`: unshaded, additive, no emission.
+- **Effects** keep `FX_DESIGN.md`: unshaded, additive, no emission. The lance and rail wind-up
+  bar follows it too since M3 (`Mech.flat`, was a glow at 4.0).
+- **Mechs (M3):** a team-color rim lights each mech's outer edge wherever the floor or a prop is
+  behind it: screen space, about 2 px at any zoom (`look.gd` `RIM`, in a match only). Godot's own
+  rim light does nothing on the flat-shaded parts. Under every mech, a ring on the floor; over
+  its head, a small ▼ (`view.gd` `MARK`). They are solid, unshaded team color at 70 %: added as
+  light, the same color came out pale under AgX (saturation 0.37–0.46); solid, it keeps the
+  body's saturation (0.67–0.86). Ring, ▼ and rim switch off while a mech hides in smoke
+  (`Sim.hidden`), so they never give a hidden mech away.
 
 ## Lighting
 
