@@ -4,6 +4,7 @@ const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
 const Fx = preload("res://src/fx.gd")
 const Look = preload("res://src/look.gd")
+const Decor = preload("res://src/decor.gd")
 const TRACER := 0.028
 const DASHES := [0.4, 0.25, 0.15]
 const BLEND := 4.0
@@ -242,6 +243,7 @@ func build() -> void:
 	for p in Sim.TRAPS.oil.at:
 		accent(Vector3(p.x, S.accent_y, p.y), Look.PAL.cyan)
 	build_floor(corners)
+	Decor.build(self)
 	build_walls(corners)
 	build_stands(corners)
 	for p in Sim.PILLARS:
