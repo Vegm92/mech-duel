@@ -52,6 +52,7 @@ var block := false
 var auto_hook := false
 var refill := true
 var auto_dash := false
+var auto_ult := false
 var frozen := false
 var cam_mode := 0
 var hands_arg := PackedStringArray()
@@ -122,6 +123,8 @@ func _ready() -> void:
 			refill = false
 		elif a == "--dash":
 			auto_dash = true
+		elif a == "--ult":
+			auto_ult = true
 		elif a == "--sandbox" or a.begins_with("--sandbox="):
 			sandbox = true
 			gun = Sim.WEAPONS.keys().find(a.substr(10)) if a.contains("=") else -1
@@ -404,6 +407,9 @@ func _physics_process(delta: float) -> void:
 				me.my = -1.0
 			if auto_hook:
 				me.hook = state.tick % 2 == 0
+			if auto_ult:
+				state.mechs[0].surge = Sim.SURGE.max
+				me.ult = true
 			foe = Sim.IDLE.duplicate()
 			foe.ax = state.mechs[0].x
 			foe.ay = state.mechs[0].y
