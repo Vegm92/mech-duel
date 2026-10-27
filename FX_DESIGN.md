@@ -94,7 +94,29 @@ and `--at` for screenshots of any weapon.
    land (`Fx.land`: team + white rings, needle spikes and dust on a ring, floor crack), dash
    (`Fx.dash`: ring, backward needles, dust; `Fx.ghost` afterimages every 3 ticks while dashing).
    Booster trails are flat now too.
-4. Directional shake (camera pushed along the hit line, not random jitter); shield, hook endpoint.
-5. Pool particle nodes if many hits per second cost frames (today each burst is a new node).
+4. **Done (Victor 2026-10-27: "keep working on the dashes and smoke"):** booster trails. Arc /
+   flame / frost = `Fx.ribbon`, a soft additive ribbon on the floor over the sim's trail line,
+   booster color in the middle fading to clear edges, pointed tail, fading with the trail's life
+   (`RIBBON`). Keep `gain` at 1: brighter colors turn white under the AgX tonemapper. Smoke (Twin
+   booster dash and the Shroud R skill) = `Fx.smoke`, lit grey low-poly puffs scattered along the
+   line, growing in, swelling and rising slowly, fading in the last 35% (`SMOKE`). Same hide zone
+   as the sim. Evidence: `production/qa/evidence/godot-dash-smoke-before-after-2026-10-27.png`.
+   Victor: "too round and perfect … more of a gas than bubbles". So the puffs use
+   `SMOKE_SHADER`: value noise pushes the surface in and out and drifts up over time (`bump`,
+   `churn`), alpha fades toward the silhouette (`rim`) so puffs blend into one cloud, and toward
+   the floor and mechs behind it (`touch`, depth-texture soft particles). Per-puff grey, seed and
+   fade are instance uniforms, so all puffs share one material. Evidence:
+   `godot-smoke-gas-2026-10-27.png`.
+   Fire got the same noise (Victor: "we can do the same with the fire"): `FIRE_SHADER`
+   (`Fx.fire_mat()`, additive, unshaded, noise rising with `churn`, hot middle, faded outline) on
+   the explosion fireballs (`boom_fire`, `"fire": true`, color from the particle `COLOR`).
+   **Flamer = one cone** (Victor: "a cone of fire not blobs"): the sim still fires small flame
+   shots; the view hides them and draws one cone per mech (`view.cone`, `Fx.flame_cone`, knobs in
+   `CONE`) from the gun to the farthest live flame, aimed at their average direction. When you
+   stop firing, the cone's back leaves the gun and the cone flies out with the last flames. Same
+   shader with `tail` 1: yellow-hot at the gun, red and fading toward the tip. Evidence:
+   `godot-fire-before-after-2026-10-27.png`.
+5. Directional shake (camera pushed along the hit line, not random jitter); shield, hook endpoint.
+6. Pool particle nodes if many hits per second cost frames (today each burst is a new node).
 
 Later: chips bouncing on the floor; calming the white arena lamps, which are bloomy too.

@@ -42,6 +42,7 @@ var items := []
 var heal_ring: MeshInstance3D
 var heal_cross: Node3D
 var jets := []
+var cones := {}
 var reticle: MeshInstance3D
 var danger: MeshInstance3D
 var danger_mesh := ImmediateMesh.new()
@@ -280,8 +281,18 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		if not f.has("seen"):
 			f["seen"] = true
 			spawn(state, f)
+	var flames := {}
 	for s in state.shots:
-		shot(state, s)
+		if s.kind == "flame":
+			if not flames.has(s.owner):
+				flames[s.owner] = []
+			flames[s.owner].append(s)
+		else:
+			shot(state, s)
+	for id in cones:
+		cones[id].visible = flames.has(id)
+	for id in flames:
+		cone(state, id, flames[id])
 	for l in state.lobs:
 		lob(state, l)
 	for mi in state.mines:
@@ -349,8 +360,6 @@ func make(kind: String) -> Node3D:
 			Mech.add(n, Mech.ball(1.0, 10), null)
 			for i in DASHES.size():
 				Mech.add(n, Mech.box(Vector3.ONE), null)
-		"flame":
-			n = Mech.add(self, Mech.ball(1.0, 10), null)
 		"missile":
 			n = Node3D.new()
 			add_child(n)
@@ -379,6 +388,18 @@ func make(kind: String) -> Node3D:
 			add_child(n)
 			Mech.add(n, Mech.cyl(1.0, 1.0, 0.03, 32), Mech.glow(c, 1.2, 0.3))
 			Mech.add(n, Mech.ring(0.94, 1.0), Mech.glow(c, 3.0))
+		"ribbon":
+			var mi := MeshInstance3D.new()
+			mi.mesh = ImmediateMesh.new()
+			mi.material_override = Mech.flat(Color.WHITE, true)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+			add_child(mi)
+			n = mi
+		"smoke":
+			n = Node3D.new()
+			n.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+			add_child(n)
 		"wall":
 			n = Mech.add(self, Mech.box(Vector3(1, 2.2, 0.35)), null)
 		_:
@@ -386,8 +407,34 @@ func make(kind: String) -> Node3D:
 	return n
 
 
+func cone(state: Dictionary, id: int, shots: Array) -> void:
+	if not cones.has(id):
+		cones[id] = Fx.flame_cone(self)
+	var C := Fx.CONE
+	var m = state.mechs[id]
+	var o := Vector2(m.x, m.y)
+	var sum := Vector2.ZERO
+	var near := INF
+	var far := 0.0
+	for s in shots:
+		var d := Vector2(s.x, s.y) - o
+		sum += d
+		near = minf(near, d.length())
+		far = maxf(far, d.length())
+	var dir := sum.normalized()
+	var a: float = near - C.back if near > C.snap else C.muzzle
+	var b: float = far + C.reach
+	var r: float = C.r0 + b * C.widen
+	var mid := o + dir * (a + b) / 2.0
+	var y := Vector3(-dir.x, 0, -dir.y)
+	var x := y.cross(Vector3.UP)
+	var n: MeshInstance3D = cones[id]
+	n.visible = true
+	n.transform = Transform3D(Basis(x * r, y * maxf(b - a, 0.1), Vector3.UP * r), Vector3(mid.x, C.y, mid.y))
+
+
 func shot(state: Dictionary, s: Dictionary) -> void:
-	var kind: String = s.kind if s.kind in ["bolt", "flame", "missile", "hook"] else "bolt"
+	var kind: String = s.kind if s.kind in ["bolt", "missile", "hook"] else "bolt"
 	var n := node_for(s, kind)
 	var ang := atan2(s.vy, s.vx)
 	n.position = Vector3(s.x, 1.05, s.y)
@@ -408,11 +455,6 @@ func shot(state: Dictionary, s: Dictionary) -> void:
 				dash.position = Vector3(x - dl / 2.0, 0, 0)
 				dash.material_override = Mech.flat(Color(c, 1.0 - 0.3 * i), true)
 				x -= dl + ln * 0.12
-		"flame":
-			var age := 1.0 - clampf(s.left / 6.0, 0.0, 1.0)
-			var r: float = s.r * (0.8 + 0.6 * age)
-			n.scale = Vector3(r, r, r)
-			n.material_override = Mech.flat(Fx.ramp("fire").sample(snappedf(age * 0.6, 0.1)), true)
 		"missile":
 			var tr: CPUParticles3D = n.get_child(2)
 			if n.get_meta("fresh"):
@@ -445,17 +487,15 @@ func lob(state: Dictionary, l: Dictionary) -> void:
 
 
 func trail(state: Dictionary, tr: Dictionary) -> void:
-	var n := node_for(tr, "trail")
-	var d := Vector2(tr.x2 - tr.x1, tr.y2 - tr.y1)
-	var w: float = tr.get("w", Sim.TRAILS[tr.kind].width) * 2.0
-	var smoky: bool = tr.kind == "smoke"
-	var h := 1.8 if smoky else 0.06
-	n.position = Vector3((tr.x1 + tr.x2) / 2.0, h / 2.0 + 0.02, (tr.y1 + tr.y2) / 2.0)
-	n.rotation = Vector3(0, -d.angle(), 0)
-	n.scale = Vector3(d.length() + w, h, w)
-	var c: Color = Mech.BOOST_C[tr.kind]
-	n.material_override = Mech.flat(Color(c, 0.4)) if smoky else Mech.flat(Color(c, 0.3), true)
-	n.transparency = 1.0 - clampf(float(tr.t) / float(tr.T), 0.0, 1.0)
+	var w: float = tr.get("w", Sim.TRAILS[tr.kind].width)
+	if tr.kind == "smoke":
+		var s := node_for(tr, "smoke")
+		Fx.smoke(s, tr, w, s.get_meta("fresh"))
+		settle(s)
+		return
+	var n := node_for(tr, "ribbon") as MeshInstance3D
+	var life := sqrt(clampf(float(tr.t) / float(tr.T), 0.0, 1.0))
+	Fx.ribbon(n.mesh, Vector2(tr.x1, tr.y1), Vector2(tr.x2, tr.y2), w, Mech.BOOST_C[tr.kind], life)
 	settle(n)
 
 
