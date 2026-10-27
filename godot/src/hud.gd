@@ -3,6 +3,7 @@ extends CanvasLayer
 const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
 const Garage = preload("res://src/garage.gd")
+const Sfx = preload("res://src/sfx.gd")
 
 const PANEL := Color(0.04, 0.11, 0.23, 0.82)
 const EDGE := Color(0.31, 0.59, 0.9, 0.5)
@@ -35,6 +36,7 @@ const SLOTS := [["left", "capLmb", "capLt"], ["right", "capRmb", "capRt"], ["shi
 signal resume
 signal restart
 signal quit
+signal ui(kind: String)
 
 var state: Dictionary
 var paused := false
@@ -73,7 +75,31 @@ func _ready() -> void:
 			b.add_theme_stylebox_override(s, Garage.plate(Garage.SEL, Garage.HI, 2, 8))
 		b.add_theme_stylebox_override("focus", Garage.plate(Color.TRANSPARENT, Garage.HI, 3, 8))
 		b.pressed.connect(row[1].emit)
+		b.pressed.connect(ui.emit.bind("select"))
+		b.mouse_entered.connect(ui.emit.bind("hover"))
+		b.focus_entered.connect(ui.emit.bind("hover"))
 		menu.add_child(b)
+	var vol := Sfx.volumes()
+	for row in [["vMaster", "Master"], ["vMusic", "Music"], ["vSfx", "SFX"], ["vEnv", "Env"], ["vCrowd", "Crowd"]]:
+		var line := HBoxContainer.new()
+		var l := Label.new()
+		l.text = row[0]
+		l.custom_minimum_size = Vector2(100, 0)
+		l.add_theme_font_size_override("font_size", 15)
+		l.add_theme_color_override("font_color", DIM)
+		line.add_child(l)
+		var s := HSlider.new()
+		s.min_value = 0.0
+		s.max_value = 1.0
+		s.step = 0.05
+		s.value = vol[row[1]]
+		s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var bus: String = row[1]
+		s.value_changed.connect(func(v: float) -> void: Sfx.set_volume(bus, v))
+		s.drag_ended.connect(func(_c: bool) -> void: ui.emit("select"))
+		line.add_child(s)
+		menu.add_child(line)
 	menu.visible = false
 	add_child(menu)
 
@@ -112,7 +138,8 @@ func paint() -> void:
 	mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
 	mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot"))
 	clock(size)
-	slots(size)
+	if not paused:
+		slots(size)
 	callouts(size)
 	if paused:
 		canvas.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.5))
