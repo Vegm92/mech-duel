@@ -306,7 +306,7 @@ func callouts(size: Vector2) -> void:
 				c = HEAT_C
 			"ventsOn":
 				text = tr("ventsOn")
-				c = Color8(255, 150, 60)
+				c = Color8(120, 190, 255)
 			"healUp":
 				text = tr("healReady")
 				c = Color8(90, 255, 150)
