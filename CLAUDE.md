@@ -325,7 +325,7 @@ $P = "$R\godot"
   slot is a team-color light on a black base (0.9); every match mech gets a team ring on the
   floor, a ▼ over its head and a 2 px screen-space rim in its team color (`view.gd` `MARK` and
   `mark()`, `look.gd` `RIM`; not in the garage), all off while the mech hides in smoke
-  (`Sim.hidden`); the lance/rail wind-up bar is `Mech.flat`, so it no longer blooms. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
+  (`Sim.hidden`); the lance/rail wind-up bar is `Mech.flat`, so it no longer blooms. **Atmosphere** (M4): `godot/src/decor.gd` adds seeded scorch marks, metal scraps, floor grates, grime at the wall bases and floating dust, built once by `view.build`; `Decor.clear` keeps every piece 1.5 m off pads, spawns, trap warnings and oil (re-checked in `garage_parts_test`), and nothing on the floor moves. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
   `--autopilot`), `tools/arena_shot.gd` (arena-only still with effects and the wind-up bar
   hidden, where bright is measured; `--top` = the whole arena; `-s <absolute path>`, `--tick=N
   --out=<abs png>`), `tools/look_stats.py` (look numbers vs the reference),

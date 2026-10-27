@@ -11,6 +11,7 @@ How the look is built, what depends on what, and the rules for changing it. Targ
 | `godot/src/main.gd` | game camera (follow, close-ups, shake, kick), hit-stop, slow-mo, look-check and sandbox flags, screenshots |
 | `godot/src/look.gd` | palette `PAL`, material families, light rig and tonemap knobs `STAGE`, floor values `FLOOR`, light level `NEON` and `neon()`, hazard stripes `HAZARD` + `HAZARD_SHADER`, mech rim `RIM` + `RIM_SHADER`, shader noise `NOISE`, `shader()`, arena slot materials `ARENA`, `env()` for the arena and the garage |
 | `godot/src/view.gd` | WorldEnvironment, light placement (key, follow spots, accents), floor shader v2 (plates, hazard bands, edge line, spawn chevrons, oil slicks), walls, stands and crowd, arena props, team markers (`MARK`, `mark()`: ring, ▼, rim), projectiles, traps, the effect dispatch `spawn`, danger zone, reticle |
+| `godot/src/decor.gd` | atmosphere (M4): scorch marks, wall-base grime, floor grates, metal scraps, floating dust; knobs `D`, keep-out test `clear()`, placements `spots()` |
 | `godot/src/mech.gd` | material helpers (`mat`, `glow`, `flat`), mech surface knobs `SKIN` and team paint `paints()`, mesh helpers, `.glb` loading (`models`, `add_part`), team colors (`TEAM`, `TEAM_LIGHT`, `TEAM_DARK`, `EYES`, `CORE_C`, `BOOST_C`), mech build and animation |
 | `godot/src/fx.gd` | effect recipes, one knob dict each, particle layers, smoke and fire shaders, node pools |
 | `godot/src/hud.gd`, `garage.gd` | HUD and garage UI; shared plate style `Garage.plate`; UI colors |
@@ -206,6 +207,30 @@ the crowd and the effects, and moving them buys nothing.
 - **R skill release** (2026-10-27): every R skill sends `ult` when it fires; `view.spawn` plays
   `Fx.ult`. Fields (`field_stasis`, `field_well`), the Bastion wall and the mines are built in
   `view.make` from `Mech.flat` (no glow), field knobs in `Fx.FIELD`.
+
+## Atmosphere (Milestone 4)
+
+- **One file, built once:** `view.build` calls `Decor.build(self)` right after the floor. Knobs in
+  `decor.gd` `D`. `spots()` places every piece from a fixed seed (`D.seed`), so every match and
+  every still shows the same arena; the view's own `randf` is never used.
+- **Keep-out:** `Decor.clear(p, r)` keeps a piece of footprint radius `r` at least `D.keep`
+  (1.5 m) off the visible edge of every pad and the heal pad (hazard band, 1.4 m), each spawn
+  (its chevrons reach 4.7 m), each crusher (band, 2.0 m, square), each tesla's reach, each EMP
+  vent strip and each oil slick, all read from `sim.gd`. `garage_parts_test`
+  (`decor_keeps_off_pads_spawns_and_traps`) re-checks every placement with those numbers. The
+  shrinking wall's late-match zone is not a keep-out: it covers the outer 18 m.
+- **Floor pieces:** one `MultiMeshInstance3D` of 1 m planes and one shader (`SHADER`, `look.gd`
+  `NOISE`), per-instance custom data = kind (0 scorch, 1 grime, 2 grate), a seed and the grate's
+  half size. Scorch: a dark core and spiky edge from noise on the direction, plus flecks
+  (`grime` → `void`, family Scorched). Grime: a band along each wall, darkest at the wall, only
+  where `clear()` allows (corners and between vents). Grates: on 4 m plate centers, `steel` rim
+  and grid over `void` slots, opaque. Alpha-blended, no shadows, 2 cm above the floor.
+- **Scraps:** a second multimesh of small boxes around each scorch, `Look.ARENA.trim`, static.
+- **Dust:** one `CPUParticles3D`, pale `steel_hi` specks 0.6–4 m up over the whole arena, slow,
+  unshaded, normal blend (never blooms), fixed seed. `tools/arena_shot.gd` hides it with the
+  effects. Nothing decorative moves on the floor.
+- **No reflections to tune:** M2 left out the probe and SSR, so M4's "reflection strength" has
+  nothing to act on.
 
 ## Tools
 

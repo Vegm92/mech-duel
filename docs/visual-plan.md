@@ -399,11 +399,72 @@ Scope: static scorch and debris decals (seeded, kept off pads, spawns and warnin
 at wall bases, a few vents and grates, one low-count ambient particle system (dust or embers),
 reflection strength tuned (no reflections after M2: probe and SSR left out).
 
-Acceptance:
-- [ ] no decor within 1.5 m of a pad, spawn or trap warning; nothing decorative moves on the floor
-- [ ] M1 and M2 look targets still hold on seeds 3 and 7
-- [ ] GPU ≤ 5.0 ms average, 6.5 ms peak
-- [ ] gates
+Victor's picks (2026-10-28): dust, not embers (moving orange specks could read as flamer fire);
+he had not played M2 yet, so no M2 fixes went first. M4 ran after M3, as planned.
+
+Acceptance (2026-10-27, code f36f50f; numbers in the table below):
+- [x] no decor within 1.5 m of a pad, spawn or trap warning; nothing decorative moves on the
+      floor. `Decor.clear` keeps every piece 1.5 m off the visible edge of each pad and the heal
+      pad (band, 1.4 m), each spawn (chevrons, 4.7 m), each crusher (band, 2.0 m), each tesla's
+      reach, each EMP vent strip and each oil slick; `garage_parts_test`
+      `decor_keeps_off_pads_spawns_and_traps` re-checks every placement. Placed once from a fixed
+      seed; only the dust moves, 0.6–4 m up. Whole arena: `visual-m4-top-2026-10-27.png`.
+- [x] M1 and M2 look targets still hold on seeds 3 and 7: p50 45 / 42, dark 35.6 / 43.9 %, bright
+      on the arena only 0.39 / 0.41 %, neon 2.73 / 2.31 % with cyan + blue 70 / 90 % of it,
+      orange present (0.81 / 0.23 %)
+- [x] GPU ≤ 5.0 ms average, 6.5 ms peak: 2.72 / 3.64 ms (median of 3 runs: 2.71, 2.72, 2.74;
+      peaks 3.41, 3.66, 3.64). The same code with `Decor.build` switched off: 2.54 / 3.15, so M4
+      costs ~0.18 ms and 3 draw calls. Draw calls 891 (M3 886, M0 1051).
+- [x] gates: the 4 suites pass (3 + 6 + 15 + 13 tests; garage_parts has the new decor test),
+      golden hash unchanged, the same log lines as before M4 (garage_parts' two headless
+      "Parameter material is null", sound's exit leak); the look-check, arena-only and top-view
+      runs log nothing, except one seed-7 look check (see "Exit lines")
+- [x] stills: game camera `visual-m4-seed{3,7}-cam0-2026-10-27.png`, close camera
+      `visual-m4-seed{3,7}-cam4-2026-10-27.png`, arena only
+      `visual-m4-seed{3,7}-cam0-arena-2026-10-27.png`, the whole arena
+      `visual-m4-top-2026-10-27.png`; reference | M3 | M4 and M2 | M4 from the top:
+      `visual-m4-side-by-side-2026-10-27.png`
+
+| Still set | Luma p10 / p50 / p90 | Dark | Bright | Neon (cyan + blue / orange) | GPU ms avg / peak | Draw calls |
+|---|---|---|---|---|---|---|
+| seed 3, `--cam=0` | 25 / 45 / 60 | 35.6 % | 0.81 % | 2.73 % (1.92 / 0.81) | 2.72 / 3.64 | 891 |
+| seed 7, `--cam=0` | 26 / 42 / 71 | 43.9 % | 0.50 % | 2.31 % (2.08 / 0.23) | — | — |
+| seed 3, arena only | 27 / 45 / 59 | 35.0 % | 0.39 % | 2.35 % (1.94 / 0.41) | — | — |
+| seed 7, arena only | 26 / 42 / 63 | 44.5 % | 0.41 % | 1.83 % (1.68 / 0.16) | — | — |
+
+Also: render CPU 0.63 ms, 242 k primitives, 1702 objects, 364 MB VRAM, 1032 nodes (M3's later
+auras and speed lines added most of the nodes; decor adds 3).
+
+What changed (`godot/src/decor.gd`, one call in `view.build`; knobs `D`):
+
+- **Scorch marks:** 18, radius 1–2.2 m, a near-black core with a spiky edge and flecks (family
+  Scorched: `grime` → `void`), each with up to 5 small `trim` metal scraps around it.
+- **Grates:** 6 on 4 m plate centers, a `steel` rim and grid over `void` slots.
+- **Grime at the wall bases:** a dark band along the walls wherever the keep-out allows: the
+  corners and between the EMP vents.
+- **Dust:** 160 pale `steel_hi` specks drifting slowly 0.6–4 m up, unshaded, normal blend, so
+  they never bloom; `arena_shot.gd` hides them with the effects.
+- **Reflection strength:** nothing to tune; M2 left out the probe and SSR.
+- **Vents:** none added. The arena already has 24 EMP vents in the walls; decorative ones would
+  look like hazards.
+
+Exit lines: one seed-7 look check printed "84 ObjectDB instances were leaked" and "48 resources
+still in use" at exit; the same run again with `--verbose` printed neither. M2 saw the same
+on seed 7 before M4 existed. Still unexplained; watch it.
+
+Process:
+
+- **First pass read as smudges.** Soft round scorch blobs looked like soft shadows; the
+  reference's marks are spiky splatters. Spikes from noise sampled on the direction (no seam at
+  ±180°) plus flecks fixed it. Scraps in `dark` gunmetal read as holes, so they are `trim` steel
+  now. Grates with bars only, in gunmetal, read as black boxes; a `steel` rim and a grid fixed
+  that.
+- **A perf run with other Godot windows open is not a measurement.** The first probe ran while
+  two other Godot processes held the GPU at 99 %: 8.27 / 45 ms. Alone: 2.71.
+
+Three biggest gaps vs the reference after M4: the floor has no wet sheen or reflections (left
+out in M2); the neon has no halos (AgX and "punch, not glow"); the reference's floor is far
+busier with debris and markings (stencils, numbers) than a readable game floor should be.
 
 ## M5 — HUD and polish
 
