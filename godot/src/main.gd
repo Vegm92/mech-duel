@@ -36,12 +36,16 @@ var shot_at := -1
 var shooting := false
 var tapped := {}
 var shake := 0.0
+var kick := Vector3.ZERO
+var kick_t := 0.0
 var stop := 0
 var slow := 0.0
 var sandbox := false
 var gun := -1
 var auto_fire := true
 var guard := false
+var block := false
+var auto_hook := false
 var refill := true
 var auto_dash := false
 var frozen := false
@@ -106,6 +110,10 @@ func _ready() -> void:
 			hover_arg = a.substr(8)
 		elif a == "--guard":
 			guard = true
+		elif a == "--block":
+			block = true
+		elif a == "--hook":
+			auto_hook = true
 		elif a == "--norefill":
 			refill = false
 		elif a == "--dash":
@@ -382,9 +390,12 @@ func _physics_process(delta: float) -> void:
 			if auto_dash and state.tick % SANDBOX.dash == 0:
 				me.dash = true
 				me.my = -1.0
+			if auto_hook:
+				me.hook = state.tick % 2 == 0
 			foe = Sim.IDLE.duplicate()
 			foe.ax = state.mechs[0].x
 			foe.ay = state.mechs[0].y
+			foe.shield = block
 			if guard:
 				for s in state.shots:
 					if s.owner == 0 and Vector2(s.x - t.x, s.y - t.y).length() < SANDBOX.guard:
@@ -394,6 +405,10 @@ func _physics_process(delta: float) -> void:
 		view.sync(state, aim, delta)
 	shake = maxf(shake, view.shake)
 	view.shake = 0.0
+	if view.kick.length() > kick.length() * exp(-kick_t * Fx.KICK.decay):
+		kick = view.kick
+		kick_t = 0.0
+	view.kick = Vector3.ZERO
 	stop = maxi(stop, view.stop)
 	view.stop = 0
 	slow = maxf(slow, view.slow)
@@ -481,8 +496,10 @@ func _process(delta: float) -> void:
 		Engine.time_scale = Fx.KO.slow if slow > 0.0 else 1.0
 	shake = maxf(0.0, shake - delta * 2.5)
 	var s := shake * shake
-	cam.h_offset = randf_range(-1.0, 1.0) * s * 0.6
-	cam.v_offset = randf_range(-1.0, 1.0) * s * 0.6
+	kick_t += delta
+	var k := -kick * exp(-kick_t * Fx.KICK.decay) * cos(kick_t * Fx.KICK.freq)
+	cam.h_offset = randf_range(-1.0, 1.0) * s * 0.6 + k.dot(cam.global_basis.x)
+	cam.v_offset = randf_range(-1.0, 1.0) * s * 0.6 + k.dot(cam.global_basis.y)
 
 
 func part_sheet(slot: String) -> void:

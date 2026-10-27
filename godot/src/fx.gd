@@ -18,8 +18,11 @@ const BREAK := {"flash": 0.6, "star": 2.0, "smoke_secs": 3.0, "stop": 4}
 const KO := {"r": 2.0, "ring": 1.8, "ring_secs": 0.45, "stop": 8, "slow": 0.3, "slow_secs": 0.6}
 const LAND := {"ring": 1.15, "ring_secs": 0.3, "spikes": 0.75, "dust": 0.55, "crack": 0.6}
 const DASH := {"every": 3, "ghost_secs": 0.22, "ghost_alpha": 0.4}
+const RIPPLE := {"panel": 1.25, "face": 1.33, "y": 1.05, "r": 0.75, "secs": 0.22, "card": 0.55, "card_secs": 0.07, "broke": 1.7}
+const HOOKED := {"flash": 0.4, "star": 1.4, "ring": 1.1, "secs": 0.18}
+const KICK := {"hit": 1.6, "decay": 14.0, "freq": 42.0}
 const RIBBON := {"steps": 12, "y": 0.07, "edge": 1.2, "tail": 1.2, "head": 0.4, "tip": 0.35, "fade": 0.35, "hot": 0.1, "gain": 1.0}
-const SMOKE := {"step": 0.35, "per": 0.8, "spread": 0.75, "size": Vector2(0.4, 0.75), "grow": 18.0, "swell": 0.35, "rise": 0.7, "fade_in": 6.0, "fade_out": 0.35, "greys": [0.42, 0.34, 0.27], "alpha": 0.85, "segs": 24}
+const SMOKE := {"step": 0.35, "per": 0.8, "spread": 0.75, "size": Vector2(0.4, 0.75), "grow": 18.0, "swell": 0.35, "rise": 0.7, "fade_in": 6.0, "fade_out": 0.35, "greys": [0.42, 0.34, 0.27], "alpha": 0.65, "gain": 1.3, "segs": 24}
 const SMOKE_SHADER := """
 shader_type spatial;
 render_mode blend_mix, depth_draw_never, cull_back, specular_disabled;
@@ -30,9 +33,9 @@ uniform float scale = 1.8;
 uniform float churn = 0.35;
 uniform float rim = 0.75;
 uniform float touch = 0.5;
-instance uniform float grey = 0.5;
+uniform float anchor = 1.7;
+instance uniform float grey = 1.0;
 instance uniform float fade = 1.0;
-instance uniform float seed = 0.0;
 varying float lump;
 float hash(vec3 p) {
 	p = fract(p * 0.3183099 + 0.1);
@@ -47,7 +50,7 @@ float noise(vec3 x) {
 		mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
 }
 void vertex() {
-	vec3 p = VERTEX * scale + vec3(seed) + vec3(0.0, TIME * churn, 0.0);
+	vec3 p = VERTEX * scale + MODEL_MATRIX[3].xyz * anchor + vec3(0.0, TIME * churn, 0.0);
 	lump = noise(p) * 0.65 + noise(p * 2.3) * 0.35;
 	VERTEX += NORMAL * (lump - 0.5) * 2.0 * bump;
 }
@@ -56,9 +59,9 @@ void fragment() {
 	float d = texture(depth_tex, SCREEN_UV).r;
 	vec4 v = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, d, 1.0);
 	float gap = clamp((VERTEX.z - v.z / v.w) / touch, 0.0, 1.0);
-	ALBEDO = vec3(grey * (0.8 + 0.4 * lump));
+	ALBEDO = COLOR.rgb * grey * (0.8 + 0.4 * lump);
 	ROUGHNESS = 1.0;
-	ALPHA = alpha * fade * edge * gap;
+	ALPHA = clamp(alpha * COLOR.a * fade * edge * gap, 0.0, 1.0);
 }
 """
 
@@ -109,6 +112,24 @@ void fragment() {
 
 static var _smoke_mat: ShaderMaterial
 static var _fire_mat: ShaderMaterial
+
+
+static func smoke_mat() -> ShaderMaterial:
+	if _smoke_mat == null:
+		_smoke_mat = ShaderMaterial.new()
+		_smoke_mat.shader = Shader.new()
+		_smoke_mat.shader.code = SMOKE_SHADER
+		_smoke_mat.set_shader_parameter("alpha", SMOKE.gain)
+	return _smoke_mat
+
+
+static func wreck(mech: Node3D) -> CPUParticles3D:
+	var s := emitter(LAYERS.wreck_smoke)
+	s.emitting = false
+	s.direction = Vector3.UP
+	s.position = Vector3(0, 1.2, 0)
+	mech.add_child(s)
+	return s
 
 
 static func fire_mat() -> ShaderMaterial:
@@ -163,11 +184,14 @@ const LAYERS := {
 	"land_dust": {"mesh": "puff_s", "ramp": "dust", "n": Vector2(14, 14), "speed": Vector2(1, 3), "life": 0.8, "spread": 70.0, "gravity": 0.5, "damp": 4.0, "grow": 2.5},
 	"dash_streaks": {"mesh": "needle", "ramp": "spark", "n": Vector2(12, 12), "speed": Vector2(8, 16), "life": 0.25, "spread": 12.0, "gravity": 0.0, "damp": 18.0, "align": true, "shrink": true, "add": true},
 	"dash_dust": {"mesh": "puff_s", "ramp": "dust", "n": Vector2(5, 5), "speed": Vector2(0.5, 1.5), "life": 0.6, "spread": 60.0, "gravity": 0.4, "damp": 3.0, "grow": 2.0},
+	"wreck_smoke": {"mesh": "puff", "ramp": "smoke_dark", "n": Vector2(28, 28), "speed": Vector2(0.8, 2.0), "life": 1.8, "spread": 20.0, "gravity": 0.8, "damp": 0.5, "grow": 2.0},
+	"shield_sparks": {"mesh": "needle_s", "ramp": "shield", "n": Vector2(4, 12), "speed": Vector2(6, 14), "life": 0.2, "spread": 40.0, "gravity": 0.0, "damp": 30.0, "align": true, "shrink": true, "add": true},
+	"hook_sparks": {"mesh": "needle_s", "ramp": "spark", "n": Vector2(10, 10), "speed": Vector2(6, 14), "life": 0.22, "spread": 180.0, "gravity": 0.0, "damp": 26.0, "align": true, "shrink": true, "add": true},
 	"missile_trail": {"mesh": "puff_s", "ramp": "smoke_thin", "n": Vector2(48, 48), "speed": Vector2(1, 2), "life": 0.55, "spread": 15.0, "gravity": 0.6, "damp": 3.0, "grow": 2.5},
 }
 const MESHES := {
 	"needle": [Vector3(0.08, 0.9, 0.08), 0], "needle_s": [Vector3(0.065, 0.55, 0.065), 0],
-	"chip": [Vector3(0.14, 0.14, 0.14), 0], "chunk": [Vector3(0.26, 0.18, 0.22), 0], "puff": [0.42, 14], "puff_s": [0.2, 10], "fireball": [0.42, 24],
+	"chip": [Vector3(0.14, 0.14, 0.14), 0], "chunk": [Vector3(0.26, 0.18, 0.22), 0], "puff": [0.42, 20], "puff_s": [0.2, 16], "fireball": [0.42, 24],
 }
 const RAMPS := {
 	"spark": [Color8(255, 240, 180), Color8(255, 190, 80), Color8(255, 120, 40), Color8(255, 90, 30, 0)],
@@ -187,6 +211,30 @@ const RAMPS := {
 
 static var _ramps := {}
 static var _curves := {}
+static var _bars: Array = []
+static var _parts: Array = []
+
+
+static func take(list: Array) -> Node:
+	while list.size():
+		var n = list.pop_back()
+		if is_instance_valid(n):
+			return n
+	return null
+
+
+static func park(n: Node, list: Array) -> void:
+	n.visible = false
+	list.append(n)
+
+
+static func place(n: Node3D, parent: Node) -> void:
+	var at := n.get_parent()
+	if at != parent:
+		if at != null:
+			at.remove_child(n)
+		parent.add_child(n)
+	n.visible = true
 
 
 static func weight(dmg: float) -> float:
@@ -232,15 +280,18 @@ static func curve(points: Array) -> Curve:
 
 
 static func bar(parent: Node3D, p: Vector3, m: Mesh, c: Color, scale_ := Vector3.ONE, rot := Vector3.ZERO, add := true) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	var mi := take(_bars) as MeshInstance3D
+	if mi == null:
+		mi = MeshInstance3D.new()
+		mi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	place(mi, parent)
 	mi.mesh = m
 	mi.material_override = Mech.flat(c, add)
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.transparency = 0.0
 	mi.position = p
 	mi.rotation = rot
 	mi.scale = scale_
-	parent.add_child(mi)
 	return mi
 
 
@@ -248,7 +299,7 @@ static func fade(mi: Node3D, secs: float, to_scale: Vector3, ease_ := Tween.EASE
 	var tw := mi.create_tween().set_parallel()
 	tw.tween_property(mi, "scale", to_scale, secs).set_ease(ease_).set_trans(Tween.TRANS_CUBIC)
 	tw.tween_property(mi, "transparency", 1.0, secs).set_ease(Tween.EASE_IN)
-	tw.chain().tween_callback(mi.queue_free)
+	tw.chain().tween_callback(park.bind(mi, _bars))
 
 
 static func flash(parent: Node3D, p: Vector3, size: float, secs: float, c := Color.WHITE) -> void:
@@ -271,11 +322,32 @@ static func ring(parent: Node3D, p: Vector3, r0: float, r1: float, secs: float, 
 static func emitter(L: Dictionary, t := 1.0, k := 1.0, g: Gradient = null) -> CPUParticles3D:
 	var s := CPUParticles3D.new()
 	s.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return setup(s, L, t, k, g)
+
+
+static func spare(L: Dictionary, t := 1.0, k := 1.0, g: Gradient = null) -> CPUParticles3D:
+	var s := take(_parts) as CPUParticles3D
+	if s == null:
+		s = emitter(L, t, k, g)
+		s.one_shot = true
+		s.explosiveness = 1.0
+		s.finished.connect(park.bind(s, _parts))
+		return s
+	return setup(s, L, t, k, g)
+
+
+static func setup(s: CPUParticles3D, L: Dictionary, t: float, k: float, g: Gradient) -> CPUParticles3D:
 	s.amount = maxi(1, roundi(lerpf(L.n.x, L.n.y, t)))
 	s.lifetime = L.life
 	s.lifetime_randomness = 0.4
 	s.mesh = mesh(L.mesh)
-	s.material_override = fire_mat() if L.get("fire", false) else Mech.flat(Color.WHITE, L.get("add", false))
+	if L.get("fire", false):
+		s.material_override = fire_mat()
+	elif L.mesh.begins_with("puff"):
+		s.material_override = smoke_mat()
+	else:
+		s.material_override = Mech.flat(Color.WHITE, L.get("add", false))
 	s.color_ramp = g if g != null else ramp(L.ramp)
 	s.spread = L.spread
 	s.initial_velocity_min = L.speed.x * k
@@ -288,34 +360,30 @@ static func emitter(L: Dictionary, t := 1.0, k := 1.0, g: Gradient = null) -> CP
 	var grow: float = L.get("grow", 1.0)
 	s.scale_amount_min = 0.7 * grow * size
 	s.scale_amount_max = 1.2 * grow * size
+	s.scale_amount_curve = null
 	if grow != 1.0:
 		s.scale_amount_curve = curve([Vector2(0, 1.0 / grow), Vector2(1, 1)])
 	elif L.get("shrink", false):
 		s.scale_amount_curve = curve([Vector2(0, 1), Vector2(0.6, 0.8), Vector2(1, 0)])
-	if L.has("spin"):
-		s.particle_flag_rotate_y = true
-		s.angle_min = 0.0
-		s.angle_max = 360.0
-		s.angular_velocity_min = -L.spin
-		s.angular_velocity_max = L.spin
-	if L.has("sphere"):
-		s.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-		s.emission_sphere_radius = L.sphere * k
-	s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var spin: float = L.get("spin", 0.0)
+	s.particle_flag_rotate_y = spin > 0.0
+	s.angle_max = 360.0 if spin > 0.0 else 0.0
+	s.angular_velocity_min = -spin
+	s.angular_velocity_max = spin
+	s.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE if L.has("sphere") else CPUParticles3D.EMISSION_SHAPE_POINT
+	s.emission_sphere_radius = L.get("sphere", 0.0) * k
+	s.rotation = Vector3.ZERO
 	return s
 
 
 static func fire(parent: Node3D, s: CPUParticles3D) -> CPUParticles3D:
-	s.one_shot = true
-	s.explosiveness = 1.0
-	parent.add_child(s)
-	s.emitting = true
-	s.finished.connect(s.queue_free)
+	place(s, parent)
+	s.restart()
 	return s
 
 
 static func burst(parent: Node3D, p: Vector3, dir: Vector3, L: Dictionary, t := 1.0, k := 1.0, g: Gradient = null) -> CPUParticles3D:
-	var s := emitter(L, t, k, g)
+	var s := spare(L, t, k, g)
 	s.direction = dir
 	s.position = p
 	return fire(parent, s)
@@ -393,7 +461,7 @@ static func ray(parent: Node3D, f: Dictionary, w: float, ramp_name: String, secs
 	star(parent, b, 1.2, 0.1, c)
 	burst(parent, b, Vector3.UP, LAYERS.ray_sparks, 1.0, 1.0, ramp(ramp_name))
 	if along:
-		var s := emitter(LAYERS.beam_sparks, 1.0, 1.0, ramp(ramp_name))
+		var s := spare(LAYERS.beam_sparks, 1.0, 1.0, ramp(ramp_name))
 		s.direction = Vector3.UP
 		s.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 		s.emission_box_extents = Vector3(d.length() / 2.0, 0.1, w / 2.0)
@@ -456,6 +524,39 @@ static func parry(parent: Node3D, f: Dictionary) -> int:
 	return PARRY.stop
 
 
+static func ripple(parent: Node3D, xf: Transform3D, soaked: float, broke: bool) -> void:
+	var t := weight(soaked) / HIT.w_max
+	var p := xf * Vector3(RIPPLE.face, RIPPLE.y, 0)
+	var out := xf.basis.x.normalized()
+	var yaw := xf.basis.orthonormalized().get_euler().y
+	var size: float = RIPPLE.r * (0.6 + 0.4 * t) * (RIPPLE.broke if broke else 1.0)
+	var rot := Vector3(0, yaw, PI / 2.0)
+	var card := Vector3(0.13, 1.4, 2.3)
+	fade(bar(parent, xf * Vector3(RIPPLE.panel, RIPPLE.y, 0), Mech.box(Vector3.ONE), Color(SHIELD_C, RIPPLE.card), card, Vector3(0, yaw, 0)), RIPPLE.card_secs, card * Vector3(1, 1.08, 1.06))
+	fade(bar(parent, p, Mech.ring(0.9, 1.0), SHIELD_C, Vector3(size * 0.25, 0.3, size * 0.25), rot), RIPPLE.secs, Vector3(size, 0.3, size), Tween.EASE_OUT)
+	fade(bar(parent, p, Mech.ring(0.9, 1.0), Color.WHITE, Vector3(size * 0.15, 0.3, size * 0.15), rot), RIPPLE.secs * 0.7, Vector3(size * 0.6, 0.3, size * 0.6), Tween.EASE_OUT)
+	burst(parent, p, out, LAYERS.shield_sparks, 1.0 if broke else t)
+	if broke:
+		flash(parent, p, BREAK.flash, 0.06)
+		star(parent, p, BREAK.star, HIT.star_secs * 1.5, SHIELD_C)
+		burst(parent, p, out, LAYERS.parry_sparks)
+
+
+static func hooked(parent: Node3D, f: Dictionary, c: Color) -> void:
+	var p := Vector3(f.x, 1.05, f.y)
+	flash(parent, p, HOOKED.flash, 0.05)
+	star(parent, p, HOOKED.star, HOOKED.secs * 0.6, c)
+	ring(parent, p, 0.2, HOOKED.ring, HOOKED.secs, c)
+	burst(parent, p, Vector3.UP, LAYERS.hook_sparks, 1.0, 1.0, tint(c))
+
+
+static func kick_of(f: Dictionary) -> Vector3:
+	var a = f.get("from")
+	if a == null:
+		return Vector3.ZERO
+	return Vector3(-cos(a), 0, -sin(a)) * shake_of(f) * KICK.hit
+
+
 static func shatter(parent: Node3D, mech: Node3D, f: Dictionary, c: Color) -> int:
 	var p := Vector3(f.x, 1.2, f.y)
 	flash(parent, p, BREAK.flash, 0.06)
@@ -504,20 +605,42 @@ static func dash(parent: Node3D, f: Dictionary, c: Color, dir: Vector2) -> void:
 
 
 static func ghost(parent: Node3D, mech: Node3D, c: Color) -> void:
-	var g := mech.duplicate(0) as Node3D
-	var m := Mech.flat(Color(c, DASH.ghost_alpha), true).duplicate() as StandardMaterial3D
-	for n in g.find_children("*", "", true, false):
-		if n is CPUParticles3D or (n is Node3D and n.top_level):
-			n.queue_free()
-		elif n is GeometryInstance3D:
-			n.material_override = m
-			n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	g.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	parent.add_child(g)
+	if not mech.has_meta("ghosts"):
+		mech.set_meta("ghosts", [])
+		mech.set_meta("spare_ghosts", [])
+	var g := take(mech.get_meta("spare_ghosts")) as Node3D
+	if g == null:
+		g = mech.duplicate(0) as Node3D
+		var m := Mech.flat(Color(c, DASH.ghost_alpha), true).duplicate() as StandardMaterial3D
+		var pairs := []
+		var src := mech.find_children("*", "Node3D", true, false)
+		var dst := g.find_children("*", "Node3D", true, false)
+		for i in dst.size():
+			var n: Node3D = dst[i]
+			if n is CPUParticles3D or n.top_level:
+				n.visible = false
+				if n is CPUParticles3D:
+					(n as CPUParticles3D).emitting = false
+				continue
+			if n is GeometryInstance3D:
+				n.material_override = m
+				n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			pairs.append([src[i], n])
+		g.set_meta("pairs", pairs)
+		g.set_meta("mat", m)
+		g.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+		mech.get_meta("ghosts").append(g)
+	else:
+		for p in g.get_meta("pairs"):
+			p[1].transform = p[0].transform
+			p[1].visible = p[0].visible
+	place(g, parent)
 	g.global_transform = mech.global_transform
+	var mat: StandardMaterial3D = g.get_meta("mat")
+	mat.albedo_color.a = DASH.ghost_alpha
 	var tw := g.create_tween()
-	tw.tween_property(m, "albedo_color:a", 0.0, DASH.ghost_secs)
-	tw.tween_callback(g.queue_free)
+	tw.tween_property(mat, "albedo_color:a", 0.0, DASH.ghost_secs)
+	tw.tween_callback(park.bind(g, mech.get_meta("spare_ghosts")))
 
 
 static func ribbon(im: ImmediateMesh, a: Vector2, b: Vector2, w: float, c: Color, life: float) -> void:
@@ -565,16 +688,10 @@ static func smoke(n: Node3D, tr: Dictionary, w: float, fresh: bool) -> void:
 		var p := a + d.normalized() * along + off
 		born.append([p, w * rng.randf_range(SMOKE.size.x, SMOKE.size.y), age])
 		if n.get_child_count() <= i:
-			if _smoke_mat == null:
-				_smoke_mat = ShaderMaterial.new()
-				_smoke_mat.shader = Shader.new()
-				_smoke_mat.shader.code = SMOKE_SHADER
-				_smoke_mat.set_shader_parameter("alpha", SMOKE.alpha)
-			var mi := Mech.add(n, Mech.ball(1.0, SMOKE.segs), _smoke_mat)
+			var mi := Mech.add(n, Mech.ball(1.0, SMOKE.segs), smoke_mat())
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 			mi.set_instance_shader_parameter("grey", SMOKE.greys[i % SMOKE.greys.size()])
-		(n.get_child(i) as MeshInstance3D).set_instance_shader_parameter("seed", rng.randf() * 100.0)
 	var left := float(tr.t) / float(tr.T)
 	var spent := 1.0 - left
 	for i in born.size():
@@ -586,7 +703,7 @@ static func smoke(n: Node3D, tr: Dictionary, w: float, fresh: bool) -> void:
 		mi.visible = true
 		mi.scale = Vector3.ONE * r
 		mi.position = Vector3(b[0].x, r * 0.55 + SMOKE.rise * spent, b[0].y)
-		mi.set_instance_shader_parameter("fade", minf(t / SMOKE.fade_in, 1.0) * minf(left / SMOKE.fade_out, 1.0))
+		mi.set_instance_shader_parameter("fade", SMOKE.alpha * minf(t / SMOKE.fade_in, 1.0) * minf(left / SMOKE.fade_out, 1.0))
 
 
 static func trail(parent: Node3D) -> CPUParticles3D:

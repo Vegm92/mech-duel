@@ -284,21 +284,6 @@ func build(lo: Dictionary, t: int) -> void:
 	bubble.visible = false
 	aim_line = add(torso, box(Vector3(1, 0.06, 1)), glow(Color8(255, 190, 90), 4.0, 0.6), Vector3(0, 1.08, 0))
 	aim_line.visible = false
-	smoke = CPUParticles3D.new()
-	smoke.amount = 28
-	smoke.lifetime = 1.8
-	smoke.emitting = false
-	smoke.direction = Vector3.UP
-	smoke.spread = 20.0
-	smoke.initial_velocity_min = 0.8
-	smoke.initial_velocity_max = 2.0
-	smoke.gravity = Vector3(0.3, 0.8, 0)
-	smoke.scale_amount_min = 0.5
-	smoke.scale_amount_max = 1.5
-	smoke.mesh = ball(0.35, 8)
-	smoke.material_override = mat(Color(0.12, 0.12, 0.14, 0.6), 0.0, 0.0, 1.0)
-	smoke.position = Vector3(0, 1.2, 0)
-	add_child(smoke)
 	var tm := StandardMaterial3D.new()
 	tm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	tm.vertex_color_use_as_albedo = true

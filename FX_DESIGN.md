@@ -50,7 +50,7 @@ bright thing, thin needle sparks, rings and starbursts. Read from it:
 | Boost dash: afterimage + ground streak | `Fx.ghost` + `Fx.dash` |
 | Armor break: metal fragments | `Fx.shatter` |
 | Destruction: debris + energy shards | `Fx.ko` |
-| Shield ripple, grapple endpoint | not built yet |
+| Shield ripple, grapple endpoint | `Fx.ripple`, `Fx.hooked` + team-color cable (`view.tether`) |
 
 Particle settings follow the Godot 4 particles guide (godot-mcp.abyo.net): high damping so
 sparks start fast and stop short, scale curves that shrink sparks to nothing (`shrink`) or grow
@@ -64,7 +64,9 @@ clock never runs out. ←/→ switch weapon (both hands), T toggles auto-fire, R
 (`--core=<id>` picks it), F freezes, C close cameras, mouse wheel zooms. G (`--guard`): the target
 raises a perfect shield before each shot lands (parry). K (`--norefill`): armor stops refilling, so
 parts break and the target gets K.O.'d. J (`--dash`): your mech dashes every `SANDBOX.dash` ticks
-(add `--legs=jets` or `--legs=stompers` for the landing hit). Combine with `--shot`
+(add `--legs=jets` or `--legs=stompers` for the landing hit). `--block`: the target holds its
+shield up all the time (normal blocks, then the shield drops at max hold). `--hook`: your mech
+throws the hook whenever it is ready. Combine with `--shot`
 and `--at` for screenshots of any weapon.
 
 ## Recipes
@@ -76,6 +78,8 @@ and `--at` for screenshots of any weapon.
 | muzzle | tiny team-color flash, 3 short forward streaks, small smoke puff |
 | zap / beam | thin white core line + colored edge, 2-frame flicker, sparks at the far end |
 | parry | cyan ring, bright "ting" streaks, hit-stop 4 — the best-feeling effect in the game |
+| shield block | cyan flash card over the panel, cyan + white rings in the shield plane, sparks outward; a guard break adds flash, star and parry sparks (`RIPPLE`) |
+| hook | chain = team-color cable with a white core; on catch: flash, star, ring, sparks in the thrower's color; a cable joins the two mechs while the pull lasts (`HOOKED`) |
 | break | big chunks in the part's color, the mech trails black smoke for 3 s, hit-stop 4 |
 | ko | hit-stop 8, slow-mo, big boom, a smoke column that stays |
 | dash / land / crush | dust ring + streaks; land and crush leave a floor crack |
@@ -116,7 +120,28 @@ and `--at` for screenshots of any weapon.
    stop firing, the cone's back leaves the gun and the cone flies out with the last flames. Same
    shader with `tail` 1: yellow-hot at the gun, red and fading toward the tip. Evidence:
    `godot-fire-before-after-2026-10-27.png`.
-5. Directional shake (camera pushed along the hit line, not random jitter); shield, hook endpoint.
-6. Pool particle nodes if many hits per second cost frames (today each burst is a new node).
+   **One smoke** (Victor: "we should really use one type of smoke"): every puff particle layer
+   (`mesh` starting with `puff`: hit, muzzle, boom, break, dust, missile trail) and the K.O. wreck
+   (`Fx.wreck`, layer `wreck_smoke`, built by view.gd for each mech) use `smoke_mat()`, the same
+   `SMOKE_SHADER` as the trail puffs. Its color and alpha come from the particle ramp (`COLOR`), so
+   dark smoke stays dark and dust stays tan. `SMOKE.gain` thickens particles (the soft outline eats
+   a lot); trail puffs scale it back down with `SMOKE.alpha`. Evidence:
+   `godot-one-smoke-2026-10-27.png`.
+5. **Done (2026-10-27):** directional shake, shield ripple, hook cable and endpoint.
+   - **Shake:** a hit with a `from` angle sets `view.kick` (push direction × `shake_of` ×
+     `KICK.hit`); main.gd moves the camera along it as a damped spring (`KICK.decay`,
+     `KICK.freq`), projected on the camera's own axes so close-ups work too. Hits without a
+     direction and booms keep the random shake.
+   - **Shield block:** the sim sends no event for a normal block, so the view watches
+     `act.absorbed` grow (`view.guard`) and calls `Fx.ripple`. The sim stays untouched. A guard
+     break is seen as the shield gone with `cd.shield` above `SHIELD.cd`.
+   - **Hook:** cable child on the hook node; the `hooked` event calls `Fx.hooked`; the view
+     draws a `cable` node for every mech with `pull`.
+   Evidence: `godot-shield-ripple-2026-10-27.png`, `godot-hook-cable-2026-10-27.png`,
+   `godot-hook-catch-2026-10-27.png`.
+6. **Done (2026-10-27):** pooling. `Fx.bar` meshes, burst emitters (`Fx.spare`), damage numbers
+   (`view.labels`) and dash afterimages (per mech, meta `ghosts`, pose copied on reuse) go back
+   to a free list (`Fx.park`) instead of being freed. Tweens are still made per effect (small,
+   not nodes). Persistent emitters (wreck smoke, missile trails, break smoke) aren't pooled.
 
 Later: chips bouncing on the floor; calming the white arena lamps, which are bloomy too.

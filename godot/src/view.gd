@@ -43,6 +43,8 @@ var heal_ring: MeshInstance3D
 var heal_cross: Node3D
 var jets := []
 var cones := {}
+var labels := []
+var kick := Vector3.ZERO
 var reticle: MeshInstance3D
 var danger: MeshInstance3D
 var danger_mesh := ImmediateMesh.new()
@@ -243,12 +245,15 @@ func build_stands(corners: Array) -> void:
 
 func reset(state: Dictionary) -> void:
 	for m in mechs:
+		for g in m.get_meta("ghosts", []):
+			g.queue_free()
 		m.queue_free()
 	mechs.clear()
 	for m in state.mechs:
 		var node := Mech.new()
 		add_child(node)
 		node.build(m.loadout, m.team)
+		node.smoke = Fx.wreck(node)
 		mechs.append(node)
 	for n in active:
 		n.visible = false
@@ -275,6 +280,16 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		var act = state.mechs[i].act
 		if act != null and act.k == "dash" and act.get("ph") == "go" and tick % Fx.DASH.every == 0:
 			Fx.ghost(self, mechs[i], Mech.TEAM[state.mechs[i].team])
+		guard(state.mechs[i], mechs[i])
+		var pull = state.mechs[i].pull
+		if pull != null:
+			var by = state.mechs[pull.by]
+			var cab := node_for(pull, "cable")
+			var d := Vector2(state.mechs[i].x - by.x, state.mechs[i].y - by.y)
+			cab.position = Vector3(state.mechs[i].x, 1.05, state.mechs[i].y)
+			cab.rotation = Vector3(0, -d.angle(), 0)
+			tether(cab, d.length(), Mech.TEAM[by.team])
+			settle(cab)
 	reticle.position = aim + Vector3(0, 0.05, 0)
 	reticle.visible = state.phase == "fight" and not state.mechs[0].ko
 	for f in state.fx:
@@ -330,6 +345,25 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 	arena(state)
 
 
+func guard(m: Dictionary, node) -> void:
+	var was: float = node.get_meta("soaked", 0.0)
+	var got: float = m.act.get("absorbed", 0.0) if Sim.shield_up(m) else 0.0
+	if got > was:
+		Fx.ripple(self, node.shield.global_transform, got - was, false)
+	elif was > 0.0 and m.act == null and m.cd.shield > Sim.SHIELD.cd:
+		Fx.ripple(self, node.shield.global_transform, was, true)
+	node.set_meta("soaked", got)
+
+
+func tether(n: Node3D, ln: float, c: Color) -> void:
+	var w := 1.0 + 0.3 * sin(tick * 1.7)
+	for i in 2:
+		var b: MeshInstance3D = n.get_child(i)
+		b.position = Vector3(-ln / 2.0, 0, 0)
+		b.scale = Vector3(ln, w, w)
+	n.get_child(0).material_override = Mech.flat(Color(c, 0.85), true)
+
+
 func node_for(o: Dictionary, kind: String) -> Node3D:
 	var n = o.get("_n")
 	if n == null:
@@ -370,7 +404,13 @@ func make(kind: String) -> Node3D:
 			n = Node3D.new()
 			add_child(n)
 			Mech.add(n, Mech.box(Vector3(0.4, 0.2, 0.4)), Mech.mat(Mech.STEEL, 0.0, 0.8, 0.3))
-			Mech.add(n, Mech.box(Vector3(1, 0.06, 0.06)), Mech.mat(Color8(120, 126, 140), 0.0, 0.8, 0.3))
+			make("cable").reparent(n, false)
+		"cable":
+			n = Node3D.new()
+			add_child(n)
+			for w in [0.08, 0.03]:
+				var b := Mech.add(n, Mech.box(Vector3(1, w, w)), Mech.flat(Color.WHITE, true))
+				b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		"lob":
 			n = Node3D.new()
 			add_child(n)
@@ -464,9 +504,7 @@ func shot(state: Dictionary, s: Dictionary) -> void:
 			var o = state.mechs[s.owner]
 			var back := Vector2(o.x - s.x, o.y - s.y)
 			n.rotation = Vector3(0, -(-back).angle(), 0)
-			var chain: MeshInstance3D = n.get_child(1)
-			chain.scale = Vector3(back.length(), 1, 1)
-			chain.position = Vector3(-back.length() / 2.0, 0, 0)
+			tether(n.get_child(1), back.length(), Mech.TEAM[team])
 	settle(n)
 
 
@@ -624,22 +662,25 @@ func sparks(p: Vector3, c: Color, n: int, speed: float, life := 0.45) -> void:
 
 
 func number(p: Vector3, text: String, c: Color, size: int) -> void:
-	var l := Label3D.new()
-	l.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	var l := Fx.take(labels) as Label3D
+	if l == null:
+		l = Label3D.new()
+		l.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+		l.outline_size = 14
+		l.outline_modulate = Color(0, 0, 0, 0.85)
+		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		l.no_depth_test = true
+		l.pixel_size = 0.012
+	Fx.place(l, self)
 	l.text = text
 	l.font_size = size
-	l.outline_size = 14
 	l.modulate = c
-	l.outline_modulate = Color(0, 0, 0, 0.85)
-	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	l.no_depth_test = true
-	l.pixel_size = 0.012
+	l.transparency = 0.0
 	l.position = p
-	add_child(l)
 	var tw := l.create_tween().set_parallel()
 	tw.tween_property(l, "position:y", p.y + 1.6, 0.75).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 	tw.tween_property(l, "transparency", 1.0, 0.45).set_delay(0.3)
-	tw.chain().tween_callback(l.queue_free)
+	tw.chain().tween_callback(Fx.park.bind(l, labels))
 
 
 func beam(x1: float, y1: float, x2: float, y2: float, w: float, c: Color, secs: float, energy := 5.0) -> void:
@@ -665,7 +706,11 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			var head: bool = f.get("head", false)
 			Fx.hit(self, f, shooter_color(state, f))
 			number(p + Vector3(0, 1.3, 0), str(int(f.n)), Color8(255, 230, 120) if head else Color.WHITE, 80 if head else 60)
-			shake = maxf(shake, Fx.shake_of(f))
+			var push := Fx.kick_of(f)
+			if push == Vector3.ZERO:
+				shake = maxf(shake, Fx.shake_of(f))
+			elif push.length() > kick.length():
+				kick = push
 			stop = maxi(stop, Fx.stop_of(f))
 		"boom":
 			var big: bool = f.get("big", false)
@@ -709,7 +754,9 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			pop(ground, 1.3, Color8(90, 255, 150), 0.45)
 			if f.k == "heal":
 				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), Color8(120, 255, 170), 60)
-		"hooked", "soak":
+		"hooked":
+			Fx.hooked(self, f, Mech.TEAM[team_of(state, f.by)])
+		"soak":
 			pop(p, 1.1, Color8(150, 200, 255), 0.25)
 		"magnet":
 			beam(f.x1, f.y1, f.x2, f.y2, 0.18, Color8(205, 125, 255), 0.3)
