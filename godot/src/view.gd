@@ -59,7 +59,14 @@ void fragment() {
 }
 """
 
-static var ARENA := {"steel": Mech.mat(Color8(62, 70, 88), 0.0, 0.6, 0.4), "dark": Mech.mat(Color8(30, 34, 44), 0.0, 0.5, 0.6), "trim": Mech.mat(Color8(120, 128, 145), 0.0, 0.7, 0.4), "hazard": Mech.mat(Color8(214, 168, 44), 0.0, 0.2, 0.5), "amber": Mech.glow(Color8(255, 176, 60), 2.0), "zap": Mech.glow(Color8(170, 210, 255), 2.0), "pad": Mech.glow(Color8(95, 180, 255), 1.5), "heal": Mech.glow(Color8(90, 255, 150), 2.0), "vent": Mech.glow(Color8(255, 90, 40), 1.5)}
+const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "aisle": 0.6}
+const OUTSIDE := Color(0.02, 0.025, 0.045)
+
+static var ARENA := {"steel": Mech.mat(Color8(62, 70, 88), 0.0, 0.6, 0.4), "dark": Mech.mat(Color8(30, 34, 44), 0.0, 0.5, 0.6), "trim": Mech.mat(Color8(120, 128, 145), 0.0, 0.7, 0.4), "hazard": Mech.mat(Color8(214, 168, 44), 0.0, 0.2, 0.5), "amber": Mech.glow(Color8(255, 176, 60), 2.0), "zap": Mech.glow(Color8(170, 210, 255), 2.0), "pad": Mech.glow(Color8(95, 180, 255), 1.5), "heal": Mech.glow(Color8(90, 255, 150), 2.0), "vent": Mech.glow(Color8(255, 90, 40), 1.5),
+	"concrete": Mech.mat(Color8(48, 54, 70), 0.0, 0.0, 0.85), "tread": Mech.mat(Color8(32, 36, 48), 0.0, 0.1, 0.8), "aisle": Mech.mat(Color8(72, 78, 94), 0.0, 0.2, 0.7), "roof": Mech.mat(Color8(13, 15, 21), 0.0, 0.3, 0.8),
+	"flood": Mech.glow(Color8(235, 240, 255), 2.5), "screen": Mech.glow(Color8(40, 90, 170), 0.8),
+	"seat_a": Mech.mat(Mech.TEAM[0].darkened(0.45), 0.0, 0.0, 0.7), "seat_b": Mech.mat(Mech.TEAM[1].darkened(0.45), 0.0, 0.0, 0.7), "seat_n": Mech.mat(Color8(70, 76, 92), 0.0, 0.0, 0.7),
+	"led_a": Mech.glow(Mech.TEAM[0], 1.5), "led_b": Mech.glow(Mech.TEAM[1], 1.5), "led_n": Mech.glow(Color8(200, 200, 210), 1.2)}
 
 var crowd: MultiMeshInstance3D
 var crowd_mat := ShaderMaterial.new()
@@ -95,7 +102,7 @@ var last_shrink := -1.0
 func build() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.02, 0.025, 0.045)
+	env.background_color = OUTSIDE
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.45, 0.5, 0.7)
 	env.ambient_light_energy = 1.0
@@ -210,7 +217,10 @@ func build_floor(corners: Array) -> void:
 	floor.mesh = st.commit()
 	floor.material_override = sm
 	add_child(floor)
-	Mech.add(self, Mech.box(Vector3(400, 0.1, 400)), Mech.mat(Color8(10, 12, 18), 0.0, 0.0, 0.9), Vector3(Sim.CX, -0.08, Sim.CY))
+	var night := StandardMaterial3D.new()
+	night.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	night.albedo_color = OUTSIDE
+	Mech.add(self, Mech.box(Vector3(400, 0.1, 400)), night, Vector3(Sim.CX, -0.08, Sim.CY))
 
 
 func edge(corners: Array, i: int) -> Array:
@@ -239,7 +249,8 @@ func build_walls(corners: Array) -> void:
 
 
 func build_stands(corners: Array) -> void:
-	var tier := Mech.mat(Color8(20, 23, 32), 0.0, 0.2, 0.8)
+	Mech.add_part(self, "stadium", ARENA, "arena")
+	Mech.add_part(self, "tower", ARENA, "arena").cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var mm := MultiMesh.new()
@@ -252,14 +263,9 @@ func build_stands(corners: Array) -> void:
 		var b: Vector3 = e[1]
 		var nrm: Vector3 = e[2]
 		var dir := (b - a).normalized()
-		var rot := Vector3(0, -atan2(dir.z, dir.x), 0)
-		var fan: Color = Mech.TEAM[0] if nrm.x < -0.1 else (Mech.TEAM[1] if nrm.x > 0.1 else Color8(200, 200, 210))
-		for k in 3:
-			var off := 2.4 + k * 2.6
-			var length := a.distance_to(b) + 2.0 * (off + 1.3) * 0.414
-			var h := 1.4 + k * 1.3
-			Mech.add(self, Mech.box(Vector3(length, h, 2.6)), tier, (a + b) / 2.0 + nrm * (off + 1.3) + Vector3(0, h / 2.0, 0), rot)
-			Mech.add(self, Mech.box(Vector3(length, 0.06, 0.08)), Mech.glow(fan, 1.2), (a + b) / 2.0 + nrm * off + Vector3(0, h + 0.03, 0), rot)
+		for k in STAND.tiers:
+			var off: float = STAND.front + k * STAND.depth
+			var h: float = STAND.base + k * STAND.rise
 			var face := dir if dir.cross(Vector3.UP).dot(nrm) > 0 else -dir
 			var basis := Basis(face, Vector3.UP, face.cross(Vector3.UP))
 			for row in CROWD.rows:
@@ -267,9 +273,10 @@ func build_stands(corners: Array) -> void:
 				var span := a.distance_to(b) + 2.0 * o * 0.414 - 0.8
 				var mid: Vector3 = (a + b) / 2.0 + nrm * o + Vector3(0, h, 0)
 				for j in int(span / CROWD.gap):
-					if rng.randf() < CROWD.empty:
+					var along := (j + 0.5) * CROWD.gap - span / 2.0 + rng.randf_range(-0.08, 0.08)
+					if rng.randf() < CROWD.empty or absf(along) < STAND.aisle + 0.2:
 						continue
-					var pos := mid + dir * ((j + 0.5) * CROWD.gap - span / 2.0 + rng.randf_range(-0.08, 0.08))
+					var pos := mid + dir * along
 					var neutral := -1 if rng.randf() >= CROWD.neutral else rng.randi_range(4, 7)
 					spots.append([Transform3D(basis.scaled(Vector3.ONE * rng.randf_range(0.9, 1.12)), pos), neutral, Color(rng.randf() * TAU, 0, rng.randf_range(0.75, 1.15), rng.randi_range(0, 3))])
 	mm.use_custom_data = true

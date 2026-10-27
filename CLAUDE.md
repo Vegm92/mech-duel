@@ -198,6 +198,16 @@ $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon
   panel, arena face at z 0; `build_walls` tiles and stretches it per edge) and `wall_post`.
   `view.gd` `ARENA` maps the material names (steel, dark, trim, hazard, amber, zap, pad, heal,
   vent). Evidence: `production/qa/evidence/godot-arena-{before,after,wide}-2026-10-27.png`.
+  **Stadium** (Victor 2026-10-27: "production ready", no gray box when the camera zooms out):
+  `stadium` is the whole bowl in world space (added at the origin): a walkway, 3 tiers with seat
+  rows, a riser LED board and a rail, one aisle with steps in the middle of each edge, a 7 m back
+  wall with an LED ribbon and flood strip, a dark ribbed roof out to 26 m past the wall (the
+  zoomed-out camera sees ~25 m past it) with a team-color rim, and a scoreboard on the north side.
+  `tower` = 4 floodlight towers (no shadows). Side materials: `seat_a/b/n`, `led_a/b/n` (left =
+  team 0, right = team 1, else neutral). The script copies the arena shape (`AW`, `AH`, `ACUT`,
+  `WALLS`) from `sim.gd`, and `view.gd` `STAND` must match the script's `STAND` (fans stand on
+  the tiers and skip the aisles). Outside the stadium is unshaded `OUTSIDE` night color.
+  Evidence: `godot-stadium-{left,bottom}-before-after-2026-10-27.png`, `godot-stadium-top-2026-10-27.png`.
 - **Crowd** (Victor 2026-10-27: more people, "same interactivity as the js version"). One
   `fan` mesh in `arena.glb` (92 faces, one material; UV.x tags shirt / sleeve / skin / hand /
   pants) drawn ~2650 times by one `MultiMeshInstance3D` (`view.build_stands`, 2 rows per tier,
