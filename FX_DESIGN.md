@@ -82,9 +82,14 @@ and `--at` for screenshots of any weapon.
 | hook | chain = team-color cable with a white core; on catch: flash, star, ring, sparks in the thrower's color; a cable joins the two mechs while the pull lasts (`HOOKED`) |
 | break | big chunks in the part's color, the mech trails black smoke for 3 s, hit-stop 4 |
 | ko | hit-stop 8, slow-mo, big boom, a smoke column that stays |
-| dash / land / crush | dust ring + streaks; land and crush leave a floor crack |
-| heal / pickup | green squares floating up, no glow |
-| emp | thin cyan ring expanding, sparks on every mech inside |
+| dash / land / crush | dust ring + streaks; land and crush leave a floor crack (`Fx.crush` = `Fx.land` in warm white, `CRUSH`) |
+| heal / pickup | green + white rings on the floor, flat green squares floating up and spinning (`HEAL`) |
+| emp | flash + cyan star, thin cyan and white rings out to the radius, cyan needles; a star and sparks on every other mech inside (`EMP`) |
+| blink | purple: a ring shrinking at the start, sparks, a thin purple ray with a white core, a ring opening at the end (`BLINK`) |
+| soak (bubble) | small cyan flash, star, ring and shield sparks (`SOAK`) |
+| magnet | thin purple ray with a white core (`MAGNET`) |
+| ping (ricochet off a wall) | tiny flash, warm star, sparks flying back from the wall (`PING`) |
+| charge (R wind-up) | team + white rings shrinking in, team needles rising on a ring (`CHARGE`) |
 
 ## Build order
 
@@ -143,5 +148,10 @@ and `--at` for screenshots of any weapon.
    (`view.labels`) and dash afterimages (per mech, meta `ghosts`, pose copied on reuse) go back
    to a free list (`Fx.park`) instead of being freed. Tweens are still made per effect (small,
    not nodes). Persistent emitters (wreck smoke, missile trails, break smoke) aren't pooled.
+7. **Done (2026-10-27):** the last old-style effects (emp, heal / pickup, crush, blink, soak,
+   magnet, ping, charge) are rebuilt as `Fx` recipes in the neon look (recipes above). The old
+   glowing `view.pop` / `beam` / `sparks` helpers are gone, so no one-shot effect uses `Mech.glow` now (arena props in `view.gd` still
+   do: pads, heal station, hazard jets, reticle).
+   Evidence: `godot-misc-fx-before-after-2026-10-27.png` (top before, bottom after).
 
 Later: chips bouncing on the floor; calming the white arena lamps, which are bloomy too.

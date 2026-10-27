@@ -20,6 +20,16 @@ const LAND := {"ring": 1.15, "ring_secs": 0.3, "spikes": 0.75, "dust": 0.55, "cr
 const DASH := {"every": 3, "ghost_secs": 0.22, "ghost_alpha": 0.4}
 const RIPPLE := {"panel": 1.25, "face": 1.33, "y": 1.05, "r": 0.75, "secs": 0.22, "card": 0.55, "card_secs": 0.07, "broke": 1.7}
 const HOOKED := {"flash": 0.4, "star": 1.4, "ring": 1.1, "secs": 0.18}
+const EMP := {"flash": 0.5, "star": 1.8, "secs": 0.35, "inner": 0.8, "band": 0.97, "zap": 0.9}
+const BLINK := {"ring": 1.4, "secs": 0.25, "w": 0.3, "flash": 0.35}
+const HEAL := {"ring": 1.3, "secs": 0.4, "y": 1.6}
+const SOAK := {"flash": 0.3, "star": 0.9, "ring": 1.1, "secs": 0.18}
+const MAGNET := {"w": 0.18, "secs": 0.2}
+const CRUSH := {"r": 2.2, "c": Color(1.0, 0.86, 0.66)}
+const PING := {"flash": 0.18, "star": 0.6, "secs": 0.06, "spread": 50.0}
+const CHARGE := {"ring": 1.8, "max_secs": 0.5, "spikes": 0.9}
+const VOID_C := Color8(205, 125, 255)
+const HEAL_C := Color8(90, 255, 150)
 const KICK := {"hit": 1.6, "decay": 14.0, "freq": 42.0}
 const RIBBON := {"steps": 12, "y": 0.07, "edge": 1.2, "tail": 1.2, "head": 0.4, "tip": 0.35, "fade": 0.35, "hot": 0.1, "gain": 1.0}
 const SMOKE := {"step": 0.35, "per": 0.8, "spread": 0.75, "size": Vector2(0.4, 0.75), "grow": 18.0, "swell": 0.35, "rise": 0.7, "fade_in": 6.0, "fade_out": 0.35, "greys": [0.42, 0.34, 0.27], "alpha": 0.65, "gain": 1.3, "segs": 24}
@@ -187,11 +197,14 @@ const LAYERS := {
 	"wreck_smoke": {"mesh": "puff", "ramp": "smoke_dark", "n": Vector2(28, 28), "speed": Vector2(0.8, 2.0), "life": 1.8, "spread": 20.0, "gravity": 0.8, "damp": 0.5, "grow": 2.0},
 	"shield_sparks": {"mesh": "needle_s", "ramp": "shield", "n": Vector2(4, 12), "speed": Vector2(6, 14), "life": 0.2, "spread": 40.0, "gravity": 0.0, "damp": 30.0, "align": true, "shrink": true, "add": true},
 	"hook_sparks": {"mesh": "needle_s", "ramp": "spark", "n": Vector2(10, 10), "speed": Vector2(6, 14), "life": 0.22, "spread": 180.0, "gravity": 0.0, "damp": 26.0, "align": true, "shrink": true, "add": true},
+	"emp_sparks": {"mesh": "needle_s", "ramp": "shield", "n": Vector2(24, 24), "speed": Vector2(8, 18), "life": 0.3, "spread": 180.0, "gravity": 0.0, "damp": 22.0, "align": true, "shrink": true, "add": true},
+	"void_sparks": {"mesh": "needle_s", "ramp": "void", "n": Vector2(14, 14), "speed": Vector2(6, 14), "life": 0.25, "spread": 180.0, "gravity": 0.0, "damp": 24.0, "align": true, "shrink": true, "add": true},
+	"heal_squares": {"mesh": "square", "ramp": "heal", "n": Vector2(12, 12), "speed": Vector2(1.5, 3.0), "life": 0.9, "spread": 45.0, "gravity": 2.5, "damp": 2.0, "spin": 180.0, "sphere": 0.8, "add": true},
 	"missile_trail": {"mesh": "puff_s", "ramp": "smoke_thin", "n": Vector2(48, 48), "speed": Vector2(1, 2), "life": 0.55, "spread": 15.0, "gravity": 0.6, "damp": 3.0, "grow": 2.5},
 }
 const MESHES := {
 	"needle": [Vector3(0.08, 0.9, 0.08), 0], "needle_s": [Vector3(0.065, 0.55, 0.065), 0],
-	"chip": [Vector3(0.14, 0.14, 0.14), 0], "chunk": [Vector3(0.26, 0.18, 0.22), 0], "puff": [0.42, 20], "puff_s": [0.2, 16], "fireball": [0.42, 24],
+	"chip": [Vector3(0.14, 0.14, 0.14), 0], "square": [Vector3(0.26, 0.04, 0.26), 0], "chunk": [Vector3(0.26, 0.18, 0.22), 0], "puff": [0.42, 20], "puff_s": [0.2, 16], "fireball": [0.42, 24],
 }
 const RAMPS := {
 	"spark": [Color8(255, 240, 180), Color8(255, 190, 80), Color8(255, 120, 40), Color8(255, 90, 30, 0)],
@@ -206,6 +219,8 @@ const RAMPS := {
 	"laser": [Color8(255, 170, 190), Color8(255, 80, 120), Color8(255, 60, 100, 0)],
 	"arc": [Color8(200, 230, 255), Color8(120, 200, 255), Color8(80, 150, 255, 0)],
 	"lance": [Color8(255, 225, 160), Color8(255, 190, 90), Color8(255, 140, 50, 0)],
+	"void": [Color8(240, 210, 255), Color8(205, 125, 255), Color8(150, 80, 255, 0)],
+	"heal": [Color8(200, 255, 215), Color8(90, 255, 150), Color8(60, 220, 120, 0)],
 	"rail": [Color8(190, 250, 255), Color8(120, 240, 255), Color8(80, 200, 255, 0)],
 }
 
@@ -315,8 +330,8 @@ static func star(parent: Node3D, p: Vector3, size: float, secs: float, c: Color)
 		fade(bar(parent, p, Mech.box(Vector3.ONE), Color.WHITE, Vector3(ln * 0.6, 0.03, 0.035), rot), secs, Vector3(ln * 0.9, 0.01, 0.01), Tween.EASE_OUT)
 
 
-static func ring(parent: Node3D, p: Vector3, r0: float, r1: float, secs: float, c: Color, flat := 0.3) -> void:
-	fade(bar(parent, p, Mech.ring(0.9, 1.0), c, Vector3(r0, flat, r0)), secs, Vector3(r1, flat, r1), Tween.EASE_OUT)
+static func ring(parent: Node3D, p: Vector3, r0: float, r1: float, secs: float, c: Color, flat := 0.3, inner := 0.9) -> void:
+	fade(bar(parent, p, Mech.ring(inner, 1.0), c, Vector3(r0, flat, r0)), secs, Vector3(r1, flat, r1), Tween.EASE_OUT)
 
 
 static func emitter(L: Dictionary, t := 1.0, k := 1.0, g: Gradient = null) -> CPUParticles3D:
@@ -603,6 +618,67 @@ static func dash(parent: Node3D, f: Dictionary, c: Color, dir: Vector2) -> void:
 	burst(parent, p, back, LAYERS.dash_streaks, 1.0, 1.0, tint(c))
 	burst(parent, Vector3(f.x, 0.15, f.y), back, LAYERS.dash_dust)
 
+
+static func emp(parent: Node3D, f: Dictionary, inside: Array) -> void:
+	var p := Vector3(f.x, 1.05, f.y)
+	var ground := Vector3(f.x, 0.08, f.y)
+	flash(parent, p, EMP.flash, 0.06)
+	star(parent, p, EMP.star, HIT.star_secs * 1.5, SHIELD_C)
+	ring(parent, ground, 0.4, f.r, EMP.secs, SHIELD_C, 0.3, EMP.band)
+	ring(parent, ground, 0.3, f.r * EMP.inner, EMP.secs * 0.8, Color.WHITE, 0.3, EMP.band)
+	burst(parent, p, Vector3.UP, LAYERS.emp_sparks)
+	for q in inside:
+		star(parent, q, EMP.zap, HIT.star_secs, SHIELD_C)
+		burst(parent, q, Vector3.UP, LAYERS.shield_sparks)
+
+
+static func blink(parent: Node3D, f: Dictionary) -> void:
+	var a := Vector3(f.x, 1.05, f.y)
+	var b := Vector3(f.x2, 1.05, f.y2)
+	ring(parent, Vector3(f.x, 0.08, f.y), BLINK.ring, 0.1, BLINK.secs, VOID_C)
+	flash(parent, a, BLINK.flash, 0.05, VOID_C.lightened(0.6))
+	burst(parent, a, Vector3.UP, LAYERS.void_sparks)
+	ray(parent, {"x1": f.x, "y1": f.y, "x2": f.x2, "y2": f.y2}, BLINK.w, "void", BLINK.secs)
+	ring(parent, Vector3(f.x2, 0.08, f.y2), 0.2, BLINK.ring, BLINK.secs, VOID_C)
+	ring(parent, b, 0.1, BLINK.ring * 0.6, BLINK.secs * 0.7, Color.WHITE)
+
+
+static func heal(parent: Node3D, f: Dictionary) -> void:
+	var ground := Vector3(f.x, 0.08, f.y)
+	ring(parent, ground, 0.3, HEAL.ring, HEAL.secs, HEAL_C)
+	ring(parent, ground, 0.2, HEAL.ring * 0.6, HEAL.secs * 0.7, Color.WHITE)
+	burst(parent, Vector3(f.x, HEAL.y, f.y), Vector3.UP, LAYERS.heal_squares)
+
+
+static func soak(parent: Node3D, f: Dictionary) -> void:
+	var p := Vector3(f.x, 1.05, f.y)
+	flash(parent, p, SOAK.flash, 0.05, SHIELD_C.lightened(0.6))
+	star(parent, p, SOAK.star, SOAK.secs * 0.6, SHIELD_C)
+	ring(parent, p, 0.3, SOAK.ring, SOAK.secs, SHIELD_C)
+	burst(parent, p, Vector3.UP, LAYERS.shield_sparks)
+
+
+static func magnet(parent: Node3D, f: Dictionary) -> void:
+	ray(parent, f, MAGNET.w, "void", MAGNET.secs)
+
+
+static func crush(parent: Node3D, marks: Node3D, f: Dictionary) -> void:
+	land(parent, marks, {"x": f.x, "y": f.y, "r": CRUSH.r}, CRUSH.c)
+
+
+static func ping(parent: Node3D, f: Dictionary) -> void:
+	var p := Vector3(f.x, 1.05, f.y)
+	flash(parent, p, PING.flash, PING.secs)
+	star(parent, p, PING.star, PING.secs, Color8(255, 190, 80))
+	burst(parent, p, Vector3(-cos(f.a), 0.2, -sin(f.a)), LAYERS.hit_sparks, 0.0).spread = PING.spread
+
+
+static func charge(parent: Node3D, f: Dictionary, c: Color) -> void:
+	var ground := Vector3(f.x, 0.08, f.y)
+	var secs := minf(f.t / 60.0, CHARGE.max_secs)
+	ring(parent, ground, CHARGE.ring, 0.3, secs, c)
+	ring(parent, ground, CHARGE.ring * 0.7, 0.2, secs * 0.8, Color.WHITE)
+	on_ring(burst(parent, ground, Vector3.UP, LAYERS.land_spikes, 1.0, 1.0, tint(c)), CHARGE.ring * CHARGE.spikes)
 
 static func ghost(parent: Node3D, mech: Node3D, c: Color) -> void:
 	if not mech.has_meta("ghosts"):

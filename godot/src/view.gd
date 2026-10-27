@@ -615,50 +615,10 @@ func item_color(kind: String) -> Color:
 	return Color8(197, 139, 255)
 
 
-func fx_node(n: Node3D, secs: float, grow := 1.0) -> void:
-	n.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	if n.get_parent() == null:
-		add_child(n)
-	var tw := n.create_tween().set_parallel()
-	if n is GeometryInstance3D:
-		tw.tween_property(n, "transparency", 1.0, secs)
-	if grow != 1.0:
-		tw.tween_property(n, "scale", n.scale * grow, secs).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	tw.chain().tween_callback(n.queue_free)
 
 
-func one(mesh: Mesh, m: Material, pos: Vector3, scale_ := Vector3.ONE, rot := Vector3.ZERO) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = m
-	mi.position = pos
-	mi.rotation = rot
-	mi.scale = scale_
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	return mi
 
 
-func sparks(p: Vector3, c: Color, n: int, speed: float, life := 0.45) -> void:
-	var s := CPUParticles3D.new()
-	s.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	s.one_shot = true
-	s.explosiveness = 1.0
-	s.amount = n
-	s.lifetime = life
-	s.mesh = Mech.box(Vector3(0.09, 0.09, 0.09))
-	s.material_override = Mech.glow(c, 5.0)
-	s.direction = Vector3.UP
-	s.spread = 85.0
-	s.initial_velocity_min = speed * 0.4
-	s.initial_velocity_max = speed
-	s.gravity = Vector3(0, -14, 0)
-	s.scale_amount_min = 0.5
-	s.scale_amount_max = 1.3
-	s.position = p
-	s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(s)
-	s.emitting = true
-	s.finished.connect(s.queue_free)
 
 
 func number(p: Vector3, text: String, c: Color, size: int) -> void:
@@ -683,24 +643,12 @@ func number(p: Vector3, text: String, c: Color, size: int) -> void:
 	tw.chain().tween_callback(Fx.park.bind(l, labels))
 
 
-func beam(x1: float, y1: float, x2: float, y2: float, w: float, c: Color, secs: float, energy := 5.0) -> void:
-	var d := Vector2(x2 - x1, y2 - y1)
-	var mi := one(Mech.box(Vector3(1, 1, 1)), Mech.glow(c, energy, 0.9), Vector3((x1 + x2) / 2.0, 1.05, (y1 + y2) / 2.0), Vector3(d.length(), w * 0.5, w), Vector3(0, -d.angle(), 0))
-	fx_node(mi, secs)
 
 
-func pop(p: Vector3, r: float, c: Color, secs: float, flat := true) -> void:
-	var mi: MeshInstance3D
-	if flat:
-		mi = one(Mech.ring(0.85, 1.0), Mech.glow(c, 4.0, 0.9), p, Vector3(r, 1, r))
-	else:
-		mi = one(Mech.ball(1.0, 16), Mech.glow(c, 4.0, 0.7), p, Vector3.ONE * r * 0.35)
-	fx_node(mi, secs, 1.6 if flat else 2.8)
 
 
 func spawn(state: Dictionary, f: Dictionary) -> void:
 	var p := Vector3(f.get("x", 0.0), 1.0, f.get("y", 0.0))
-	var ground := Vector3(p.x, 0.08, p.z)
 	match f.k:
 		"hit":
 			var head: bool = f.get("head", false)
@@ -747,23 +695,27 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			Fx.land(self, marks, f, Mech.TEAM[team_of(state, f.id)])
 			shake = maxf(shake, 0.25)
 		"emp":
-			pop(p, f.r, Color8(130, 190, 255), 0.4, false)
+			var inside := []
+			for m in state.mechs:
+				if m.id != f.id and not m.ko and Vector2(m.x - f.x, m.y - f.y).length() <= f.r:
+					inside.append(Vector3(m.x, 1.05, m.y))
+			Fx.emp(self, f, inside)
 		"blink":
-			beam(f.x, f.y, f.x2, f.y2, 0.4, Color8(205, 125, 255), 0.3)
+			Fx.blink(self, f)
 		"heal", "pickup":
-			pop(ground, 1.3, Color8(90, 255, 150), 0.45)
+			Fx.heal(self, f)
 			if f.k == "heal":
 				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), Color8(120, 255, 170), 60)
 		"hooked":
 			Fx.hooked(self, f, Mech.TEAM[team_of(state, f.by)])
 		"soak":
-			pop(p, 1.1, Color8(150, 200, 255), 0.25)
+			Fx.soak(self, f)
 		"magnet":
-			beam(f.x1, f.y1, f.x2, f.y2, 0.18, Color8(205, 125, 255), 0.3)
+			Fx.magnet(self, f)
 		"crush":
-			sparks(ground, Color8(200, 190, 170), 24, 6.0)
+			Fx.crush(self, marks, f)
 			shake = maxf(shake, 0.3)
 		"ping":
-			sparks(p, Color8(255, 230, 180), 5, 3.0, 0.25)
+			Fx.ping(self, f)
 		"charge":
-			pop(ground, 1.8, Mech.TEAM_LIGHT[team_of(state, f.id)], 0.5)
+			Fx.charge(self, f, Mech.TEAM[team_of(state, f.id)])

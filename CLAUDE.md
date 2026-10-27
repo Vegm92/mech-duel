@@ -44,7 +44,7 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build al
   `view.slow` → main.gd sets `Engine.time_scale`), land, dash (+ `Fx.ghost` afterimages), booster
   trails (`Fx.ribbon` for arc/flame/frost, `Fx.smoke` puffs for smoke), flamer cone
   (`view.cone`), shield ripple (`Fx.ripple`, from `view.guard` watching `act.absorbed`), hook
-  cable + catch (`view.tether`, `Fx.hooked`), directional camera kick (`view.kick` → main.gd).
+  cable + catch (`view.tether`, `Fx.hooked`), directional camera kick (`view.kick` → main.gd), and emp, heal / pickup, crush, blink, soak, magnet, ping, R charge (`Fx.emp` … `Fx.charge`).
   Effect nodes are pooled (`Fx.take`/`Fx.park`). Smoke and fire puffs use noise shaders (`SMOKE_SHADER`, `FIRE_SHADER` in fx.gd). **Sandbox:** `$G --path godot -- --sandbox=<weapon>` (two pinned mechs, auto-fire, ←/→
   weapon, T auto-fire, G guard, K refill, J dash, `--block` held shield, `--hook` auto hook; see `FX_DESIGN.md`). Evidence:
   `production/qa/evidence/godot-hit-fx-before-after-2026-10-26.png`,
