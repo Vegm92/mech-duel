@@ -5,6 +5,7 @@ const Mech = preload("res://src/mech.gd")
 const Fx = preload("res://src/fx.gd")
 const TRACER := 0.028
 const DASHES := [0.4, 0.25, 0.15]
+const BLEND := 4.0
 const Hype = preload("res://src/hype.gd")
 const CROWD := {"rows": [0.65, 1.95], "gap": 0.55, "empty": 0.08, "neutral": 0.2,
 	"neutrals": [Color8(230, 230, 236), Color8(60, 64, 74), Color8(240, 200, 60), Color8(120, 200, 120)],
@@ -82,6 +83,7 @@ var heal_ring: MeshInstance3D
 var heal_cross: Node3D
 var jets := []
 var cones := {}
+var muzzle_off := {}
 var labels := []
 var kick := Vector3.ZERO
 var reticle: MeshInstance3D
@@ -368,6 +370,7 @@ func shooter_color(state: Dictionary, f: Dictionary) -> Color:
 
 func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 	tick += 1
+	muzzle_off.clear()
 	for i in mechs.size():
 		mechs[i].sync(state.mechs[i], tick, dt)
 		var act = state.mechs[i].act
@@ -543,12 +546,26 @@ func make(kind: String) -> Node3D:
 	return n
 
 
+func barrel(state: Dictionary, id, gun: String, hand := "") -> Variant:
+	if typeof(id) != TYPE_INT or id < 0 or id >= mechs.size():
+		return null
+	var m = state.mechs[id]
+	if hand == "":
+		for h in Sim.HANDS:
+			if m.loadout[h] == gun and (hand == "" or (m.act != null and m.act.k == h)):
+				hand = h
+	if hand == "":
+		return null
+	return to_local(mechs[id].barrel(hand))
+
+
 func cone(state: Dictionary, id: int, shots: Array) -> void:
 	if not cones.has(id):
 		cones[id] = Fx.flame_cone(self)
 	var C := Fx.CONE
 	var m = state.mechs[id]
-	var o := Vector2(m.x, m.y)
+	var tip = barrel(state, id, "flamer")
+	var o := Vector2(tip.x, tip.z) if tip != null else Vector2(m.x, m.y)
 	var sum := Vector2.ZERO
 	var near := INF
 	var far := 0.0
@@ -573,7 +590,11 @@ func shot(state: Dictionary, s: Dictionary) -> void:
 	var kind: String = s.kind if s.kind in ["bolt", "missile", "hook"] else "bolt"
 	var n := node_for(s, kind)
 	var ang := atan2(s.vy, s.vx)
-	n.position = Vector3(s.x, 1.05, s.y)
+	if n.get_meta("fresh"):
+		n.set_meta("off", Vector2.ZERO if kind == "hook" else muzzle_off.get(s.owner, Vector2.ZERO))
+		n.set_meta("from", Vector2(s.x, s.y))
+	var off: Vector2 = n.get_meta("off") * clampf(1.0 - (Vector2(s.x, s.y) - n.get_meta("from")).length() / BLEND, 0.0, 1.0)
+	n.position = Vector3(s.x + off.x, 1.05, s.y + off.y)
 	n.rotation = Vector3(0, -ang, 0)
 	var team := team_of(state, s.owner)
 	match kind:
@@ -606,6 +627,9 @@ func shot(state: Dictionary, s: Dictionary) -> void:
 
 func lob(state: Dictionary, l: Dictionary) -> void:
 	var n := node_for(l, "lob")
+	if n.get_meta("fresh"):
+		n.set_meta("off", muzzle_off.get(l.get("owner", -1), Vector2.ZERO))
+	var off: Vector2 = n.get_meta("off")
 	n.position = Vector3(l.x, 0.06, l.y)
 	var p: float = 1.0 - float(l.t) / float(l.T)
 	n.get_child(0).scale = Vector3(l.r, 1, l.r)
@@ -613,7 +637,7 @@ func lob(state: Dictionary, l: Dictionary) -> void:
 	var shell: MeshInstance3D = n.get_child(2)
 	shell.visible = l.kind != "decoy"
 	var arc := 7.0 if l.kind == "shell" else 14.0
-	var from := Vector3(l.sx - l.x, 1.1, l.sy - l.y)
+	var from := Vector3(l.sx - l.x + off.x, 1.1, l.sy - l.y + off.y)
 	if l.kind == "strike":
 		from = Vector3(0, 30, 0)
 	shell.position = from.lerp(Vector3.ZERO, p) + Vector3(0, arc * 4.0 * p * (1.0 - p) if l.kind == "shell" else 0.0, 0)
@@ -761,12 +785,27 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			stop = maxi(stop, Fx.boom(self, marks, f))
 			shake = maxf(shake, 0.6 if big else 0.2)
 		"muzzle":
-			Fx.muzzle(self, f, Mech.TEAM[team_of(state, f.id)])
+			var g := f.duplicate()
+			var b = barrel(state, f.id, f.gun, f.hand)
+			if b != null:
+				muzzle_off[f.id] = Vector2(b.x - f.x, b.z - f.y)
+				g.x = b.x
+				g.y = b.z
+				g["h"] = b.y
+			Fx.muzzle(self, g, Mech.TEAM[team_of(state, f.id)])
 		"zap":
+			var g := f
+			if f.has("id") and f.kind in ["laser", "tesla"]:
+				var m = state.mechs[f.id]
+				var b = barrel(state, f.id, f.kind)
+				if b != null and (f.kind == "laser" or Vector2(f.x1 - m.x, f.y1 - m.y).length() < 0.5):
+					g = f.duplicate()
+					g.x1 = b.x
+					g.y1 = b.z
 			if f.kind == "laser":
-				Fx.ray(self, f, 0.35, "laser", 0.16)
+				Fx.ray(self, g, 0.35, "laser", 0.16)
 			else:
-				Fx.arc(self, f)
+				Fx.arc(self, g)
 		"beam":
 			if f.kind == "lance":
 				Fx.ray(self, f, Sim.LANCE.halfWidth * 2.0, "lance", 0.35, true)

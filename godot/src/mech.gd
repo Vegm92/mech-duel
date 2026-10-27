@@ -22,8 +22,10 @@ const ELBOW := Vector3(0.048, -0.235, 0)
 const FIST := Vector3(0.438, -0.235, 0)
 const MOUNT := {"rivet": "arm", "scatter": "arm", "gatling": "arm", "tesla": "arm", "flamer": "shoulder", "missiles": "shoulder", "mortar": "shoulder"}
 const THRUST := ["drill", "bunker", "fist", "whip"]
-const TRAIL := {"saw": [Vector3(0.85, 0, 0), Vector3(1.28, 0, 0)], "hammer": [Vector3(0.8, 0, 0), Vector3(1.12, 0, 0)], "claws": [Vector3(0.55, 0, 0), Vector3(0.92, -0.06, 0)], "katana": [Vector3(0.8, 0, 0), Vector3(1.47, -0.04, 0)], "bash": [Vector3(0.42, 0, -0.45), Vector3(0.42, 0, 0.45)], "flail": [Vector3(0.95, 0, 0), Vector3(1.42, 0, 0)], "drill": [Vector3(1.3, 0, -0.08), Vector3(1.3, 0, 0.08)], "bunker": [Vector3(1.15, 0, -0.08), Vector3(1.15, 0, 0.08)], "fist": [Vector3(0.66, 0, -0.14), Vector3(0.66, 0, 0.14)], "whip": [Vector3(1.75, 0, -0.06), Vector3(1.75, 0, 0.06)]}
+const TRAIL := {"saw": [Vector3(0.85, 0, 0), Vector3(1.28, 0, 0)], "hammer": [Vector3(0.8, 0, 0), Vector3(1.12, 0, 0)], "claws": [Vector3(0.55, 0, 0), Vector3(0.92, -0.06, 0)], "katana": [Vector3(0.8, 0, 0), Vector3(1.47, -0.04, 0)], "bash": [Vector3(0.42, 0, -0.45), Vector3(0.42, 0, 0.45)], "flail": [Vector3(0.95, 0, 0), Vector3(1.42, 0, 0)], "drill": [Vector3(1.3, 0, -0.08), Vector3(1.3, 0, 0.08)], "bunker": [Vector3(1.15, 0, -0.08), Vector3(1.15, 0, 0.08)], "fist": [Vector3(0.66, 0, -0.14), Vector3(0.66, 0, 0.14)]}
 const TAIL := 1.6
+const TIP := {"drill": 1.4, "bunker": 1.25, "fist": 0.72}
+const WHIP := {"links": 16, "len": 3.95, "coil": 2.2, "back": 2.4, "crack": 2.5}
 const TRAIL_LIFE := 0.16
 
 var team := 0
@@ -34,6 +36,7 @@ var torso: Node3D
 var hips: Node3D
 var hands := {}
 var held := {}
+var tips := {}
 var shown := {}
 var trail: MeshInstance3D
 var strokes := []
@@ -175,9 +178,22 @@ static func add_part(parent: Node3D, part: String, mats: Dictionary, file := "li
 	return mi
 
 
-static func weapon_node(name: String, mats: Dictionary) -> Node3D:
+static func weapon_node(name: String, mats: Dictionary, side := 1.0) -> Node3D:
 	var n := Node3D.new()
-	add_part(n, name, mats, "guns")
+	if name == "whip":
+		add(n, cyl(0.04, 0.04, 0.32), mats.joint, Vector3.ZERO, Vector3(0, 0, PI / 2))
+		add(n, cyl(0.06, 0.06, 0.06), mats.trim, Vector3(0.17, 0, 0), Vector3(0, 0, PI / 2))
+		for i in WHIP.links:
+			var w := lerpf(0.07, 0.03, float(i) / WHIP.links)
+			add(n, box(Vector3(WHIP.len / WHIP.links * 1.15, w, w)), mats.trim if i % 2 else mats.body).set_meta("link", i)
+		add(n, ball(0.08, 8), mats.glow).set_meta("link", WHIP.links)
+		lash(n, 0.0)
+		return n
+	var part := add_part(n, name, mats, "guns")
+	if name == "hammer":
+		part.rotation.x = PI / 2
+	elif name == "claws":
+		part.rotation.x = side * PI / 2
 	if name == "saw":
 		var disc := add_part(n, "saw_disc", mats, "guns")
 		disc.position = Vector3(0.75, 0, 0)
@@ -268,9 +284,11 @@ func build(lo: Dictionary, t: int) -> void:
 		var fore := arm(p, lo.arms, "_L" if hand == "left" else "_R", parts)
 		var mount: String = MOUNT.get(lo[hand], "hand")
 		fore.visible = mount != "arm"
-		var w := weapon_node(lo[hand], parts)
+		var w := weapon_node(lo[hand], parts, side)
 		w.position = ELBOW if mount == "arm" else (Vector3(0, 0.15, side * 0.02) if mount == "shoulder" else FIST)
 		p.add_child(w)
+		var box_of: AABB = (w.get_child(0) as MeshInstance3D).get_aabb()
+		tips[hand] = Vector3(box_of.end.x, box_of.get_center().y, box_of.get_center().z)
 		for c in w.get_children():
 			if c.has_meta("spin"):
 				spin.append(c)
@@ -371,6 +389,8 @@ func sync(m: Dictionary, tick: int, dt: float) -> void:
 		var turn0: float = turned.get(hand, 0.0)
 		turned[hand] = turn
 		pose(hand, key, cur, droop)
+		if key == "whip":
+			lash(held[hand], cur)
 		torso.rotation.y += turn
 		if TRAIL.has(key) and cur > -0.3 and (cur > prev + 0.01 or absf(turn) > absf(turn0) + 0.001 or (key in THRUST and r >= 1.0)):
 			streak(hand, key, maxf(prev, -0.3), cur, turn0 if absf(turn) >= absf(turn0) else turn, turn, droop, -m.aim, dt)
@@ -416,6 +436,7 @@ func pose(hand: String, key: String, r: float, droop: float) -> void:
 	p.rotation = q[0]
 	p.position.x = q[1]
 	held[hand].rotation = q[2]
+	held[hand].position = FIST + Vector3(q[4], 0, 0)
 	torso.rotation.y += q[3]
 
 
@@ -434,6 +455,9 @@ func streak(hand: String, key: String, r0: float, r1: float, sp0: float, sp1: fl
 	var spinning := sp1 != 0.0
 	var thrust := key in THRUST and not spinning
 	var edge: Array = TRAIL[key]
+	if not key in THRUST:
+		var more := sweep_extra(key)
+		edge = [edge[0] + Vector3(more if edge[0].x == edge[1].x else 0.0, 0, 0), edge[1] + Vector3(more, 0, 0)]
 	if key in THRUST and spinning:
 		edge = [Vector3(edge[0].x - 0.5, 0, 0), Vector3(edge[0].x, 0, 0)]
 		if live.has(hand) and not live[hand].spin:
@@ -447,7 +471,7 @@ func streak(hand: String, key: String, r0: float, r1: float, sp0: float, sp1: fl
 	for i in range(0 if fresh_stroke else 1, n + 1):
 		var t := float(i) / n
 		var q := pose_of(hand, key, lerpf(r0, r1, t), droop)
-		var tf := global_transform * Transform3D(Basis.from_euler(Vector3(0, yaw + q[3] + lerpf(sp0, sp1, t), 0))) * Transform3D(Basis.from_euler(q[0]), Vector3(q[1], 1.32, s * shoulder)) * Transform3D(Basis.from_euler(q[2]), FIST)
+		var tf := global_transform * Transform3D(Basis.from_euler(Vector3(0, yaw + q[3] + lerpf(sp0, sp1, t), 0))) * Transform3D(Basis.from_euler(q[0]), Vector3(q[1], 1.32, s * shoulder)) * Transform3D(Basis.from_euler(q[2]), FIST + Vector3(q[4], 0, 0))
 		if thrust and i == 0:
 			live[hand].pts.append([tf * (edge[0] - Vector3(TAIL, 0, 0)), tf * (edge[1] - Vector3(TAIL, 0, 0)), TRAIL_LIFE * 0.5])
 		live[hand].pts.append([tf * edge[0], tf * edge[1], dt * (n - i) / n])
@@ -479,7 +503,7 @@ func draw_trail(dt: float) -> void:
 func pose_of(hand: String, key: String, r: float, droop: float) -> Array:
 	var back := r < 0
 	if key in THRUST:
-		return [Vector3(0, 0, droop), r * (0.14 if back else 0.32), Vector3.ZERO, 0.0]
+		return [Vector3(0, 0, droop), r * (0.14 if back else 0.32), Vector3.ZERO, 0.0, maxf(r, 0.0) * thrust_extra(key)]
 	var s := -1.0 if hand == "left" else 1.0
 	var arm: Vector3
 	var x: float
@@ -496,4 +520,38 @@ func pose_of(hand: String, key: String, r: float, droop: float) -> Array:
 		tool = Vector3(0, -1.2 * s, 0.9) if back else Vector3(0, Sim.WEAPONS[key].arc * 0.5 * s, 0.05)
 		twist = 0.3
 	var k := absf(r)
-	return [arm * k + Vector3(0, 0, droop), x * k, Vector3(0, -s * 0.5, 0.6).lerp(tool, k), twist * s * r]
+	return [arm * k + Vector3(0, 0, droop), x * k, Vector3(0, -s * 0.5, 0.6).lerp(tool, k), twist * s * r, 0.0]
+
+
+static func thrust_extra(key: String) -> float:
+	return maxf(0.0, Sim.WEAPONS[key].range - (0.32 + FIST.x + TIP[key])) if TIP.has(key) else 0.0
+
+
+static func sweep_extra(key: String) -> float:
+	return maxf(0.0, Sim.WEAPONS[key].range - ((0.15 if key == "hammer" else 0.12) + FIST.x + TRAIL[key][1].x))
+
+
+static func lash(w: Node3D, r: float) -> void:
+	var e := -r * 0.35 if r < 0 else r
+	var seg: float = WHIP.len / WHIP.links
+	var bend: float = TAU * WHIP.coil / WHIP.links
+	var th: float = -WHIP.back * maxf(-r, 0.0)
+	var p := Vector3(0.2, 0, 0)
+	for c in w.get_children():
+		if not c.has_meta("link"):
+			continue
+		var i: int = c.get_meta("link")
+		if i == WHIP.links:
+			c.position = p
+			c.scale = Vector3.ONE * (1.0 + WHIP.crack * smoothstep(0.9, 1.0, e))
+			continue
+		var u := float(i) / WHIP.links
+		th += bend * (0.6 + 0.8 * u) * clampf((u - (e * 1.3 - 0.3)) / 0.3, 0.0, 1.0)
+		var d := Vector3(cos(th), -sin(th), 0)
+		c.position = p + d * seg / 2.0
+		c.rotation = Vector3(0, 0, atan2(d.y, d.x))
+		p += d * seg
+
+
+func barrel(hand: String) -> Vector3:
+	return held[hand].global_transform * tips[hand]
