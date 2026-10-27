@@ -129,7 +129,7 @@ whether their W is up — you see it. Baiting is a decision game, not a memory t
 ### Arena
 
 - Stadium octagon: a 76 × 60 m box with 18 m cut off each corner (8 walls), mirror-symmetric. Mechs
-  spawn 30 m apart on the middle row. Walls: `WALLS` (8 half-planes) in `sim.js`; `clampArena` keeps
+  spawn 30 m apart on the middle row. Walls: `WALLS` (8 half-planes) in `sim.gd`; `clampArena` keeps
   targets, mines and bounced shots inside. Everything is placed relative to the center.
 - 8 pillars: 4 inner (1.5 m, center ± 6.5 / 5.5) and 4 outer (2 m, center ± 17 / 14): block movement,
   projectiles and beams. Lobbed ground skills go over them.
@@ -170,7 +170,7 @@ whether their W is up — you see it. Baiting is a decision game, not a memory t
 
 ### AI rival (built)
 
-The default opponent (`src/bot.js`). It reads the same things a player sees: positions, velocities,
+The default opponent (`godot/src/bot.gd`). It reads the same things a player sees: positions, velocities,
 shots in flight, cooldown lights, heat.
 
 - Keeps 12–16 m when you can still dash; closes to saw range when your E is dark, you're staggered or
@@ -217,7 +217,7 @@ it you get hit, outside it you can read and juke.
 - Strafing, Q pokes, fake approaches, pillar peeks.
 - The goal is not damage. It is making the opponent spend something: a W, an E, heat, position.
 - **Tuning target:** standing still loses, moving well wins, aiming well beats moving badly.
-  Each line below is a test in `src/sim.test.js`.
+  Each line below is a test in the JS version (`Vegm92/mech-duel-js`, `src/sim.test.js`).
   - Q flies across the whole arena at 60 m/s (15 m ≈ 0.25 s). Clearing its path takes ~0.9 m of
     sideways movement.
   - Standing still, reacting after 0.22 s → hit. Too little time to accelerate out.
@@ -318,7 +318,7 @@ Four pads, one in each cut corner zone (8 m in from the box corners: `PADS`). Wa
 5 s into the round, then every 12 s; each wave refills every empty pad. The two top pads always get
 the same item, the two bottom pads get a different one, so neither side gets luckier (seeded rng in
 the state). 2 s before a wave the empty pads show the next item as a flickering hologram. Touch a
-pad (0.7 m + body) to take it. Constants: `PICKUP`, `ITEMS` in `sim.js`.
+pad (0.7 m + body) to take it. Constants: `PICKUP`, `ITEMS` in `sim.gd`.
 
 | Item | Effect |
 |---|---|
@@ -338,7 +338,7 @@ per round, rounds 20.8 s, 160 side-swapped matches 87/73.
 Everything hurts both mechs, ignores the Q shield, is soaked by an overshield / bubble, and warns
 first. Damage without an attacker goes through `envHit` (no Surge for anyone but the victim's
 "taken" share, no hit-stop). Timers run off the round clock (`elapsed`), so they are fully
-deterministic. Constants: `TRAPS`, `HAZARDS` in `sim.js`.
+deterministic. Constants: `TRAPS`, `HAZARDS` in `sim.gd`.
 
 | Thing | Where | Rule |
 |---|---|---|
@@ -522,7 +522,7 @@ pressured into overheat, R baited by an opponent whose E is still lit.
 
 ### Built (garage, Exteel rework 2026-10-21: 10 heads, 10 cores, 6 arms, 10 legs, 6 boosters, 20 weapons)
 
-Numbers live in `HEADS`, `CORES`, `ARMS`, `LEG_PARTS`, `BOOSTERS` and `WEAPONS` in `src/sim.js`. The
+Numbers live in `HEADS`, `CORES`, `ARMS`, `LEG_PARTS`, `BOOSTERS` and `WEAPONS` in `godot/src/sim.gd`. The
 garage is a store in the Exteel style: PARTS (head, core, arms, legs, booster) and WEAPONS (left
 hand, right hand) tabs, part pictures on every card, a turntable, and a stat sheet that shows the
 change (green better, red worse) while you hover a card. The AI picks a random build each match.
