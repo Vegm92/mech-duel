@@ -96,7 +96,7 @@ const RECIPES := {
 		{"synth": {"wave": "square", "f": 520.0, "dur": 0.1, "filter": ["lowpass", 2000.0, 0.0, 1.0]}, "vol": 0.03, "at": 0.6}],
 	"pylon": [{"bank": "zap", "vol": 0.35, "rate": 0.85}],
 	"pylonWarn": [{"bank": "whine", "vol": 0.12, "rate": 1.3, "dur": 0.8}],
-	"vent": [{"bank": "thruster", "vol": 0.25, "dur": 1.4}],
+	"vent": [{"bank": "field", "vol": 0.3, "rate": 1.3, "dur": 1.4}, {"bank": "zap", "vol": 0.2, "rate": 0.6}],
 	"ventsOn": [{"synth": {"wave": "square", "f": 740.0, "dur": 0.16, "filter": ["lowpass", 2500.0, 0.0, 1.0]}, "vol": 0.04},
 		{"synth": {"wave": "square", "f": 740.0, "dur": 0.16, "filter": ["lowpass", 2500.0, 0.0, 1.0]}, "vol": 0.04, "at": 0.22}],
 	"closing": [{"synth": {"wave": "square", "f": 880.0, "dur": 0.18, "filter": ["lowpass", 2500.0, 0.0, 1.0]}, "vol": 0.05},

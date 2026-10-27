@@ -208,6 +208,14 @@ $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon
   `WALLS`) from `sim.gd`, and `view.gd` `STAND` must match the script's `STAND` (fans stand on
   the tiers and skip the aisles). Outside the stadium is unshaded `OUTSIDE` night color.
   Evidence: `godot-stadium-{left,bottom}-before-after-2026-10-27.png`, `godot-stadium-top-2026-10-27.png`.
+  **EMP zones** (Victor 2026-10-27: the fire vents became EMP zones, same spots and timing;
+  the sim names stay `vents`/`HAZARDS`): 12 Legs + `HAZARDS.slow` ticks of Slow instead of Heat.
+  Drawn with `EMP_SHADER` (additive crackle on a floor plane, `power` 0 = warning outline, 1 =
+  live); a mech with Slow > 2 (EMP only, frost sets 2) gets the same crackle under it (`shocks`).
+  **Pickups**: `item_<kind>` icons in `arena.glb` (repair wrench, shield, speed bolt, power
+  burst, coolant snowflake, surge battery; material `icon` = item color, `dark` details), tilted
+  to face the camera, and a colored ring on the pad. No name tags (Victor 2026-10-27: icons only).
+  Knobs: `ITEM` in view.gd. Evidence: `godot-emp-pickups-2026-10-27.png`.
 - **Crowd** (Victor 2026-10-27: more people, "same interactivity as the js version"). One
   `fan` mesh in `arena.glb` (92 faces, one material; UV.x tags shirt / sleeve / skin / hand /
   pants) drawn ~2650 times by one `MultiMeshInstance3D` (`view.build_stands`, 2 rows per tier,

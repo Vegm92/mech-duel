@@ -134,6 +134,14 @@ static func ball(r: float, segs := 12) -> Mesh:
 	return _meshes[key]
 
 
+static func plane() -> Mesh:
+	if not _meshes.has("plane"):
+		var p := PlaneMesh.new()
+		p.size = Vector2.ONE
+		_meshes["plane"] = p
+	return _meshes["plane"]
+
+
 static func ring(inner: float, outer: float) -> Mesh:
 	var key := "t%s/%s" % [inner, outer]
 	if not _meshes.has(key):
