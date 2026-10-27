@@ -44,21 +44,50 @@ uniform vec3 base : source_color = vec3(0.34, 0.36, 0.42);
 uniform vec3 line : source_color = vec3(0.42, 0.5, 0.64);
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+uniform float plate = 4.0;
+uniform float tint = 0.18;
+uniform float dirt = 0.45;
+uniform float bump = 0.3;
 float grid(vec2 p, float s) {
 	vec2 q = p / s;
 	vec2 g = abs(fract(q - 0.5) - 0.5) / fwidth(q);
 	return 1.0 - min(min(g.x, g.y), 1.0);
 }
+float hash(vec2 p) {
+	vec3 q = fract(vec3(p.xyx) * 0.1031);
+	q += dot(q, q.yzx + 33.33);
+	return fract((q.x + q.y) * q.z);
+}
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fbm(vec2 p) { return noise(p) * 0.5 + noise(p * 2.03) * 0.25 + noise(p * 4.1) * 0.125; }
 void fragment() {
-	float l = max(grid(wp.xz, 2.0) * 0.45, grid(wp.xz, 10.0));
-	float r = length(wp.xz - vec2(38.0, 30.0));
-	vec3 c = mix(base, line, l) * (1.15 - 0.35 * smoothstep(0.0, 40.0, r));
-	ALBEDO = c;
-	ROUGHNESS = 0.7;
-	METALLIC = 0.25;
+	vec2 p = wp.xz;
+	float seam = grid(p, plate);
+	float l = max(grid(p, 2.0) * 0.25, grid(p, 10.0));
+	float r = length(p - vec2(38.0, 30.0));
+	float grime = smoothstep(0.3, 0.75, fbm(p * 0.18));
+	float scuff = noise(p * vec2(6.0, 0.6) + hash(floor(p / plate)) * 40.0);
+	vec3 c = mix(base, line, l) * (1.0 + (hash(floor(p / plate)) - 0.5) * tint);
+	c *= 1.0 - dirt * grime;
+	c *= 1.0 - 0.5 * seam;
+	c *= 0.92 + 0.12 * scuff;
+	ALBEDO = c * (1.15 - 0.35 * smoothstep(0.0, 40.0, r));
+	ROUGHNESS = mix(0.55, 0.95, grime);
+	METALLIC = 0.2;
+	float e = 0.08;
+	vec2 q = p * 1.2;
+	float h = fbm(q);
+	vec3 n = normalize(vec3(-(fbm(q + vec2(e, 0.0)) - h) / e * bump * 0.1, 1.0, -(fbm(q + vec2(0.0, e)) - h) / e * bump * 0.1));
+	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 }
 """
 
+const STAGE := {"ambient": 0.2, "sun": 0.6, "sun_beam": 0.0, "air": 0.0, "haze": 0.04, "haze_height": 5.0, "falloff": 0.6, "haze_color": Color(0.75, 0.8, 0.9), "scatter": 0.5, "fog_length": 70.0, "tower_energy": 45.0, "tower_angle": 5.0, "tower_color": Color(0.85, 0.9, 1.0), "beam": 3.0, "tower_out": 14.0, "tower_height": 14.0, "follow": 3.5, "damp": 0.4, "aim_y": 1.0}
 static var ARENA := {"steel": Mech.mat(Color8(62, 70, 88), 0.0, 0.6, 0.4), "dark": Mech.mat(Color8(30, 34, 44), 0.0, 0.5, 0.6), "trim": Mech.mat(Color8(120, 128, 145), 0.0, 0.7, 0.4), "hazard": Mech.mat(Color8(214, 168, 44), 0.0, 0.2, 0.5), "amber": Mech.glow(Color8(255, 176, 60), 2.0), "zap": Mech.glow(Color8(170, 210, 255), 2.0), "pad": Mech.glow(Color8(95, 180, 255), 1.5), "heal": Mech.glow(Color8(90, 255, 150), 2.0), "vent": Mech.glow(Color8(255, 90, 40), 1.5)}
 
 var crowd: MultiMeshInstance3D
@@ -76,6 +105,7 @@ var shake := 0.0
 var stop := 0
 var slow := 0.0
 var marks: Node3D
+var towers := []
 var pylons := []
 var crushers := []
 var items := []
@@ -98,23 +128,35 @@ func build() -> void:
 	env.background_color = Color(0.02, 0.025, 0.045)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.45, 0.5, 0.7)
-	env.ambient_light_energy = 1.0
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 1.0
 	env.glow_enabled = true
 	env.glow_intensity = 0.5
 	env.glow_hdr_threshold = 2.2
 	env.ssao_enabled = true
-	env.fog_enabled = true
-	env.fog_light_color = Color(0.05, 0.06, 0.1)
-	env.fog_density = 0.004
+	env.ambient_light_energy = STAGE.ambient
+	env.volumetric_fog_enabled = true
+	env.volumetric_fog_density = STAGE.air
+	env.volumetric_fog_albedo = STAGE.haze_color
+	env.volumetric_fog_anisotropy = STAGE.scatter
+	env.volumetric_fog_length = STAGE.fog_length
+	var haze := FogVolume.new()
+	haze.size = Vector3(Sim.AW + 30, STAGE.haze_height * 2.0, Sim.AH + 30)
+	haze.position = Vector3(Sim.CX, 0, Sim.CY)
+	var fog := FogMaterial.new()
+	fog.density = STAGE.haze
+	fog.albedo = STAGE.haze_color
+	fog.height_falloff = STAGE.falloff
+	haze.material = fog
+	add_child(haze)
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 	marks = Node3D.new()
 	add_child(marks)
 	var sun := DirectionalLight3D.new()
-	sun.light_energy = 2.4
+	sun.light_energy = STAGE.sun
+	sun.light_volumetric_fog_energy = STAGE.sun_beam
 	sun.light_color = Color(1.0, 0.95, 0.88)
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 110.0
@@ -125,13 +167,17 @@ func build() -> void:
 		var c = corners[i]
 		var out := Vector3(c.x - Sim.CX, 0, c.y - Sim.CY).normalized()
 		var spot := SpotLight3D.new()
-		spot.light_energy = 4.0
+		spot.light_energy = STAGE.tower_energy
 		spot.spot_attenuation = 0.6
-		spot.spot_range = 90.0
-		spot.spot_angle = 32.0
-		spot.light_color = Color(0.85, 0.9, 1.0)
+		spot.spot_range = 120.0
+		spot.spot_angle = STAGE.tower_angle
+		spot.light_color = STAGE.tower_color
+		spot.shadow_enabled = true
+		spot.light_volumetric_fog_energy = STAGE.beam
 		add_child(spot)
-		spot.look_at_from_position(Vector3(c.x, 0, c.y) + out * 6.0 + Vector3(0, 26, 0), Vector3(Sim.CX, 0, Sim.CY) - out * 6.0)
+		var mid := Vector3(Sim.CX, 0, Sim.CY)
+		spot.look_at_from_position(Vector3(c.x, 0, c.y) + out * STAGE.tower_out + Vector3(0, STAGE.tower_height, 0), mid)
+		towers.append({"spot": spot, "at": mid, "v": Vector3.ZERO})
 	build_floor(corners)
 	build_walls(corners)
 	build_stands(corners)
@@ -356,6 +402,22 @@ func reset(state: Dictionary) -> void:
 	hype = 0.0
 	hype_tick = state.tick
 	cheer = [0.0, 0.0, 0.0, 0.0]
+	for i in towers.size():
+		var m = state.mechs[i % state.mechs.size()]
+		towers[i].at = Vector3(m.x, STAGE.aim_y, m.y)
+		towers[i].v = Vector3.ZERO
+	follow(state, 0.0)
+
+
+func follow(state: Dictionary, dt: float) -> void:
+	var w: float = STAGE.follow
+	for i in towers.size():
+		var t: Dictionary = towers[i]
+		var m = state.mechs[i % state.mechs.size()]
+		var goal := Vector3(m.x, STAGE.aim_y, m.y)
+		t.v = t.v + (w * w * (goal - t.at) - 2.0 * STAGE.damp * w * t.v) * dt
+		t.at = t.at + t.v * dt
+		t.spot.look_at(t.at)
 
 
 func team_of(state: Dictionary, id) -> int:
@@ -371,6 +433,7 @@ func shooter_color(state: Dictionary, f: Dictionary) -> Color:
 func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 	tick += 1
 	muzzle_off.clear()
+	follow(state, dt)
 	for i in mechs.size():
 		mechs[i].sync(state.mechs[i], tick, dt)
 		var act = state.mechs[i].act
