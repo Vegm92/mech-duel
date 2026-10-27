@@ -8,6 +8,7 @@ const Hud = preload("res://src/hud.gd")
 const I18n = preload("res://src/i18n.gd")
 const PartView = preload("res://src/part_view.gd")
 const Garage = preload("res://src/garage.gd")
+const CrowdSound = preload("res://src/crowd_sound.gd")
 
 const PITCH := deg_to_rad(60.0)
 const SAVE := "user://loadout.cfg"
@@ -20,6 +21,7 @@ const TRIGGER := {"left": JOY_AXIS_TRIGGER_LEFT, "right": JOY_AXIS_TRIGGER_RIGHT
 const SANDBOX := {"gap": 0.8, "pad": 0.8, "min": 2.4, "max": 10.0, "refill": 0.5, "cam": 1.1, "guard": 2.5, "dash": 80}
 
 var state: Dictionary
+var crowd_sound := CrowdSound.new()
 var brain: Dictionary
 var pilot: Dictionary
 var view: Node3D
@@ -132,6 +134,7 @@ func _ready() -> void:
 	add_child(cam)
 	view = View.new()
 	add_child(view)
+	add_child(crowd_sound)
 	view.build()
 	hud = Hud.new()
 	add_child(hud)
@@ -189,6 +192,7 @@ func resume() -> void:
 
 func to_garage() -> void:
 	paused = false
+	crowd_sound.update([], 0.0, false, false)
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 	view.visible = false
 	hud.visible = false
@@ -403,6 +407,8 @@ func _physics_process(delta: float) -> void:
 		Sim.step(state, [me, foe])
 	if not frozen and not held:
 		view.sync(state, aim, delta)
+	crowd_sound.update(view.fresh_fx, view.hype, state.phase == "fight" and not paused, not paused)
+	view.fresh_fx = []
 	shake = maxf(shake, view.shake)
 	view.shake = 0.0
 	if view.kick.length() > kick.length() * exp(-kick_t * Fx.KICK.decay):

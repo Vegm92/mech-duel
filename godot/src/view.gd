@@ -66,6 +66,7 @@ var fans := []
 var cheer := [0.0, 0.0, 0.0, 0.0]
 var hype := 0.0
 var hype_tick := 0
+var fresh_fx := []
 var mechs := []
 var pool := {}
 var active := []
@@ -309,6 +310,7 @@ func seat_fans(sides: int) -> void:
 ## Fans of every team but the hurt one cheer for big moments; a wild crowd cheers for everyone.
 func react(state: Dictionary, fresh: Array) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
+	fresh_fx.append_array(fresh)
 	hype =Hype.next(hype, state, fresh, (state.tick - hype_tick) / float(Sim.TICKS))
 	hype_tick = state.tick
 	for f in fresh:

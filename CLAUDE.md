@@ -207,6 +207,16 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build al
   hurt one cheer (`Hype.cheer_for` seconds); `hype.gd` is JS `hype.js` (decay, floors, `mood`),
   a wild mood makes everyone cheer. CPU work per frame = one 4-float uniform. Test:
   `tests/hype_test.gd`. Not ported: the JS pit crews.
+  **Crowd sounds** (Victor 2026-10-27: "bring the crowd sounds"): `crowd_sound.gd` ports the
+  crowd half of JS `sfx.js` with the same clips (`godot/assets/sounds/crowd*.ogg`, CC BY 4.0
+  credits in its `LICENSE.txt`). A looped bed (`crowdBed`) rises with hype during a match and
+  fades out when paused or in the garage; gasp / ooh / cheer / roar / K.O. clips go through the
+  JS rank gate (`react`: a busy crowd skips weaker reactions, stacked ones need `STACK` s);
+  `moment` picks louder clips as the mood rises; the chant plays after 3 s of a wild crowd, at
+  most every 22 s. Triggers as in JS: break (big), parry / hook / big boom (small), ult (ooh),
+  K.O. (roar + cheer), fight start (cheer). It is a child of main with
+  `PROCESS_MODE_ALWAYS` (hit-stop disables the view, which would pause its players); main feeds
+  it `view.fresh_fx` and `view.hype` every physics frame.
   Evidence: `godot-crowd-{calm,cheer,stands}-2026-10-27.png`.
 - Guns are `godot/assets/models/guns.glb` (one object per gun id, +X = barrel), made in Blender
   (`art/guns.blend`, build script = text block `guns_build.py`; re-run it, export the Guns
