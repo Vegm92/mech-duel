@@ -151,6 +151,9 @@ families; their warning behavior unchanged. The static reflection probe moved he
 it once the strips exist, with `rendering/reflections/reflection_atlas/reflection_count` cut to
 what the arena uses, and check the exit log.
 
+Victor's match (step 6, 2026-10-28): played one match on 6bd6b3f (M2 arena, M3 and the effects
+follow-up, before M4): "Played it, the new effects feel good."
+
 Acceptance (2026-10-27, code 41f43a4; numbers in the table below):
 - [x] seeds 3 and 7, `--cam=0`: neon accents 1.5–5 %, cyan + blue ≥ 60 % of them, orange present,
       and the M1 value targets still hold. Seed 3: neon 2.10 %, 82 % of it cyan and blue, orange
@@ -254,6 +257,9 @@ accents within the bloom rule). A team ground ring and a small overhead arrow pe
 no text). Every effect family checked on the new floor in the sandbox; knobs tuned in `fx.gd`
 only. The lance and rail wind-up bar (`mech.gd` `aim_line`, glow 4.0) brought under the bloom
 rule (Victor, 2026-10-27).
+
+Victor's match (step 6, 2026-10-28): played one match on 6bd6b3f (M2 arena, M3 and the effects
+follow-up, before M4): "Played it, the new effects feel good."
 
 Acceptance (2026-10-27, code d890fba; numbers in the table below):
 - [x] the wind-up bar no longer blooms: sandbox still of a lance wind-up (`--sandbox=rivet --ult`,
@@ -400,7 +406,8 @@ at wall bases, a few vents and grates, one low-count ambient particle system (du
 reflection strength tuned (no reflections after M2: probe and SSR left out).
 
 Victor's picks (2026-10-28): dust, not embers (moving orange specks could read as flamer fire);
-he had not played M2 yet, so no M2 fixes went first. M4 ran after M3, as planned.
+he had not played M2 yet when M4 started, so no M2 fixes went first (his match on M2 + M3
+came later, see M3). M4 ran after M3, as planned. M4's own match (step 6) is still to come.
 
 Acceptance (2026-10-27, code f36f50f; numbers in the table below):
 - [x] no decor within 1.5 m of a pad, spawn or trap warning; nothing decorative moves on the
