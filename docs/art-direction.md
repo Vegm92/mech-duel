@@ -119,6 +119,12 @@ The spec stays `FX_DESIGN.md`: punch, not glow; flash, burst, settle; the shoote
 This overhaul only checks that effects read on the new floor and adjusts their knobs. Muzzle,
 projectile, boost, impact and explosion effects already exist and are fired by real sim events.
 
+R skills and dashes (Victor, 2026-10-27): every R skill marks the moment it fires (team ring,
+star, spikes); lasting ones show an aura or a zone in their element color (purple Overdrive and
+Gravity Well, red Berserk, cyan Deflect, Stasis and Bubble, white Mirror), never a tint over the
+mech, so the team color stays. Zones are a faint fill with a crisp ring, never a bright disc.
+Pickup icons are smaller (`view.gd` `ITEM.size` 1.5, was 2.4): level 4 must not outshine a mech.
+
 ## HUD
 
 - Dark see-through plates with cut corners and angled edges, thin cyan lines, orange highlights, a

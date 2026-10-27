@@ -108,7 +108,7 @@ flowchart LR
 
 Each recipe has one knob dict at the top of `fx.gd`: `HIT`, `BOOM`, `RAY`, `ARC`, `MUZZLE`,
 `PARRY`, `BREAK`, `KO`, `LAND`, `DASH`, `RIPPLE`, `HOOKED`, `EMP`, `BLINK`, `HEAL`, `SOAK`,
-`MAGNET`, `CRUSH`, `PING`, `CHARGE`, `KICK`, `RIBBON`, `SMOKE`, `CONE`. One-shot pieces are pooled
+`MAGNET`, `CRUSH`, `PING`, `CHARGE`, `ULT`, `FIELD`, `KICK`, `RIBBON`, `SMOKE`, `CONE`. One-shot pieces are pooled
 (`Fx.take` / `Fx.park`: bars, spare emitters, damage numbers, dash ghosts); long-lived emitters
 (wreck smoke, missile trails, break smoke) are not. Particles are `CPUParticles3D`. Missing: a cap
 on live effects; add one only if profiling shows spikes.
@@ -198,6 +198,14 @@ the crowd and the effects, and moving them buys nothing.
   floor from tinting them.
 - **Wind-up bar:** `mech.gd` `aim_line` is `Mech.flat(SKIN.aim, true)`, additive like the
   effects, so it can no longer bloom.
+- **Buff auras** (2026-10-27): `mech.gd` `AURA` and `aura()`. `build` makes one hidden holder per
+  lasting R skill (Overdrive, Berserk, Deflect on the mech, Mirror on the torso so it turns with
+  the aim); `sync` shows the ones whose `m.buffs` key is above 0. Holders carry the `aura` meta,
+  and `Fx.ghost` skips them. A new lasting R skill with a `buffs` key gets an aura the same way.
+  The body no longer takes a buff tint: the team color stays readable.
+- **R skill release** (2026-10-27): every R skill sends `ult` when it fires; `view.spawn` plays
+  `Fx.ult`. Fields (`field_stasis`, `field_well`), the Bastion wall and the mines are built in
+  `view.make` from `Mech.flat` (no glow), field knobs in `Fx.FIELD`.
 
 ## Tools
 

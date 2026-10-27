@@ -63,7 +63,7 @@ $P = "$R\godot"
   `view.slow` → main.gd sets `Engine.time_scale`), land, dash (+ `Fx.ghost` afterimages), booster
   trails (`Fx.ribbon` for arc/flame/frost, `Fx.smoke` puffs for smoke), flamer cone
   (`view.cone`), shield ripple (`Fx.ripple`, from `view.guard` watching `act.absorbed`), hook
-  cable + catch (`view.tether`, `Fx.hooked`), directional camera kick (`view.kick` → main.gd), and emp, heal / pickup, crush, blink, soak, magnet, ping, R charge (`Fx.emp` … `Fx.charge`).
+  cable + catch (`view.tether`, `Fx.hooked`), directional camera kick (`view.kick` → main.gd), and emp, heal / pickup, crush, blink, soak, magnet, ping, R charge (`Fx.emp` … `Fx.charge`), R release (`Fx.ult`, from the sim's `ult` event, on every R skill). Lasting R skills show an aura instead of tinting the body (`mech.gd` `AURA`: Overdrive, Berserk, Deflect zone, Mirror arc; Victor 2026-10-27), and their fields, wall and mines are `Mech.flat` (`Fx.FIELD`). Dashes: team afterimages every 3 ticks plus white speed lines (`Fx.lines`).
   Effect nodes are pooled (`Fx.take`/`Fx.park`). Smoke and fire puffs use noise shaders (`SMOKE_SHADER`, `FIRE_SHADER` in fx.gd). **Sandbox:** `$G --path godot -- --sandbox=<weapon>` (two pinned mechs, auto-fire, ←/→
   weapon, T auto-fire, G guard, K refill, J dash, `--block` held shield, `--hook` auto hook, `--ult` R skill on repeat; see `FX_DESIGN.md`). Evidence:
   `production/qa/evidence/godot-hit-fx-before-after-2026-10-26.png`,
@@ -246,7 +246,8 @@ $P = "$R\godot"
   **Pickups**: `item_<kind>` icons in `arena.glb` (repair wrench, shield, speed bolt, power
   burst, coolant snowflake, surge battery; material `icon` = item color, `dark` details), tilted
   to face the camera, and a colored ring on the pad. No name tags (Victor 2026-10-27: icons only).
-  Knobs: `ITEM` in view.gd. Evidence: `godot-emp-pickups-2026-10-27.png`.
+  Knobs: `ITEM` in view.gd (icons at 1.5, 1.6 m up since 2026-10-27: at 2.4 they outshone the
+  mechs). Evidence: `godot-emp-pickups-2026-10-27.png`, `visual-m3-pickups-before-after-2026-10-27.png`.
 - **Crowd** (Victor 2026-10-27: more people, "same interactivity as the js version"). One
   `fan` mesh in `arena.glb` (92 faces, one material; UV.x tags shirt / sleeve / skin / hand /
   pants) drawn ~2650 times by one `MultiMeshInstance3D` (`view.build_stands`, 2 rows per tier,

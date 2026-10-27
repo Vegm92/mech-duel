@@ -360,6 +360,39 @@ Process:
   the depth-reading overlay (6 extra lines in `garage_parts`), so `mark()` adds it only when there
   is a display. A windowed still with the check is the same as without it.
 
+### M3 follow-up: pickups, R skills, dashes (Victor, 2026-10-27)
+
+Victor after M3: "shrink pickup icons, and improve the effects for ultimates, and dashes".
+Evidence: `visual-m3-pickups-before-after-2026-10-27.png`,
+`visual-m3-ults-before-after-2026-10-27.png` (10 R skill moments, before | after),
+`visual-m3-dash-before-after-2026-10-27.png` (ticks 3, 6, 9, 13 of a dash; top before).
+
+What was wrong (all 18 R skills shot at the moment they fire and while they last):
+- No R skill marked the moment it fired: the sim's `ult` event had no view.
+- Deflect and Mirror had no visual at all. Overdrive and Berserk only tinted the body, which
+  turned an orange mech pink and hid its team; Bubble's lit sphere turned it lavender.
+- Stasis and Gravity Well drew big pale discs with blooming rims; Bastion's wall was a beige
+  board (`TEAM_LIGHT` glow); Titan's mines glowed at 6.0.
+- Dashes: additive afterimages piled up into a pale blob, and the flame trail came out beige.
+
+What changed (details in `FX_DESIGN.md` build order 9):
+- **Pickups:** `ITEM.size` 2.4 → 1.5, lift 2.2 → 1.6 m (gap 1 of M3; their glow is unchanged).
+- **R skills:** `Fx.ult` on every release; auras for Overdrive, Berserk, Deflect (its 3 m zone)
+  and Mirror (its 70° arc) in `mech.gd` `AURA`, no body tint; Bubble a thin shell; fields a faint
+  fill, a crisp ring and a moving white ring (`Fx.FIELD`); the wall solid team color with a white
+  top edge; mines a flat red light. Nothing on an R skill uses `Mech.glow` any more.
+- **Dashes:** team afterimages with normal blend, darkened 25 %, every 3 ticks; white speed lines
+  each tick; a flash and a wider ring at the start; booster trails at `RIBBON.gain` 0.45.
+
+Checks: the 4 suites pass; no script errors in 20 sandbox runs; GPU 2.69 / 3.77 and 2.75 /
+4.95 ms (2 runs, M3 median 2.94 / 4.02), draw calls 888 (886). Nodes 1029 (~801): the pooled
+bars for speed lines and release bursts stay parked once made.
+
+Process: the dash looked unchanged at first because the sandbox's thruster has a 5 s cooldown,
+so `--dash` dashes once at the start; dash stills need ticks 1–13. Before/after stills came from
+the committed code exported with `git archive` into a scratch folder (with its `.godot` import
+cache copied), so both sides used the same ticks.
+
 ## M4 — Atmosphere
 
 Scope: static scorch and debris decals (seeded, kept off pads, spawns and warning zones), grime
