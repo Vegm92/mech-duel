@@ -553,8 +553,10 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		marks_of[1].visible = seen and not sm.ko
 		marks_of[2].set_shader_parameter("strength", Look.RIM.strength if seen else 0.0)
 		var act = state.mechs[i].act
-		if act != null and act.k == "dash" and act.get("ph") == "go" and tick % Fx.DASH.every == 0:
-			Fx.ghost(self, mechs[i], Mech.TEAM[state.mechs[i].team])
+		if act != null and act.k == "dash" and act.get("ph") == "go" and not sm.ko:
+			if tick % Fx.DASH.every == 0:
+				Fx.ghost(self, mechs[i], Mech.TEAM[sm.team])
+			Fx.lines(self, mechs[i].position, Vector2(act.dx, act.dy))
 		guard(state.mechs[i], mechs[i])
 		var pull = state.mechs[i].pull
 		if pull != null:
@@ -598,7 +600,13 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		var n := node_for(f, "field_" + f.kind)
 		n.position = Vector3(f.x, 0.04, f.y)
 		n.scale = Vector3(f.r, 1, f.r)
-		n.get_child(0).transparency = 1.0 - clampf(f.t / 30.0, 0.0, 1.0)
+		var k := fmod(tick * Fx.FIELD.pulse, 1.0)
+		var s := 1.0 - k if f.kind == "well" else k
+		var gone := 1.0 - clampf(f.t / 30.0, 0.0, 1.0)
+		n.get_child(0).transparency = gone
+		n.get_child(1).transparency = gone
+		n.get_child(2).scale = Vector3(s, 1, s)
+		n.get_child(2).transparency = maxf(gone, 1.0 - sin(PI * k))
 		settle(n)
 	for tr in state.trails:
 		trail(state, tr)
@@ -608,7 +616,7 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		n.position = Vector3((w.x1 + w.x2) / 2.0, 1.1, (w.y1 + w.y2) / 2.0)
 		n.rotation = Vector3(0, -d.angle(), 0)
 		n.scale = Vector3(d.length(), 1, 1)
-		n.material_override = Mech.glow(Mech.TEAM_LIGHT[team_of(state, w.owner)], 2.0, 0.55)
+		n.material_override = Mech.flat(Color(Mech.TEAM[team_of(state, w.owner)].darkened(MARK.dim), 0.6))
 		settle(n)
 	var keep := []
 	for n in active:
@@ -699,13 +707,14 @@ func make(kind: String) -> Node3D:
 			n = Node3D.new()
 			add_child(n)
 			Mech.add(n, Mech.cyl(0.3, 0.34, 0.12, 10), Mech.mat(Mech.DARK, 0.0, 0.6, 0.4))
-			Mech.add(n, Mech.ball(0.09, 8), Mech.glow(Color8(255, 60, 40), 6.0), Vector3(0, 0.1, 0))
+			Mech.add(n, Mech.ball(0.12, 8), Mech.flat(Color8(255, 60, 40), true), Vector3(0, 0.1, 0))
 		"field_stasis", "field_well":
-			var c := Color8(110, 235, 255) if kind == "field_stasis" else Color8(205, 125, 255)
+			var c: Color = Fx.FIELD[kind.substr(6)]
 			n = Node3D.new()
 			add_child(n)
-			Mech.add(n, Mech.cyl(1.0, 1.0, 0.03, 32), Mech.glow(c, 1.2, 0.3))
-			Mech.add(n, Mech.ring(0.94, 1.0), Mech.glow(c, 3.0))
+			Mech.add(n, Mech.cyl(1.0, 1.0, 0.02, 32), Mech.flat(Color(c, Fx.FIELD.fill), true))
+			Mech.add(n, Mech.ring(0.95, 1.0), Mech.flat(c, true))
+			Mech.add(n, Mech.ring(0.9, 1.0), Mech.flat(Color(1, 1, 1, Fx.FIELD.inner), true))
 		"ribbon":
 			var mi := MeshInstance3D.new()
 			mi.mesh = ImmediateMesh.new()
@@ -720,6 +729,7 @@ func make(kind: String) -> Node3D:
 			add_child(n)
 		"wall":
 			n = Mech.add(self, Mech.box(Vector3(1, 2.2, 0.35)), null)
+			Mech.add(n, Mech.box(Vector3(1, 0.08, 0.4)), Mech.flat(Color(1, 1, 1, 0.85), true), Vector3(0, 1.1, 0))
 		_:
 			n = Mech.add(self, Mech.box(Vector3(1, 1, 1)), null)
 	return n
@@ -1040,3 +1050,6 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			Fx.ping(self, f)
 		"charge":
 			Fx.charge(self, f, Mech.TEAM[team_of(state, f.id)])
+		"ult":
+			Fx.ult(self, f, Mech.TEAM[team_of(state, f.id)])
+			shake = maxf(shake, Fx.ULT.shake)
