@@ -27,6 +27,7 @@ const TAIL := 1.6
 const TIP := {"drill": 1.4, "bunker": 1.25, "fist": 0.72}
 const WHIP := {"links": 16, "len": 3.95, "coil": 2.2, "back": 2.4, "crack": 2.5}
 const TRAIL_LIFE := 0.16
+const SKIN := {"body": [0.35, 0.4], "trim": [0.75, 0.35], "joint": [0.6, 0.55], "accent": 0.9, "aim": Color(1.0, 0.75, 0.35, 0.7)}
 
 var team := 0
 var body_mat: StandardMaterial3D
@@ -212,10 +213,15 @@ static func weapon_node(name: String, mats: Dictionary, side := 1.0) -> Node3D:
 static func paints(lo: Dictionary, t: int) -> Dictionary:
 	var body := StandardMaterial3D.new()
 	body.albedo_color = TEAM[t]
-	body.metallic = 0.3
-	body.roughness = 0.5
+	body.metallic = SKIN.body[0]
+	body.roughness = SKIN.body[1]
 	body.emission_enabled = true
 	body.emission = Color.BLACK
+	var accent := StandardMaterial3D.new()
+	accent.albedo_color = Color.BLACK
+	accent.emission_enabled = true
+	accent.emission = TEAM[t]
+	accent.emission_energy_multiplier = SKIN.accent
 	var gem := StandardMaterial3D.new()
 	gem.albedo_color = EYES[t]
 	gem.emission_enabled = true
@@ -226,7 +232,7 @@ static func paints(lo: Dictionary, t: int) -> Dictionary:
 	boost.albedo_color = bc
 	boost.emission_enabled = true
 	boost.emission = bc
-	return {"body": body, "trim": mat(STEEL, 0.0, 0.55, 0.5), "joint": mat(DARK, 0.0, 0.4, 0.6), "gem": gem, "boost": boost, "core": glow(CORE_C[lo.core], 3.0), "heal": glow(Color8(90, 255, 150), 3.0), "glow": glow(TEAM_LIGHT[t], 1.6), "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)}
+	return {"body": body, "trim": mat(STEEL, 0.0, SKIN.trim[0], SKIN.trim[1]), "joint": mat(DARK, 0.0, SKIN.joint[0], SKIN.joint[1]), "gem": gem, "boost": boost, "core": glow(CORE_C[lo.core], 3.0), "heal": glow(Color8(90, 255, 150), 3.0), "glow": accent, "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)}
 
 
 static func arm(p: Node3D, kind: String, s: String, parts: Dictionary) -> MeshInstance3D:
@@ -308,7 +314,7 @@ func build(lo: Dictionary, t: int) -> void:
 	shield.visible = false
 	bubble = add(self, ball(1.35, 20), glow(Color8(110, 170, 255), 1.2, 0.18), Vector3(0, 1.0, 0))
 	bubble.visible = false
-	aim_line = add(torso, box(Vector3(1, 0.06, 1)), glow(Color8(255, 190, 90), 4.0, 0.6), Vector3(0, 1.08, 0))
+	aim_line = add(torso, box(Vector3(1, 0.06, 1)), flat(SKIN.aim, true), Vector3(0, 1.08, 0))
 	aim_line.visible = false
 	var tm := StandardMaterial3D.new()
 	tm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
