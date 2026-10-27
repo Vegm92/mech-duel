@@ -5,6 +5,36 @@ const Mech = preload("res://src/mech.gd")
 const Fx = preload("res://src/fx.gd")
 const TRACER := 0.028
 const DASHES := [0.4, 0.25, 0.15]
+const Hype = preload("res://src/hype.gd")
+const CROWD := {"rows": [0.65, 1.95], "gap": 0.55, "empty": 0.08, "neutral": 0.2,
+	"neutrals": [Color8(230, 230, 236), Color8(60, 64, 74), Color8(240, 200, 60), Color8(120, 200, 120)],
+	"skins": [Color8(241, 194, 150), Color8(198, 134, 90), Color8(141, 85, 52), Color8(255, 220, 180)]}
+
+const CROWD_SHADER := """
+shader_type spatial;
+uniform vec3 shirts[8];
+uniform vec3 skins[4];
+uniform float cheer[4];
+varying vec3 col;
+void vertex() {
+	int slot = int(INSTANCE_CUSTOM.y + 0.5);
+	float on = slot < 4 ? cheer[slot] : max(max(cheer[0], cheer[1]), max(cheer[2], cheer[3]));
+	float ph = INSTANCE_CUSTOM.x;
+	float tag = UV.x;
+	if (on > 0.5 && ((tag > 0.2 && tag < 0.4) || (tag > 0.6 && tag < 0.8))) {
+		float s = sign(VERTEX.x);
+		vec2 p = VERTEX.xy - vec2(s * 0.205, 0.64);
+		float a = s * (2.5 + 0.35 * sin(TIME * 8.3 + ph));
+		VERTEX.xy = mat2(vec2(cos(a), sin(a)), vec2(-sin(a), cos(a))) * p + vec2(s * 0.205, 0.64);
+	}
+	VERTEX.y += on > 0.5 ? max(0.0, sin(TIME * 8.3 + ph)) * 0.35 : 0.03 * sin(TIME * 2.5 + ph);
+	col = tag < 0.4 ? shirts[slot] * INSTANCE_CUSTOM.z : (tag < 0.8 ? skins[int(INSTANCE_CUSTOM.w + 0.5)] : vec3(0.02, 0.025, 0.035));
+}
+void fragment() {
+	ALBEDO = col;
+	ROUGHNESS = 0.85;
+}
+"""
 
 const FLOOR_SHADER := """
 shader_type spatial;
@@ -28,6 +58,14 @@ void fragment() {
 }
 """
 
+static var ARENA := {"steel": Mech.mat(Color8(62, 70, 88), 0.0, 0.6, 0.4), "dark": Mech.mat(Color8(30, 34, 44), 0.0, 0.5, 0.6), "trim": Mech.mat(Color8(120, 128, 145), 0.0, 0.7, 0.4), "hazard": Mech.mat(Color8(214, 168, 44), 0.0, 0.2, 0.5), "amber": Mech.glow(Color8(255, 176, 60), 2.0), "zap": Mech.glow(Color8(170, 210, 255), 2.0), "pad": Mech.glow(Color8(95, 180, 255), 1.5), "heal": Mech.glow(Color8(90, 255, 150), 2.0), "vent": Mech.glow(Color8(255, 90, 40), 1.5)}
+
+var crowd: MultiMeshInstance3D
+var crowd_mat := ShaderMaterial.new()
+var fans := []
+var cheer := [0.0, 0.0, 0.0, 0.0]
+var hype := 0.0
+var hype_tick := 0
 var mechs := []
 var pool := {}
 var active := []
@@ -95,50 +133,51 @@ func build() -> void:
 	build_walls(corners)
 	build_stands(corners)
 	for p in Sim.PILLARS:
-		Mech.add(self, Mech.cyl(p.r, p.r * 1.08, 2.0, 8), Mech.mat(Color8(62, 70, 88), 0.0, 0.6, 0.4), Vector3(p.x, 1.0, p.y))
-		Mech.add(self, Mech.ring(p.r * 0.92, p.r * 1.02), Mech.glow(Color8(255, 176, 60), 0.6), Vector3(p.x, 2.02, p.y))
+		var pillar := Mech.add_part(self, "pillar", ARENA, "arena")
+		pillar.position = Vector3(p.x, 0, p.y)
+		pillar.scale = Vector3(p.r, 1, p.r)
 	for p in Sim.TRAPS.tesla.at:
-		Mech.add(self, Mech.cyl(0.3, 0.45, 1.7, 10), Mech.mat(Color8(52, 58, 72), 0.0, 0.7, 0.35), Vector3(p.x, 0.85, p.y))
+		Mech.add_part(self, "tesla", ARENA, "arena").position = Vector3(p.x, 0, p.y)
 		var m := StandardMaterial3D.new()
 		m.albedo_color = Color8(170, 210, 255)
 		m.emission_enabled = true
 		m.emission = Color8(170, 210, 255)
-		var top := Mech.add(self, Mech.ball(0.32), m, Vector3(p.x, 1.95, p.y))
+		var top := Mech.add_part(self, "tesla_orb", ARENA.merged({"zap": m}, true), "arena")
+		top.position = Vector3(p.x, 2.0, p.y)
 		top.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		pylons.append(m)
 	for p in Sim.TRAPS.crush.at:
-		var h: float = Sim.TRAPS.crush.half * 2
 		var warn := StandardMaterial3D.new()
 		warn.albedo_color = Color8(214, 168, 44)
 		warn.emission_enabled = true
 		warn.emission = Color8(255, 60, 40)
 		warn.emission_energy_multiplier = 0.0
-		Mech.add(self, Mech.box(Vector3(h, 0.06, h)), warn, Vector3(p.x, 0.03, p.y))
-		Mech.add(self, Mech.box(Vector3(h - 0.5, 0.07, h - 0.5)), Mech.mat(Color8(34, 30, 20), 0.0, 0.4, 0.6), Vector3(p.x, 0.04, p.y))
+		var hm := ARENA.merged({"hazard": warn}, true)
+		Mech.add_part(self, "crush_plate", hm, "arena").position = Vector3(p.x, 0, p.y)
 		var piston := Node3D.new()
 		add_child(piston)
-		Mech.add(piston, Mech.box(Vector3(h - 0.2, 0.7, h - 0.2)), Mech.mat(Color8(80, 86, 100), 0.0, 0.7, 0.35))
-		Mech.add(piston, Mech.box(Vector3(0.4, 6.0, 0.4)), Mech.mat(Color8(50, 54, 64), 0.0, 0.6, 0.4), Vector3(0, 3.3, 0))
+		Mech.add_part(piston, "crush_head", hm, "arena")
 		piston.position = Vector3(p.x, 3.0, p.y)
 		crushers.append([piston, warn])
 	for p in Sim.TRAPS.oil.at:
 		Mech.add(self, Mech.cyl(Sim.TRAPS.oil.r, Sim.TRAPS.oil.r, 0.02, 24), Mech.mat(Color8(30, 24, 44), 0.0, 0.3, 0.3), Vector3(p.x, 0.012, p.y))
-	heal_ring = Mech.add(self, Mech.ring(0.7, 0.95), Mech.glow(Color8(90, 255, 150), 3.0), Vector3(Sim.HEAL.x, 0.05, Sim.HEAL.y))
+	Mech.add_part(self, "heal_pad", ARENA, "arena").position = Vector3(Sim.HEAL.x, 0, Sim.HEAL.y)
+	heal_ring = Mech.add(self, Mech.ring(0.7, 0.95), Mech.glow(Color8(90, 255, 150), 3.0), Vector3(Sim.HEAL.x, 0.16, Sim.HEAL.y))
 	heal_cross = Node3D.new()
 	heal_cross.position = Vector3(Sim.HEAL.x, 1.0, Sim.HEAL.y)
 	add_child(heal_cross)
 	Mech.add(heal_cross, Mech.box(Vector3(0.18, 0.6, 0.18)), Mech.glow(Color8(90, 255, 150), 4.0))
 	Mech.add(heal_cross, Mech.box(Vector3(0.6, 0.18, 0.18)), Mech.glow(Color8(90, 255, 150), 4.0))
 	for p in Sim.PADS:
-		Mech.add(self, Mech.cyl(0.75, 0.8, 0.08, 16), Mech.mat(Color8(48, 54, 70), 0.0, 0.6, 0.4), Vector3(p.x, 0.04, p.y))
-		Mech.add(self, Mech.ring(0.62, 0.74), Mech.glow(Color8(95, 180, 255), 1.0), Vector3(p.x, 0.09, p.y))
+		Mech.add_part(self, "pad", ARENA, "arena").position = Vector3(p.x, 0, p.y)
 		var it := Mech.add(self, Mech.box(Vector3(0.45, 0.45, 0.45)), null, Vector3(p.x, 1.0, p.y))
 		it.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		it.visible = false
 		items.append(it)
 	for g in Sim.vents(0.0):
-		Mech.add(self, Mech.box(Vector3(0.9, 0.3, 0.5)), Mech.mat(Color8(30, 30, 34), 0.0, 0.5, 0.5), Vector3(g.x, 0.3, g.y), Vector3(0, -atan2(g.dy, g.dx), 0))
-		Mech.add(self, Mech.box(Vector3(0.1, 0.12, 1.4)), Mech.glow(Color8(255, 90, 40), 1.5), Vector3(g.x + g.dx * 0.3, 0.32, g.y + g.dy * 0.3), Vector3(0, -atan2(g.dy, g.dx), 0))
+		var vent := Mech.add_part(self, "vent", ARENA, "arena")
+		vent.position = Vector3(g.x, 0, g.y)
+		vent.rotation.y = -atan2(g.dy, g.dx)
 		var jet := Mech.add(self, Mech.box(Vector3(1, 1, 1)), Mech.glow(Color8(255, 120, 40), 4.0, 0.7))
 		jet.visible = false
 		jets.append(jet)
@@ -179,18 +218,21 @@ func edge(corners: Array, i: int) -> Array:
 
 
 func build_walls(corners: Array) -> void:
-	var wall := Mech.mat(Color8(44, 50, 62), 0.0, 0.5, 0.45)
-	var strip := Mech.glow(Color8(255, 168, 44), 3.0)
 	for i in Sim.WALLS.size():
 		var e := edge(corners, i)
 		var a: Vector3 = e[0]
 		var b: Vector3 = e[1]
 		var nrm: Vector3 = e[2]
-		var mid := (a + b) / 2.0
-		var length := a.distance_to(b)
-		var rot := Vector3(0, -atan2(b.z - a.z, b.x - a.x), 0)
-		Mech.add(self, Mech.box(Vector3(length + 0.8, 1.3, 0.8)), wall, mid + nrm * 0.4 + Vector3(0, 0.65, 0), rot)
-		Mech.add(self, Mech.box(Vector3(length, 0.08, 0.1)), strip, mid + nrm * 0.02 + Vector3(0, 1.3, 0), rot)
+		var dir := (b - a).normalized()
+		if dir.cross(Vector3.UP).dot(nrm) < 0:
+			dir = -dir
+		var basis := Basis(dir, Vector3.UP, dir.cross(Vector3.UP))
+		var count := maxi(1, roundi(a.distance_to(b) / 4.0))
+		var step := a.distance_to(b) / count
+		for k in count:
+			var panel := Mech.add_part(self, "wall", ARENA, "arena")
+			panel.transform = Transform3D(basis.scaled_local(Vector3(step / 4.0, 1, 1)), a.lerp(b, (k + 0.5) / count))
+		Mech.add_part(self, "wall_post", ARENA, "arena").position = b + nrm * 0.15
 
 
 func build_stands(corners: Array) -> void:
@@ -215,32 +257,74 @@ func build_stands(corners: Array) -> void:
 			var h := 1.4 + k * 1.3
 			Mech.add(self, Mech.box(Vector3(length, h, 2.6)), tier, (a + b) / 2.0 + nrm * (off + 1.3) + Vector3(0, h / 2.0, 0), rot)
 			Mech.add(self, Mech.box(Vector3(length, 0.06, 0.08)), Mech.glow(fan, 1.2), (a + b) / 2.0 + nrm * off + Vector3(0, h + 0.03, 0), rot)
-			var count := int(length / 0.75)
-			for j in count:
-				if rng.randf() < 0.25:
-					continue
-				var along := (j + 0.5) / count - 0.5
-				var pos: Vector3 = (a + b) / 2.0 + dir * along * (length - 1.0) + nrm * (off + 0.6 + rng.randf() * 1.2) + Vector3(0, h + 0.35, 0)
-				var c: Color = fan if rng.randf() < 0.55 else Color.from_hsv(rng.randf(), 0.15, 0.35 + rng.randf() * 0.3)
-				spots.append([pos, c])
+			var face := dir if dir.cross(Vector3.UP).dot(nrm) > 0 else -dir
+			var basis := Basis(face, Vector3.UP, face.cross(Vector3.UP))
+			for row in CROWD.rows:
+				var o: float = off + row
+				var span := a.distance_to(b) + 2.0 * o * 0.414 - 0.8
+				var mid: Vector3 = (a + b) / 2.0 + nrm * o + Vector3(0, h, 0)
+				for j in int(span / CROWD.gap):
+					if rng.randf() < CROWD.empty:
+						continue
+					var pos := mid + dir * ((j + 0.5) * CROWD.gap - span / 2.0 + rng.randf_range(-0.08, 0.08))
+					var neutral := -1 if rng.randf() >= CROWD.neutral else rng.randi_range(4, 7)
+					spots.append([Transform3D(basis.scaled(Vector3.ONE * rng.randf_range(0.9, 1.12)), pos), neutral, Color(rng.randf() * TAU, 0, rng.randf_range(0.75, 1.15), rng.randi_range(0, 3))])
+	mm.use_custom_data = true
 	mm.instance_count = spots.size()
 	for i in spots.size():
-		mm.set_instance_transform(i, Transform3D(Basis(), spots[i][0]))
-		mm.set_instance_color(i, spots[i][1])
-	var person := CapsuleMesh.new()
-	person.radius = 0.2
-	person.height = 0.7
-	person.radial_segments = 6
-	person.rings = 2
-	var pm := StandardMaterial3D.new()
-	pm.vertex_color_use_as_albedo = true
-	pm.roughness = 0.8
-	person.material = pm
-	mm.mesh = person
-	var crowd := MultiMeshInstance3D.new()
+		mm.set_instance_transform(i, spots[i][0])
+	fans = spots
+	mm.mesh = Mech.models("arena")["fan"][0]
+	crowd_mat.shader = Shader.new()
+	crowd_mat.shader.code = CROWD_SHADER
+	var lin := func(cs: Array) -> PackedVector3Array:
+		var out := PackedVector3Array()
+		for c in cs:
+			var l: Color = c.srgb_to_linear()
+			out.append(Vector3(l.r, l.g, l.b))
+		return out
+	crowd_mat.set_shader_parameter("shirts", lin.call(Mech.TEAM + CROWD.neutrals))
+	crowd_mat.set_shader_parameter("skins", lin.call(CROWD.skins))
+	crowd = MultiMeshInstance3D.new()
 	crowd.multimesh = mm
+	crowd.material_override = crowd_mat
 	crowd.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	crowd.extra_cull_margin = 1.0
 	add_child(crowd)
+	seat_fans(2)
+
+
+## Who each fan roots for: the team on their side of the arena (like the JS sideOf).
+func seat_fans(sides: int) -> void:
+	var mm := crowd.multimesh
+	for i in fans.size():
+		var p: Vector3 = fans[i][0].origin
+		var slot: int = fans[i][1]
+		if slot < 0:
+			slot = (0 if p.x < Sim.CX else 1) if sides <= 2 else ((0 if p.z < Sim.CY else 3) if p.x < Sim.CX else (2 if p.z < Sim.CY else 1))
+		var c: Color = fans[i][2]
+		mm.set_instance_custom_data(i, Color(c.r, slot, c.b, c.a))
+
+
+## Fans of every team but the hurt one cheer for big moments; a wild crowd cheers for everyone.
+func react(state: Dictionary, fresh: Array) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	hype =Hype.next(hype, state, fresh, (state.tick - hype_tick) / float(Sim.TICKS))
+	hype_tick = state.tick
+	for f in fresh:
+		var t := Hype.cheer_for(f)
+		if t > 0.0:
+			var hurt := team_of(state, f.get("id"))
+			for i in 4:
+				if i != hurt:
+					cheer[i] = maxf(cheer[i], now + t)
+	if Hype.mood(hype) == 2:
+		for i in 4:
+			cheer[i] = maxf(cheer[i], now + 0.3)
+	var on := PackedFloat32Array()
+	for i in 4:
+		on.append(1.0 if cheer[i] > now else 0.0)
+	crowd_mat.set_shader_parameter("cheer", on)
 
 
 func reset(state: Dictionary) -> void:
@@ -261,6 +345,13 @@ func reset(state: Dictionary) -> void:
 	active.clear()
 	for c in marks.get_children():
 		c.queue_free()
+	var teams := {}
+	for m in state.mechs:
+		teams[m.team] = true
+	seat_fans(teams.size())
+	hype = 0.0
+	hype_tick = state.tick
+	cheer = [0.0, 0.0, 0.0, 0.0]
 
 
 func team_of(state: Dictionary, id) -> int:
@@ -292,10 +383,13 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 			settle(cab)
 	reticle.position = aim + Vector3(0, 0.05, 0)
 	reticle.visible = state.phase == "fight" and not state.mechs[0].ko
+	var fresh := []
 	for f in state.fx:
 		if not f.has("seen"):
 			f["seen"] = true
+			fresh.append(f)
 			spawn(state, f)
+	react(state, fresh)
 	var flames := {}
 	for s in state.shots:
 		if s.kind == "flame":
