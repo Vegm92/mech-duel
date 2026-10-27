@@ -19,6 +19,7 @@ G=/c/Users/victo/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
 $G --path godot                                                # play
 $G --headless --path godot -s res://tests/sim_rules_test.gd     # sim tests (golden hash, determinism, FFA)
 $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow; gamepad in match + garage
+$G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon has a sound, banks load, synth + music bake, volume settings
 ```
 
 ## Godot (`godot/`)
@@ -188,6 +189,53 @@ $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build al
   more dramatic"); tune that one knob, not the shapes. Glow parts use material
   `boost`, painted `BOOST_C[trail]` and brightened while dashing.
   Evidence: `production/qa/evidence/godot-boosters-2026-10-26.png`.
+- **Arena props** (Victor 2026-10-27: "new looks only", same layout and rules) are
+  `godot/assets/models/arena.glb` (`art/arena.blend`, build script = text block `arena_build.py`;
+  built and exported headless so the open Blender file is never touched). Objects: `pillar`
+  (radius 1, view scales x/z by the sim radius), `tesla` + `tesla_orb` (orb pulses via material
+  `zap`), `crush_plate` + `crush_head` (block centered on the origin; `hazard` stripes take the
+  per-crusher warn material), `heal_pad`, `pad`, `vent` (+X = into the arena), `wall` (a 4 m
+  panel, arena face at z 0; `build_walls` tiles and stretches it per edge) and `wall_post`.
+  `view.gd` `ARENA` maps the material names (steel, dark, trim, hazard, amber, zap, pad, heal,
+  vent). Evidence: `production/qa/evidence/godot-arena-{before,after,wide}-2026-10-27.png`.
+- **Crowd** (Victor 2026-10-27: more people, "same interactivity as the js version"). One
+  `fan` mesh in `arena.glb` (92 faces, one material; UV.x tags shirt / sleeve / skin / hand /
+  pants) drawn ~2650 times by one `MultiMeshInstance3D` (`view.build_stands`, 2 rows per tier,
+  `CROWD` knobs), animated only in `CROWD_SHADER`: idle sway, cheer = jump + both arms up.
+  Per-fan custom data = phase, slot (0–3 team, 4–7 neutral), shirt shade, skin. `seat_fans`
+  gives each fan the team on its side (JS `sideOf`: left/right, quadrants with 4 teams).
+  `view.react` ports the JS: big hit (≥30 or head), hook, break, K.O. make every team but the
+  hurt one cheer (`Hype.cheer_for` seconds); `hype.gd` is JS `hype.js` (decay, floors, `mood`),
+  a wild mood makes everyone cheer. CPU work per frame = one 4-float uniform. Test:
+  `tests/hype_test.gd`. Not ported: the JS pit crews.
+  **Crowd sounds** (Victor 2026-10-27: "bring the crowd sounds"): `crowd_sound.gd` ports the
+  crowd half of JS `sfx.js` with the same clips (`godot/assets/sounds/crowd*.ogg`, CC BY 4.0
+  credits in its `LICENSE.txt`). A looped bed (`crowdBed`) rises with hype during a match and
+  fades out when paused or in the garage; gasp / ooh / cheer / roar / K.O. clips go through the
+  JS rank gate (`react`: a busy crowd skips weaker reactions, stacked ones need `STACK` s);
+  `moment` picks louder clips as the mood rises; the chant plays after 3 s of a wild crowd, at
+  most every 22 s. Triggers as in JS: break (big), parry / hook / big boom (small), ult (ooh),
+  K.O. (roar + cheer), fight start (cheer). It is a child of main with
+  `PROCESS_MODE_ALWAYS` (hit-stop disables the view, which would pause its players); main feeds
+  it `view.fresh_fx` and `view.hype` every physics frame.
+  Evidence: `godot-crowd-{calm,cheer,stands}-2026-10-27.png`.
+- **Sound** (Victor 2026-10-27: "full sound system for weapons, effects, and the game itself";
+  spec `SOUND_DESIGN.md`, "punch, not mush"). `sfx.gd` is a child of main (`PROCESS_MODE_ALWAYS`)
+  fed `sfx.update(state, view.fresh_fx, paused)` every physics frame, `sfx.menu()` in the garage,
+  `sfx.ui(kind)` from the `ui` signals of garage.gd and hud.gd. Recipes are data in `RECIPES`
+  (ported from JS `sfx.js`, which Victor tuned by ear): `key_of` maps an fx event to a key
+  (`muzzle_<gun>`, `slash_<blade>`, `hitHead`, `boomBig`, `countGo`, else the fx `k`); a layer is
+  a sample bank (`BANKS`, one `AudioStreamRandomizer` each, no-repeat) or a `synth` spec baked to
+  `AudioStreamWAV` by `render` on a worker thread. Pooled `AudioStreamPlayer3D` voices sit at the
+  event spot (camera = listener), events without a spot and menus use the flat pool. Also: per-mech
+  hover/tread hums + footsteps (`LOOPS`, `STEPS`), overheat / cooled / low-head alarms, shield up
+  and shield block (watched from `m.act`, not fx), K.O. slow-mo via
+  `AudioServer.playback_speed_scale`. Music = the JS procedural loop baked into 3 stems of one
+  `AudioStreamSynchronized` (calm in garage/pause, + bass in countdown, + drums in a fight).
+  Buses (`Sfx.buses()`, code-built): Master (compressor + limiter) ← SFX, Env, Crowd, Music (ducked
+  by SFX through a side-chain compressor). Pause menu sliders + M mute + N music, saved in
+  `user://settings.cfg`. A new weapon or fx kind needs a `RECIPES` row, or `sound_test` fails.
+  Not checked by ear (Claude can't hear). Evidence: `godot-sound-pause-sliders-{english,spanish}-2026-10-27.png`.
 - Guns are `godot/assets/models/guns.glb` (one object per gun id, +X = barrel), made in Blender
   (`art/guns.blend`, build script = text block `guns_build.py`; re-run it, export the Guns
   collection as .glb; the Preview collection poses 3 robots for a fit check, never exported).

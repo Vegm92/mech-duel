@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 signal fight(lo: Dictionary)
+signal ui(kind: String)
 
 const Sim = preload("res://src/sim.gd")
 const PartView = preload("res://src/part_view.gd")
@@ -324,6 +325,8 @@ func set_hover(h) -> void:
 	if h == hover:
 		return
 	hover = h
+	if h != null:
+		ui.emit("hover")
 	for c in cards:
 		c[1].turn(c[2] == hover)
 	refresh()
@@ -339,16 +342,19 @@ func equip(h: Dictionary) -> void:
 		loadout = Sim.SETS[h.set].duplicate()
 	else:
 		loadout = Sim.normalize(loadout.merged({h.slot: h.key}, true))
+	ui.emit("set" if h.has("set") else "equip")
 	refresh()
 
 
 func select_tab(i: int) -> void:
 	tab = i
 	hover = null
+	ui.emit("tab")
 	build_tab()
 
 
 func go() -> void:
+	ui.emit("start")
 	fight.emit(loadout.duplicate())
 
 
