@@ -345,7 +345,7 @@ deterministic. Constants: `TRAPS`, `HAZARDS` in `sim.gd`.
 | Crusher plate | top and bottom lane, 5 m from the walls, 3 × 3 m | slams every 6 s (plates half a cycle apart), red flash + beeps 1 s before; 55 to Legs, impact 3 |
 | Tesla pylon | center line, pillar rows (solid, r 0.45) | zaps everyone within 3 m every 4 s, glow + whine 0.8 s before; 40 to the arm facing it, impact 1 |
 | Oil slick | middle row, in front of each spawn, r 2 | grip ×0.2 (slow to start, slow to stop); hover legs float over it |
-| Fire vents | middle of each of the 8 walls | from 20 s: straight walls and diagonals take turns every 3 s, 1 s warning, 1.5 s of fire 3.8 m long; 12 to Legs + 8 Heat every 0.5 s inside |
+| EMP zones (were fire vents; Victor 2026-10-27) | 3 along each of the 8 walls | from 20 s: straight walls and diagonals take turns every 3 s, 1 s warning (faint outline), 1.5 s live, 5 × 2 m off the wall; 12 to Legs every 0.5 s inside + Slow 40t (×0.4 top speed, no dash) |
 | Sudden death | all walls | from 45 s the octagon shrinks up to 7 m by the 60 s mark; touching a wall then costs 4 Legs every 0.25 s |
 
 The bot steps away from a plate, pylon or vent lane while it is warning or firing, avoids the moving
