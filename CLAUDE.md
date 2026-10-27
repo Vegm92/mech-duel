@@ -20,6 +20,22 @@ $G --path godot                                                # play
 $G --headless --path godot -s res://tests/sim_rules_test.gd     # sim tests (golden hash, determinism, FFA)
 $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow; gamepad in match + garage
 $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon has a sound, banks load, synth + music bake, volume settings
+$G --headless --path godot -s res://tests/hype_test.gd         # crowd hype and crowd sounds
+```
+
+Same in PowerShell (Victor runs commands there; works from any folder):
+
+```powershell
+$G = "C:\Users\victo\Tools\Godot\Godot_v4.7.2-stable_win64_console.exe"
+$R = "C:\Users\victo\Proyectos\Claude-Code-Game-Studios\games\mech-duel"
+$P = "$R\godot"
+& $G --path $P                                                  # play
+& $G --path $P -- --sandbox=laser                               # effects sandbox (see FX_DESIGN.md)
+& $G --headless --path $P -s res://tests/sim_rules_test.gd      # sim tests
+& $G --headless --path $P -s res://tests/garage_parts_test.gd   # garage, parts, flow, gamepad tests
+& $G --headless --path $P -s res://tests/sound_test.gd          # sound tests
+& $G --headless --path $P -s res://tests/hype_test.gd           # crowd tests
+& $G --path $P --resolution 1920x1080 -s "$R\tools\perf_probe.gd" -- --autopilot --seed=3   # speed: one PERF line after ~40 s
 ```
 
 ## Godot (`godot/`)
@@ -208,6 +224,11 @@ $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon
   `WALLS`) from `sim.gd`, and `view.gd` `STAND` must match the script's `STAND` (fans stand on
   the tiers and skip the aisles). Outside the stadium is unshaded `OUTSIDE` night color.
   Evidence: `godot-stadium-{left,bottom}-before-after-2026-10-27.png`, `godot-stadium-top-2026-10-27.png`.
+  **Stadium lighting** (491b057): four corner SpotLights follow the bots on an underdamped spring
+  (`view.follow`; 2 per bot in 1v1, 1 each in FFA), a low `FogVolume` haze shows their beams (the
+  sun stays out of it), and the floor shader adds steel plates, grime, scuffs and bump. Knobs:
+  `view.gd` `STAGE`. Evidence: `godot-stadium-lighting-before-after-2026-10-27.png`,
+  `godot-stadium-follow-spots-2026-10-27.png`.
   **EMP zones** (Victor 2026-10-27: the fire vents became EMP zones, same spots and timing;
   the sim names stay `vents`/`HAZARDS`): 12 Legs + `HAZARDS.slow` ticks of Slow instead of Heat.
   Drawn with `EMP_SHADER` (additive crackle on a floor plane, `power` 0 = warning outline, 1 =
@@ -277,6 +298,15 @@ $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon
   act with `follow`, the sim's 360° `spinDmg` hit): `spin_of` turns the torso one full turn in the
   swing's direction over the first half of recovery, linear (keeps each tick under 180° so
   physics interpolation can't spin it backwards); the trail follows, so it draws a full ring.
+- **Visual overhaul** (Victor 2026-10-27: industrial neon arena, target
+  `docs/reference/industrial-neon-arena.webp`, branch `feat/visual-overhaul`). The look:
+  `docs/art-direction.md`. How visuals are built: `docs/visual-architecture.md`. Starting
+  state and numbers: `docs/visual-audit.md`. Milestones, budgets and acceptance:
+  `docs/visual-plan.md`. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>`
+  with `--autopilot`), `tools/look_stats.py` (look numbers vs the reference),
+  `tools/blender_export.py` (headless build + export of one `.blend`; every "export the X
+  collection" step in this file is `blender -b art/<x>.blend --python tools/blender_export.py --
+  --build --save`).
 
 ## Hard rules
 
