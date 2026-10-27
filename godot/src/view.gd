@@ -41,51 +41,108 @@ void fragment() {
 const FLOOR_SHADER := """
 shader_type spatial;
 render_mode cull_disabled;
+""" + Look.NOISE + """
 uniform vec3 base : source_color;
-uniform vec3 line : source_color;
+uniform vec3 paint : source_color;
+uniform vec3 black : source_color;
+uniform vec3 mark : source_color;
 uniform float metal;
 uniform vec2 rough;
+uniform float plate = 4.0;
+uniform float split;
+uniform float tint;
+uniform float dirt;
+uniform vec2 seam;
+uniform float tilt;
+uniform float polish;
+uniform float stripe;
+uniform float wear;
+uniform vec2 ring;
+uniform vec2 box;
+uniform vec2 edge;
+uniform vec2 rings[10];
+uniform vec2 boxes[4];
+uniform vec3 walls[8];
+uniform vec3 spawns[2];
+uniform vec3 oils[2];
+uniform vec3 oil : source_color;
+uniform vec2 slick;
+uniform float film;
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
-uniform float plate = 4.0;
-uniform float tint = 0.18;
-uniform float dirt = 0.45;
-uniform float bump = 0.3;
-float grid(vec2 p, float s) {
-	vec2 q = p / s;
-	vec2 g = abs(fract(q - 0.5) - 0.5) / fwidth(q);
-	return 1.0 - min(min(g.x, g.y), 1.0);
+float band(float x, vec2 r) {
+	float w = fwidth(x);
+	return smoothstep(r.x - w, r.x + w, x) * (1.0 - smoothstep(r.y - w, r.y + w, x));
 }
-float hash(vec2 p) {
-	vec3 q = fract(vec3(p.xyx) * 0.1031);
-	q += dot(q, q.yzx + 33.33);
-	return fract((q.x + q.y) * q.z);
-}
-float noise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	f = f * f * (3.0 - 2.0 * f);
-	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
-float fbm(vec2 p) { return noise(p) * 0.5 + noise(p * 2.03) * 0.25 + noise(p * 4.1) * 0.125; }
 void fragment() {
 	vec2 p = wp.xz;
-	float seam = grid(p, plate);
-	float l = max(grid(p, 2.0) * 0.25, grid(p, 10.0));
-	float r = length(p - vec2(38.0, 30.0));
-	float grime = smoothstep(0.3, 0.75, fbm(p * 0.18));
-	float scuff = noise(p * vec2(6.0, 0.6) + hash(floor(p / plate)) * 40.0);
-	vec3 c = mix(base, line, l) * (1.0 + (hash(floor(p / plate)) - 0.5) * tint);
+	vec2 id = floor(p / plate);
+	float h = hash(id);
+	float s = hash(id + 17.0) < split ? plate * 0.5 : plate;
+	vec2 f = fract(p / s) - 0.5;
+	vec2 e = (0.5 - abs(f)) * s;
+	float d = min(e.x, e.y);
+	float gap = 1.0 - band(d, vec2(seam.x, 1e6));
+	vec2 b = 1.0 - smoothstep(vec2(seam.x), vec2(seam.y), e);
+	float grime = smoothstep(0.35, 0.8, fbm(p * 0.3)) * 0.7 + (1.0 - smoothstep(0.0, 0.5, d)) * 0.3;
+	float scuff = noise(p * vec2(6.0, 0.6) + h * 40.0);
+	vec3 c = base * (1.0 + (h - 0.5) * tint);
 	c *= 1.0 - dirt * grime;
-	c *= 1.0 - 0.5 * seam;
 	c *= 0.92 + 0.12 * scuff;
-	ALBEDO = c * (1.15 - 0.35 * smoothstep(0.0, 40.0, r));
-	ROUGHNESS = mix(rough.x, rough.y, grime);
-	METALLIC = metal;
-	float e = 0.08;
-	vec2 q = p * 1.2;
-	float h = fbm(q);
-	vec3 n = normalize(vec3(-(fbm(q + vec2(e, 0.0)) - h) / e * bump * 0.1, 1.0, -(fbm(q + vec2(0.0, e)) - h) / e * bump * 0.1));
+	float haz = 0.0;
+	for (int i = 0; i < 10; i++) {
+		haz = max(haz, band(length(p - rings[i]), ring));
+	}
+	for (int i = 0; i < 4; i++) {
+		vec2 q = abs(p - boxes[i]);
+		haz = max(haz, band(max(q.x, q.y), box));
+	}
+	float wall = 1e6;
+	vec2 along = vec2(1.0, 0.0);
+	for (int i = 0; i < 8; i++) {
+		float k = walls[i].z - dot(walls[i].xy, p);
+		if (k < wall) {
+			wall = k;
+			along = vec2(-walls[i].y, walls[i].x);
+		}
+	}
+	float lane = band(wall, edge) * band(abs(fract(dot(p, along) / 2.0) - 0.5), vec2(0.15, 1.0));
+	float mk = 0.0;
+	for (int i = 0; i < 2; i++) {
+		vec2 dir = vec2(cos(spawns[i].z), sin(spawns[i].z));
+		vec2 q = p - spawns[i].xy;
+		float u = dot(q, dir) - 2.0;
+		float v = abs(dot(q, vec2(-dir.y, dir.x)));
+		mk = max(mk, band(abs(fract((u + v * 0.8) / 0.9) - 0.5), vec2(-1.0, 0.13)) * band(u, vec2(0.0, 2.7)) * band(v, vec2(-1.0, 0.9)));
+	}
+	float chip = smoothstep(wear - 0.08, wear + 0.08, noise(p * 5.0 + 3.0));
+	float st = band(abs(fract((p.x + p.y) / (2.0 * stripe)) - 0.5), vec2(0.25, 1.0));
+	float painted = max(haz * st, lane) * chip;
+	c = mix(c, black, haz * (1.0 - st) * 0.9);
+	c = mix(c, paint, painted);
+	c = mix(c, mark, mk * chip * 0.6);
+	c *= 1.0 - 0.75 * gap;
+	float wet = 0.0;
+	float depth = 0.0;
+	for (int i = 0; i < 2; i++) {
+		vec2 q = p - oils[i].xy;
+		if (dot(q, q) < oils[i].z * oils[i].z * 1.21) {
+			float in_oil = oils[i].z * (0.92 + 0.16 * fbm(q * 0.8 + float(i) * 7.0)) - length(q);
+			wet = max(wet, smoothstep(-0.02, 0.02, in_oil));
+			depth = max(depth, clamp(in_oil / 0.4, 0.0, 1.0));
+		}
+	}
+	if (wet > 0.0) {
+		vec3 sheen = 0.5 + 0.5 * cos(6.2831 * (depth * 1.5 + fbm(p * 2.0) + vec3(0.0, 0.33, 0.67)));
+		c = mix(c, oil + sheen * film * (1.0 - depth), wet);
+	}
+	ALBEDO = c * (1.15 - 0.35 * smoothstep(0.0, 40.0, length(p - vec2(38.0, 30.0))));
+	float gloss = hash(id + 41.0) < polish ? 0.55 : 1.0;
+	float coat = max(painted, mk);
+	ROUGHNESS = mix(mix(mix(rough.x * gloss, rough.y, grime), 0.65, coat), slick.y, wet);
+	METALLIC = mix(mix(metal, 0.15, max(coat, haz)), slick.x, wet);
+	vec2 slope = sign(f) * b * tilt * (1.0 - wet);
+	vec3 n = normalize(vec3(slope.x, 1.0, slope.y));
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 }
 """
@@ -181,6 +238,8 @@ func build() -> void:
 	for p in Sim.PILLARS:
 		accent(Vector3(p.x, S.accent_y, p.y), Look.PAL.cyan)
 	accent(Vector3(Sim.HEAL.x, S.accent_y, Sim.HEAL.y), Look.PAL.cyan)
+	for p in Sim.TRAPS.oil.at:
+		accent(Vector3(p.x, S.accent_y, p.y), Look.PAL.cyan)
 	build_floor(corners)
 	build_walls(corners)
 	build_stands(corners)
@@ -196,10 +255,7 @@ func build() -> void:
 		top.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		pylons.append(m)
 	for p in Sim.TRAPS.crush.at:
-		var warn: StandardMaterial3D = Look.ARENA.hazard.duplicate()
-		warn.emission_enabled = true
-		warn.emission = Look.PAL.warn
-		warn.emission_energy_multiplier = 0.0
+		var warn: ShaderMaterial = Look.ARENA.hazard.duplicate()
 		var hm := Look.ARENA.merged({"hazard": warn}, true)
 		Mech.add_part(self, "crush_plate", hm, "arena").position = Vector3(p.x, 0, p.y)
 		var piston := Node3D.new()
@@ -207,8 +263,6 @@ func build() -> void:
 		Mech.add_part(piston, "crush_head", hm, "arena")
 		piston.position = Vector3(p.x, 3.0, p.y)
 		crushers.append([piston, warn])
-	for p in Sim.TRAPS.oil.at:
-		Mech.add(self, Mech.cyl(Sim.TRAPS.oil.r, Sim.TRAPS.oil.r, 0.02, 24), Look.ARENA.oil, Vector3(p.x, 0.012, p.y))
 	Mech.add_part(self, "heal_pad", Look.ARENA, "arena").position = Vector3(Sim.HEAL.x, 0, Sim.HEAL.y)
 	heal_ring = Mech.add(self, Mech.ring(0.7, 0.95), Mech.glow(Look.PAL.heal, 3.0), Vector3(Sim.HEAL.x, 0.16, Sim.HEAL.y))
 	heal_cross = Node3D.new()
@@ -259,12 +313,12 @@ func build_floor(corners: Array) -> void:
 		st.add_vertex(Vector3(Sim.CX, 0, Sim.CY))
 		st.add_vertex(Vector3(b.x, 0, b.y))
 		st.add_vertex(Vector3(a.x, 0, a.y))
-	var sm := ShaderMaterial.new()
-	var sh := Shader.new()
-	sh.code = FLOOR_SHADER
-	sm.shader = sh
-	for k in Look.FLOOR:
-		sm.set_shader_parameter(k, Look.FLOOR[k])
+	var sm := Look.shader(FLOOR_SHADER, Look.FLOOR)
+	sm.set_shader_parameter("rings", PackedVector2Array((Sim.PADS + Sim.SPAWNS).map(func(o): return Vector2(o.x, o.y))))
+	sm.set_shader_parameter("boxes", PackedVector2Array(Sim.TRAPS.crush.at.map(func(o): return Vector2(o.x, o.y))))
+	sm.set_shader_parameter("walls", PackedVector3Array(Sim.WALLS.map(func(w): return Vector3(w.nx, w.ny, w.d))))
+	sm.set_shader_parameter("spawns", PackedVector3Array(Sim.SPAWNS.map(func(o): return Vector3(o.x, o.y, o.aim))))
+	sm.set_shader_parameter("oils", PackedVector3Array(Sim.TRAPS.oil.at.map(func(o): return Vector3(o.x, o.y, Sim.TRAPS.oil.r))))
 	var floor := MeshInstance3D.new()
 	floor.mesh = st.commit()
 	floor.material_override = sm
@@ -753,7 +807,7 @@ func arena(state: Dictionary) -> void:
 	var Z = Sim.TRAPS.tesla
 	for i in pylons.size():
 		var u := Sim.until_zap(state, i)
-		pylons[i].emission_energy_multiplier = (2.0 + 4.0 * absf(sin(tick * 0.5))) if u <= Z.warn else 0.35
+		pylons[i].emission_energy_multiplier = (2.0 + 4.0 * absf(sin(tick * 0.5))) if u <= Z.warn else Look.NEON.cyan
 	var C = Sim.TRAPS.crush
 	for i in crushers.size():
 		var u := Sim.until_slam(state, i)
@@ -767,7 +821,7 @@ func arena(state: Dictionary) -> void:
 		if warn:
 			y += 0.05 * sin(tick * 1.7)
 		crushers[i][0].position.y = y
-		crushers[i][1].emission_energy_multiplier = (2.0 + 2.0 * sin(tick * 0.6)) if warn else 0.0
+		crushers[i][1].set_shader_parameter("warn", (2.0 + 2.0 * sin(tick * 0.6)) if warn else 0.0)
 	heal_ring.transparency = 0.0 if state.heal.ready else 0.75
 	heal_cross.visible = state.heal.ready
 	heal_cross.rotation.y += 0.03

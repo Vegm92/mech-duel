@@ -23,6 +23,7 @@ const FAMILY := {
 	"floor": [0.6, 0.45],
 	"painted": [0.2, 0.6],
 	"hazard": [0.15, 0.7],
+	"oil": [0.0, 0.05],
 }
 
 const STAGE := {
@@ -31,28 +32,103 @@ const STAGE := {
 	"key": 0.5, "key_color": Color(1.0, 0.96, 0.9), "key_from": Vector3(-0.5, 3.0, 1.0), "garage_key": 2.2,
 	"spot": 10.0, "spot_angle": 7.0, "spot_color": Color(0.85, 0.9, 1.0),
 	"tower_out": 14.0, "tower_height": 14.0, "follow": 3.5, "damp": 0.4, "aim_y": 1.0,
-	"accent": 3.0, "accent_range": 5.0, "accent_y": 0.8, "accent_in": 1.5,
+	"accent": 4.0, "accent_range": 4.5, "accent_y": 0.8, "accent_in": 1.5,
 }
 
-const FLOOR := {"base": PAL.steel, "line": PAL.steel, "metal": FAMILY.floor[0], "rough": Vector2(0.35, 0.6), "tint": 0.45, "dirt": 0.75}
+const FLOOR := {
+	"base": PAL.steel, "paint": PAL.hazard, "black": PAL.void, "mark": PAL.steel_hi,
+	"metal": FAMILY.floor[0], "rough": Vector2(0.35, 0.6), "tint": 0.3, "dirt": 0.8, "split": 0.35,
+	"seam": Vector2(0.03, 0.1), "tilt": 0.15, "polish": 0.35, "stripe": 0.22, "wear": 0.38,
+	"ring": Vector2(1.1, 1.4), "box": Vector2(1.65, 2.0), "edge": Vector2(1.0, 1.15),
+	"oil": PAL.grime, "slick": Vector2(FAMILY.oil[0], FAMILY.oil[1]), "film": 0.08,
+}
+
+const NEON := {"cyan": 0.75, "orange": 0.75}
+
+const HAZARD := {"paint": PAL.hazard, "black": PAL.void, "metal": FAMILY.hazard[0], "rough": FAMILY.hazard[1], "width": 0.16, "wear": 0.3, "warn_color": PAL.warn}
+
+const NOISE := """
+float hash(vec2 p) {
+	vec3 q = fract(vec3(p.xyx) * 0.1031);
+	q += dot(q, q.yzx + 33.33);
+	return fract((q.x + q.y) * q.z);
+}
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fbm(vec2 p) { return noise(p) * 0.5 + noise(p * 2.03) * 0.25 + noise(p * 4.1) * 0.125; }
+"""
+
+const HAZARD_SHADER := """
+shader_type spatial;
+""" + NOISE + """
+uniform vec3 paint : source_color;
+uniform vec3 black : source_color;
+uniform float metal;
+uniform float rough;
+uniform float width;
+uniform float wear;
+uniform vec3 warn_color : source_color;
+uniform float warn = 0.0;
+varying vec3 wp;
+varying vec3 wn;
+void vertex() {
+	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wn = normalize(MODEL_NORMAL_MATRIX * NORMAL);
+}
+void fragment() {
+	vec2 t = abs(wn.y) > 0.7 ? wp.xz : vec2(dot(wp.xz, normalize(vec2(-wn.z, wn.x))), wp.y);
+	float x = abs(fract((t.x + t.y) / (2.0 * width)) - 0.5);
+	float aa = fwidth(x);
+	float s = smoothstep(0.25 - aa, 0.25 + aa, x);
+	float chip = smoothstep(wear - 0.08, wear + 0.08, noise(t * 6.0));
+	ALBEDO = mix(black, paint, s * chip);
+	METALLIC = metal;
+	ROUGHNESS = rough;
+	EMISSION = warn_color * warn;
+}
+"""
 
 static var ARENA := {
 	"steel": paint("painted", PAL.navy), "dark": paint("gunmetal", PAL.gunmetal),
-	"trim": paint("gunmetal", PAL.steel), "hazard": paint("hazard", PAL.hazard),
-	"amber": Mech.glow(PAL.orange, 3.0), "zap": Mech.glow(PAL.cyan, 2.0),
-	"pad": Mech.glow(PAL.cyan, 1.5), "heal": Mech.glow(PAL.heal, 2.0), "vent": Mech.glow(PAL.cyan, 1.5),
-	"oil": Mech.mat(Color8(30, 24, 44), 0.0, 0.3, 0.3),
-	"concrete": Mech.mat(Color8(48, 54, 70), 0.0, 0.0, 0.85), "tread": Mech.mat(Color8(32, 36, 48), 0.0, 0.1, 0.8),
-	"aisle": Mech.mat(Color8(72, 78, 94), 0.0, 0.2, 0.7), "roof": Mech.mat(Color8(13, 15, 21), 0.0, 0.3, 0.8),
-	"flood": Mech.glow(Color8(235, 240, 255), 2.5), "screen": Mech.glow(Color8(40, 90, 170), 0.8),
-	"seat_a": Mech.mat(Mech.TEAM[0].darkened(0.45), 0.0, 0.0, 0.7), "seat_b": Mech.mat(Mech.TEAM[1].darkened(0.45), 0.0, 0.0, 0.7),
-	"seat_n": Mech.mat(Color8(70, 76, 92), 0.0, 0.0, 0.7),
-	"led_a": Mech.glow(Mech.TEAM[0], 1.5), "led_b": Mech.glow(Mech.TEAM[1], 1.5), "led_n": Mech.glow(Color8(200, 200, 210), 1.2),
+	"trim": paint("gunmetal", PAL.steel), "hazard": shader(HAZARD_SHADER, HAZARD),
+	"amber": neon(PAL.orange, NEON.orange), "zap": neon(PAL.cyan, NEON.cyan), "strip": neon(PAL.cyan, NEON.cyan),
+	"pad": neon(PAL.cyan, NEON.cyan), "heal": Mech.glow(PAL.heal, 2.0), "vent": neon(PAL.cyan, NEON.cyan),
+	"concrete": paint("painted", PAL.navy), "tread": paint("painted", PAL.gunmetal),
+	"aisle": paint("painted", PAL.steel), "roof": paint("gunmetal", PAL.void),
+	"flood": Mech.glow(STAGE.spot_color, 2.5), "screen": Mech.glow(PAL.blue, 0.6),
+	"seat_a": paint("painted", Mech.TEAM[0].darkened(0.45)), "seat_b": paint("painted", Mech.TEAM[1].darkened(0.45)),
+	"seat_n": paint("painted", PAL.steel),
+	"led_a": Mech.glow(Mech.TEAM[0], 1.5), "led_b": Mech.glow(Mech.TEAM[1], 1.5), "led_n": Mech.glow(PAL.cyan, 1.2),
 }
 
 
 static func paint(family: String, c: Color) -> StandardMaterial3D:
 	return Mech.mat(c, 0.0, FAMILY[family][0], FAMILY[family][1])
+
+
+## Light only: a black surface that emits `c`, so the scene's lights never wash it out.
+static func neon(c: Color, energy: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color.BLACK
+	m.roughness = 1.0
+	m.emission_enabled = true
+	m.emission = c
+	m.emission_energy_multiplier = energy
+	return m
+
+
+## A shader material with its knobs set by name (hazard stripes, the floor).
+static func shader(code: String, knobs: Dictionary) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = Shader.new()
+	m.shader.code = code
+	for k in knobs:
+		m.set_shader_parameter(k, knobs[k])
+	return m
 
 
 ## The one Environment for the arena and the garage previews (`clear` = see-through background).
