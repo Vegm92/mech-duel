@@ -9,8 +9,8 @@ How the look is built, what depends on what, and the rules for changing it. Targ
 |---|---|
 | `godot/main.tscn` | one `Main` node; everything else is created in code |
 | `godot/src/main.gd` | game camera (follow, close-ups, shake, kick), hit-stop, slow-mo, look-check flags, screenshots |
-| `godot/src/look.gd` | palette `PAL`, material families, light rig and tonemap knobs `STAGE`, floor values `FLOOR`, arena slot materials `ARENA`, `env()` for the arena and the garage |
-| `godot/src/view.gd` | WorldEnvironment, light placement (key, follow spots, accents), floor shader, walls, stands and crowd, arena props, projectiles, traps, the effect dispatch `spawn`, danger zone, reticle |
+| `godot/src/look.gd` | palette `PAL`, material families, light rig and tonemap knobs `STAGE`, floor values `FLOOR`, light level `NEON` and `neon()`, hazard stripes `HAZARD` + `HAZARD_SHADER`, shader noise `NOISE`, `shader()`, arena slot materials `ARENA`, `env()` for the arena and the garage |
+| `godot/src/view.gd` | WorldEnvironment, light placement (key, follow spots, accents), floor shader v2 (plates, hazard bands, edge line, spawn chevrons, oil slicks), walls, stands and crowd, arena props, projectiles, traps, the effect dispatch `spawn`, danger zone, reticle |
 | `godot/src/mech.gd` | material helpers (`mat`, `glow`, `flat`), mesh helpers, `.glb` loading (`models`, `add_part`), team colors (`TEAM`, `TEAM_LIGHT`, `TEAM_DARK`, `EYES`, `CORE_C`, `BOOST_C`), mech build and animation |
 | `godot/src/fx.gd` | effect recipes, one knob dict each, particle layers, smoke and fire shaders, node pools |
 | `godot/src/hud.gd`, `garage.gd` | HUD and garage UI; shared plate style `Garage.plate`; UI colors |
@@ -41,8 +41,8 @@ flowchart LR
     mat["Mech.mat, glow, flat: cached materials"]
     paints["Mech.paints: team materials"]
     arenam["Look.ARENA: arena materials"]
-    look["look.gd: PAL, families, STAGE, FLOOR, env()"]
-    env["view.build: key, spots, accents, floor shader"]
+    look["look.gd: PAL, families, STAGE, FLOOR, NEON, hazard shader, env()"]
+    env["view.build: key, spots, accents, floor shader v2 with oil"]
     pv["part_view: garage previews"]
     mech["mech.gd: build, sync, pose, trails"]
     sync["view.sync: shots, lobs, mines, fields, trails, traps"]
@@ -74,9 +74,13 @@ flowchart LR
 - **Material slots by name.** Every material name in a `.glb` must exist in the dict passed to
   `Mech.add_part`, or loading fails. Mech parts: `body`, `trim`, `joint`, `gem`, `boost`, `core`,
   `glow`, `heal`, `flame`, `laser`, `arc`, `bounce` → `Mech.paints`. Arena: `steel`, `dark`,
-  `trim`, `hazard`, `amber`, `zap`, `pad`, `heal`, `vent` (stadium-polish adds `aisle`,
+  `trim`, `hazard`, `amber`, `zap`, `pad`, `heal`, `vent`, `strip` (stadium-polish adds `aisle`,
   `concrete`, `flood`, `icon`, `led_a/b/n`, `roof`, `screen`, `seat_a/b/n`, `tread`) →
   `Look.ARENA`. A new slot = the name in the build script and in the dict, in the same change.
+- **Floor shader arrays match the sim.** `FLOOR_SHADER` has fixed array sizes, filled from
+  `sim.gd` in `build_floor`: `rings[10]` = `PADS` + `SPAWNS`, `boxes[4]` = the crushers,
+  `walls[8]`, `spawns[2]`, `oils[2]`. A change in one of those counts changes the shader's array
+  size in the same edit.
 - **Origins are pivots.** An object's position in the `.glb` is its pivot in its parent's space
   (legs in hips space, cores in chest space, boosters on the chest's back face, guns at elbow,
   fist or shoulder pad).
@@ -133,22 +137,39 @@ stencil text can be a flat `Label3D`; rings and markers are primitive meshes.
 
 - `PAL`: the palette tokens from `art-direction.md`.
 - `FAMILY` (metallic, roughness per family) and `paint(family, color)`, which calls `Mech.mat`
-  so the cache still shares materials; emissives call `Mech.glow` with a `PAL` color.
+  so the cache still shares materials; arena lights call `neon()` with a `PAL` color (M2).
 - `ARENA`: arena slot name → material, read by `view.gd` and the garage stand.
 - `STAGE`: tonemap, glow, ambient, key, follow spots and accent lights. `FLOOR`: the floor
   shader's uniforms, set by name.
 - `env(clear)`: the Environment for both `view.gd` and `part_view.gd`. It asserts
   `glow_threshold ≥ fx_peak × exposure`, because Godot 4.7 multiplies the glow input by exposure
   (and glow strength) before the threshold (`copy.glsl`, glow first pass).
-- Shared shader code for metal wear, when Milestone 2 needs it.
+- `NOISE`: hash, noise and fbm, shared by the floor and hazard shaders (M2).
 
 Light rig in `view.build`: the key is the only shadow caster, high and behind the camera (the
 camera never rotates, so the key's shine never reflects into it); 4 unshadowed follow spots;
-unshadowed cyan and orange omni accents at the pillar bases, the wall corners and the heal pad.
-No haze, no reflection probe yet (M2, once there is something bright to reflect).
+unshadowed cyan and orange omni accents at the pillar bases, the wall corners, the heal pad and
+over the oil slicks. No haze and no reflections: a reflection probe and screen-space reflections
+were both tried in M2 and neither showed at the game camera.
 
 `Mech.TEAM` and the other team colors stay in `mech.gd`: they are mech identity, used by the HUD,
 the crowd and the effects, and moving them buys nothing.
+
+## Arena (Milestone 2)
+
+- **Lights:** arena lights are `Look.neon(color, NEON.x)`: a black surface that only emits, at
+  energy 0.75. Under AgX a brighter or lit emissive turns near white (saturation ~0.3) and stops
+  reading as cyan or orange. Keep new arena lights on `neon()` and check them with
+  `look_stats.py` (neon = saturation > 0.5 and value > 0.6).
+- **Hazard stripes:** `Look.ARENA.hazard` is a shader, not paint: 45° yellow and black stripes in
+  world space, chipped by noise. Any `hazard` surface gets them, so model plain bands, not stripe
+  geometry. A per-instance warning duplicates it and sets `warn` (the crushers).
+- **Floor v2:** one shader for the ground: plates and seams, tint, polish, grime, hazard bands
+  around pads, spawns and crushers, the dashed edge line, the spawn chevrons and the oil slicks
+  (`grime`, glossy, thin-film rim). Positions and the oil radius come from `sim.gd`. It runs on
+  most of the screen, so costly parts branch on distance (the oil fbm runs only near a slick).
+- **Floor rings:** pillars, tesla towers and the heal pad carry a thin cyan `strip` ring on the
+  floor at their base, in their mesh.
 
 ## Tools
 
@@ -157,6 +178,7 @@ the crowd and the effects, and moving them buys nothing.
 | Look check | `& $G --path godot --resolution 1920x1080 -- --autopilot --seed=3 --shot=<abs>.png --at=700 [--cam=4]` |
 | Effects sandbox | `& $G --path godot -- --seed=3 --sandbox=<weapon> --shot=<abs>.png --at=<tick>` (M1 stills: `laser` at 55, `mortar` at 160, `mortar --norefill` at 602 for the K.O.) |
 | Perf probe | `& $G --path godot --resolution 1920x1080 -s "$PWD\tools\perf_probe.gd" -- --autopilot --seed=3` → one `PERF …` line after ~40 s |
+| Arena-only still | `& $G --path godot --resolution 1920x1080 -s "$PWD\tools\arena_shot.gd" -- --autopilot --seed=3 --tick=700 --out=<abs>.png [--top]` (effects and the wind-up bar hidden; bright is measured here; `--top` = the whole arena, no HUD) |
 | Look numbers | `python tools\look_stats.py docs\reference\industrial-neon-arena.webp <shot>.png …` (`--palette` adds the 12 main colors) |
 | Side by side | `python tools\side_by_side.py <out>.png "Reference=docs\reference\industrial-neon-arena.webp" "M0=<shot>.png" "M1=<shot>.png" + <next row …>` |
 | Blender build + export | `& $B -b art\<name>.blend --python tools\blender_export.py -- [--build] [--save] [--out <path>]` |
@@ -164,4 +186,4 @@ the crowd and the effects, and moving them buys nothing.
 
 `$G` = `C:\Users\victo\Tools\Godot\Godot_v4.7.2-stable_win64_console.exe`,
 `$B` = `C:\Users\victo\Tools\Blender\blender-5.2.3-windows-x64\blender.exe`. The perf probe
-needs an absolute path after `-s`.
+and the arena-only still need an absolute path after `-s`.

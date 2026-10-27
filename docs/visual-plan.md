@@ -151,15 +151,101 @@ families; their warning behavior unchanged. The static reflection probe moved he
 it once the strips exist, with `rendering/reflections/reflection_atlas/reflection_count` cut to
 what the arena uses, and check the exit log.
 
-Acceptance:
-- [ ] seeds 3 and 7, `--cam=0`: neon accents 1.5–5 %, cyan + blue ≥ 60 % of them, orange present,
-      and the M1 value targets still hold
-- [ ] every arena slot maps to a `look.gd` family; no new `Color8(` in arena code
-- [ ] sizes and spots still from `sim.gd`; golden hash unchanged
-- [ ] `arena.glb` triangles ≤ M0 + 50 %
-- [ ] stills: game camera, close camera, and a wide top view of the whole arena
-- [ ] GPU ≤ M0 + 1.5 ms
-- [ ] gates
+Acceptance (2026-10-27, code 41f43a4; numbers in the table below):
+- [x] seeds 3 and 7, `--cam=0`: neon accents 1.5–5 %, cyan + blue ≥ 60 % of them, orange present,
+      and the M1 value targets still hold. Seed 3: neon 2.10 %, 82 % of it cyan and blue, orange
+      0.37 %; p50 45, dark 34.4 %, bright 0.38 % on the arena only. Seed 7: neon 1.77 %, 94 %,
+      orange 0.11 %; p50 43, dark 42.5 %, bright 0.64 % on the arena only (2.75 % with the
+      effects and your wind-up bar, fixed in M3).
+- [x] every arena slot maps to a `look.gd` family; no new `Color8(` in arena code. The stadium
+      slots now use palette colors and families too; their M0 literals are gone.
+- [x] sizes and spots still from `sim.gd`; golden hash unchanged (`sim_rules` passes). The floor
+      shader reads the pad, spawn, crusher, wall and oil positions and the oil radius from
+      `sim.gd`.
+- [x] `arena.glb` triangles ≤ M0 + 50 %: 23 432 (M0 22 732, +3 %)
+- [x] stills: game camera `visual-m2-seed{3,7}-cam0-2026-10-27.png`, close camera
+      `visual-m2-seed{3,7}-cam4-2026-10-27.png`, the whole arena `visual-m2-top-2026-10-27.png`
+      (`tools/arena_shot.gd --top`); arena only `visual-m2-seed{3,7}-cam0-arena-2026-10-27.png`
+- [x] GPU ≤ M0 + 1.5 ms: 2.69 / 4.10 ms (median of 3 runs; M0 3.21 / 4.43; the M1 code measured
+      again the same day: 2.54–2.58); draw calls 801 (M0 1051)
+- [x] gates: the 4 suites pass (3 + 5 + 15 + 13 tests) and print the same lines as on M1; the
+      final look-check, arena-only and top-view runs log nothing (see "Exit lines" below)
+
+| Still set | Luma p10 / p50 / p90 | Dark | Bright | Neon (cyan + blue / orange) | GPU ms avg / peak | Draw calls |
+|---|---|---|---|---|---|---|
+| seed 3, `--cam=0` | 27 / 45 / 60 | 34.4 % | 0.80 % | 2.10 % (1.72 / 0.37) | 2.69 / 4.10 | 801 |
+| seed 7, `--cam=0` | 27 / 43 / 70 | 42.5 % | 2.75 % | 1.77 % (1.66 / 0.11) | — | — |
+| seed 3, arena only | 30 / 45 / 59 | 33.8 % | 0.38 % | 2.30 % (1.88 / 0.41) | — | — |
+| seed 7, arena only | 27 / 43 / 63 | 43.0 % | 0.64 % | 1.80 % (1.67 / 0.13) | — | — |
+
+Also: render CPU 0.6 ms (M1 0.58 the same day), 208 k primitives (M1 197 k), 1611 objects (1487:
+more material surfaces per prop), 364 MB VRAM (364), 781 nodes (782). Reference | M1 | M2:
+`visual-m2-side-by-side-2026-10-27.png`. Garage: `visual-m2-garage-before-after-2026-10-27.png`
+(the stand's ring uses the new neon material, a deeper cyan).
+
+What changed:
+
+- **Pillars** (`arena_build.py`): same octagon and radius. Gunmetal body with steel corner ribs, a
+  hazard band at the base, one cyan strip per face, orange lamps under the cap on every other
+  face, a dark grille on top (near-black plate, gunmetal bars, raised rim) instead of the bright
+  cap, and a thin cyan ring on the floor around the base.
+- **Walls and posts:** a cyan strip along the top of every wall panel (was orange); of each
+  panel's two plates, one gets a vertical cyan strip and the other an orange lamp. Posts:
+  gunmetal, a hazard skirt, 4 cyan strips, the orange lamp ring kept.
+- **Heal pad:** octagonal base, a hazard band, a wide cyan rim and a cyan floor ring. The green
+  ring and spinning cross stay (green = heal).
+- **Tesla and crushers:** tesla base in hazard stripes, gunmetal body, a cyan floor ring; the idle
+  orb glows at the strip level, its warning pulse is unchanged. Crusher heads in gunmetal with a
+  hazard skirt; the plate keeps a hazard frame. The warning lights the hazard paint red with the
+  same timing and energy as before.
+- **Hazard stripes:** one shader for every `hazard` surface (`look.gd` `HAZARD_SHADER`): yellow and
+  black 45° stripes in world space, chipped. The crusher warning is its `warn` uniform.
+- **Neon:** the arena lights (`strip`, `pad`, `zap`, `vent`, `amber`) are `look.gd` `neon()`: a
+  black surface that only emits, at energy 0.75 (`NEON`). Why: see the AgX note below.
+- **Floor v2** (`view.gd` `FLOOR_SHADER`, knobs `look.gd` `FLOOR`): 4 m plates, a third of them
+  split in four, dark seams with a soft bevel, per-plate tint and polish (35 % of the plates
+  glossier), grime in patches and along the seams, scuffs. Chipped hazard bands around the 8 pads,
+  the 2 spawns and the 4 crushers; a dashed yellow line 1 m inside the walls; three chevrons in
+  front of each spawn, pointing at the center.
+- **Oil slicks:** drawn by the floor shader (the disc meshes are gone): `grime` brown, roughness
+  0.05, a wobbly edge around the sim radius, a thin-film rainbow rim, and a cyan accent light over
+  each slick so the gloss shows a glint. They no longer read as holes.
+- **Lights:** accent energy 4 (M1 3), range 4.5 (5); 19 accents, 2 of them new over the oil.
+- **Stadium slots:** `concrete` navy, `tread` gunmetal, `aisle` and neutral seats steel (painted
+  family), `roof` near-black gunmetal (also the pillar grille plate), floods in the follow-spot
+  color, the screen `blue`, neutral LEDs cyan.
+- The shaders share `look.gd` `NOISE` (hash, noise, fbm); `look.gd` `shader()` builds a shader
+  material from a knob dict.
+
+Left out:
+
+- **Reflection probe** (moved here from M1): box-projected over the arena, static props only. Even
+  with the strips it showed no visible reflections at the game camera; it lifted the floor evenly
+  (seed 3 dark 32 % → 22 %, out of the target). Removed.
+- **Screen-space reflections:** no visible change at the game camera (the reflected rays leave
+  the screen), +34 MB VRAM. Removed. M4's "reflection strength" has nothing to tune unless a later
+  look needs reflections.
+
+Exit lines: 2 early seed-7 look-check runs printed "70 ObjectDB instances were leaked" and "38
+resources still in use" at exit. Not seen again in 11 later runs (4 with `--verbose`), nor in 5
+runs of the M1 code; no M2 resource was named. Watch for it.
+
+Three biggest gaps vs the reference after M2 (input for M3 and M4): mechs with flat materials and
+no rim, so they separate less from the busier arena (M3); a clean floor with no scorch, debris or
+grates (M4); neon without halos: arena lights stay dim so AgX keeps them cyan, and effects stay
+under the glow threshold ("punch, not glow"), while the reference's lights glow.
+
+Process:
+
+- **AgX turns bright lights white.** Cyan lights at energy 1.5–4, or lit by the key and the
+  spots, came out about (160, 214, 228), saturation 0.3: pale, all alike, not counted as neon. On
+  a black surface, seed 7 neon at energy 0.35 / 0.45 / 0.6 / 0.75 / 1.0 = 0.39 / 0.96 / 1.33 /
+  1.36 / 1.12 %; 0.75 chosen. Tune emissives by measured saturation, not by eye.
+- **Floor cost.** The first floor v2 cost 1.4 ms (the same frame with a flat floor: 2.2 ms). The
+  oil maths now runs only near a slick, and M0's fbm bump on the floor normal is gone (the frame
+  changed by 0.7/255 on average): 2.69 ms.
+- `tools/arena_shot.gd` takes the arena-only stills (effects and the wind-up bar hidden) and the
+  whole-arena view (`--top`).
 
 ## M3 — Robots and combat
 
@@ -183,7 +269,7 @@ Acceptance:
 
 Scope: static scorch and debris decals (seeded, kept off pads, spawns and warning zones), grime
 at wall bases, a few vents and grates, one low-count ambient particle system (dust or embers),
-reflection strength tuned.
+reflection strength tuned (no reflections after M2: probe and SSR left out).
 
 Acceptance:
 - [ ] no decor within 1.5 m of a pad, spawn or trap warning; nothing decorative moves on the floor

@@ -36,6 +36,7 @@ $P = "$R\godot"
 & $G --headless --path $P -s res://tests/sound_test.gd          # sound tests
 & $G --headless --path $P -s res://tests/hype_test.gd           # crowd tests
 & $G --path $P --resolution 1920x1080 -s "$R\tools\perf_probe.gd" -- --autopilot --seed=3   # speed: one PERF line after ~40 s
+& $G --path $P --resolution 1920x1080 -s "$R\tools\arena_shot.gd" -- --autopilot --seed=3 --tick=700 "--out=$env:TEMP\arena.png"   # arena-only still (--top: whole arena)
 ```
 
 ## Godot (`godot/`)
@@ -209,11 +210,15 @@ $P = "$R\godot"
   `godot/assets/models/arena.glb` (`art/arena.blend`, build script = text block `arena_build.py`;
   built and exported headless so the open Blender file is never touched). Objects: `pillar`
   (radius 1, view scales x/z by the sim radius), `tesla` + `tesla_orb` (orb pulses via material
-  `zap`), `crush_plate` + `crush_head` (block centered on the origin; `hazard` stripes take the
-  per-crusher warn material), `heal_pad`, `pad`, `vent` (+X = into the arena), `wall` (a 4 m
-  panel, arena face at z 0; `build_walls` tiles and stretches it per edge) and `wall_post`.
-  `look.gd` `ARENA` maps the material names (steel, dark, trim, hazard, amber, zap, pad, heal,
-  vent). Evidence: `production/qa/evidence/godot-arena-{before,after,wide}-2026-10-27.png`.
+  `zap`), `crush_plate` + `crush_head` (block centered on the origin; their `hazard` surfaces
+  take the per-crusher warn copy of the hazard shader), `heal_pad`, `pad`, `vent` (+X = into the
+  arena), `wall` (a 4 m panel, arena face at z 0; `build_walls` tiles and stretches it per edge)
+  and `wall_post`. `look.gd` `ARENA` maps the material names (steel, dark, trim, hazard, amber,
+  zap, pad, heal, vent, strip). Restyled in visual overhaul M2: `hazard` is a shader (45° yellow
+  and black stripes in world space), so model plain bands, never stripe geometry; the lights
+  (`strip`, `pad`, `zap`, `vent`, `amber`) are `look.gd` `neon()`; the oil slicks have no mesh,
+  the floor shader draws them. Evidence: `production/qa/evidence/godot-arena-{before,after,wide}-2026-10-27.png`,
+  `visual-m2-*-2026-10-27.png`.
   **Stadium** (Victor 2026-10-27: "production ready", no gray box when the camera zooms out):
   `stadium` is the whole bowl in world space (added at the origin): a walkway, 3 tiers with seat
   rows, a riser LED board and a rail, one aisle with steps in the middle of each edge, a 7 m back
@@ -226,10 +231,13 @@ $P = "$R\godot"
   Evidence: `godot-stadium-{left,bottom}-before-after-2026-10-27.png`, `godot-stadium-top-2026-10-27.png`.
   **Stadium lighting** (491b057, reworked in visual overhaul M1): four corner SpotLights follow
   the bots on an underdamped spring (`view.follow`; 2 per bot in 1v1, 1 each in FFA), soft and
-  unshadowed, no haze; the key light is the only shadow caster; the floor shader adds steel
-  plates, grime, scuffs and bump. Knobs: `look.gd` `STAGE` and `FLOOR`. Evidence:
+  unshadowed, no haze; the key light is the only shadow caster. The floor shader (v2, visual
+  overhaul M2) draws steel plates with soft bevels, grime, scuffs, hazard bands around pads,
+  spawns and crushers, a dashed line 1 m inside the walls, chevrons in front of the spawns and
+  the oil slicks; its arrays are sized to `sim.gd` (`docs/visual-architecture.md` Contracts).
+  Knobs: `look.gd` `STAGE` and `FLOOR`. Evidence:
   `godot-stadium-lighting-before-after-2026-10-27.png`, `godot-stadium-follow-spots-2026-10-27.png`
-  (before M1), `visual-m1-*-2026-10-27.png` (after).
+  (before M1), `visual-m1-*-2026-10-27.png` (M1), `visual-m2-*-2026-10-27.png` (M2).
   **EMP zones** (Victor 2026-10-27: the fire vents became EMP zones, same spots and timing;
   the sim names stay `vents`/`HAZARDS`): 12 Legs + `HAZARDS.slow` ticks of Slow instead of Heat.
   Drawn with `EMP_SHADER` (additive crackle on a floor plane, `power` 0 = warning outline, 1 =
@@ -308,9 +316,14 @@ $P = "$R\godot"
   `FLOOR`, the arena slot materials `ARENA`, and `env()`, the one Environment for the arena and
   the garage previews (`env(true)` = see-through background). No other file sets environment
   colors. The glow threshold stays above stacked effects (`fx_peak`, asserted in `env()`): Godot
-  4.7 multiplies the glow input by exposure before the threshold. Tools: `tools/perf_probe.gd`
-  (GPU ms, draw calls; `-s <absolute path>` with `--autopilot`), `tools/look_stats.py` (look
-  numbers vs the reference), `tools/side_by_side.py` (labeled rows of stills: `out.png
+  4.7 multiplies the glow input by exposure before the threshold. **Arena** (M2): arena lights
+  are `neon()`, a black surface that only emits at `NEON` 0.75, because AgX turns a brighter or
+  lit light near white; no reflections (a probe and SSR were tried, neither showed at the game
+  camera). Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
+  `--autopilot`), `tools/arena_shot.gd` (arena-only still with effects and the wind-up bar
+  hidden, where bright is measured; `--top` = the whole arena; `-s <absolute path>`, `--tick=N
+  --out=<abs png>`), `tools/look_stats.py` (look numbers vs the reference),
+  `tools/side_by_side.py` (labeled rows of stills: `out.png
   Label=img … + Label=img …`), `tools/blender_export.py` (headless build + export of one
   `.blend`; every "export the X collection" step in this file is `blender -b art/<x>.blend
   --python tools/blender_export.py -- --build --save`). Sandbox stills need `--seed` (the rival,

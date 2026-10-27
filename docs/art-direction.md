@@ -66,9 +66,10 @@ Shared families: one material per family, variants by parameter, never one mater
 | Dark floor metal | `floor` | 0.5–0.7 | 0.3–0.6 (grime raises it) | — | floor plates |
 | Painted metal | dark grey or navy paint | 0.1–0.3 | 0.5–0.7 | — | wall panels, pad bodies |
 | Hazard stripes | `hazard` + black, 45° | 0.1–0.2 | 0.6–0.8, worn | — | edges of danger: crushers, pad rims, spawn lines |
-| Emissive cyan | `cyan` | 0 | — | 2.5–4 | strips, rings |
-| Emissive blue | `blue` | 0 | — | 2.5–3 | second strips |
-| Emissive orange | `orange` | 0 | — | 2.5–4 | lamps, hazard lights |
+| Emissive cyan | `cyan` on a black base | 0 | — | 0.75 (`look.gd` `NEON`) | strips, rings |
+| Emissive blue | `blue` on a black base | 0 | — | 0.75 | second strips |
+| Emissive orange | `orange` on a black base | 0 | — | 0.75 | lamps, hazard lights |
+| Oil | `grime`, a thin-film rainbow rim | 0 | 0.05 | — | oil slicks, drawn by the floor shader |
 | Scorched | `grime` → near black | 0.2 | 0.8–0.95 | — | scorch marks, burned edges |
 
 - **No textures today** (and no UVs). Wear, grime and scratches come from procedural noise in
@@ -77,6 +78,9 @@ Shared families: one material per family, variants by parameter, never one mater
 - **Bloom budget:** emission above the glow threshold only on the emissive families and on mech
   eyes, cores and boosters. The threshold stays above what stacked additive effects reach
   (today 2.2), so effects never bloom.
+- **Arena lights stay dim (M2):** AgX turns a brighter light, or one lit by the scene's lights,
+  near white (saturation ~0.3), so it stops reading as cyan or orange. Arena lights are a black
+  surface that only emits, at 0.75 (`look.gd` `neon()`); none of them blooms.
 - **Effects** keep `FX_DESIGN.md`: unshaded, additive, no emission.
 
 ## Lighting
@@ -87,13 +91,14 @@ Shared families: one material per family, variants by parameter, never one mater
   warm white: the reference's lit metal is neutral grey, and a cool key under the navy fill
   turned the whole arena blue (M1).
 - **Fill:** low navy ambient, so shadow sides stay readable.
-- **Accents:** cyan and orange omni or spot lights without shadows at walls, pillar bases and the
-  heal pad: low energy, short range. They make the local cyan and orange pools on the floor seen
-  in the reference.
+- **Accents:** cyan and orange omni or spot lights without shadows at walls, pillar bases, the
+  heal pad and over the oil slicks: low energy, short range. They make the local cyan and orange
+  pools on the floor seen in the reference, and give the oil a glint.
 - **Follow spots** (if kept): soft, unshadowed, a gentle lift on each mech, no visible beams.
 - **Haze:** none, or barely visible. Clear air over the floor.
-- **Reflections:** a static reflection probe first; screen-space reflections only if the look
-  needs them and they fit the budget.
+- **Reflections:** none for now. A static reflection probe and screen-space reflections were both
+  tried in M2: neither showed at the game camera, and the probe lifted the whole floor out of the
+  value targets.
 - **Tonemap:** AgX. Exposure, contrast and white point tuned to the value targets.
 
 ## Combat effects
