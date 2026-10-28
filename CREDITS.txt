@@ -1,0 +1,17 @@
+MECH DUEL
+by Victor Granda (Vegm92)
+
+Game design, code, 3D models: Victor Granda, built with Claude Code.
+Made with the Godot Engine (godotengine.org), MIT license. Full notice: licenses/GODOT.txt
+
+SOUND
+- "Sci-fi Sounds" and "Impact Sounds" by Kenney (www.kenney.nl), CC0.
+- Crowd cheers, roars, gasps, chant and ambience: cut from "Free Crowd Cheering Sounds"
+  by Gregor Quendel, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+  Trimmed, faded and level-matched. Source: https://opengameart.org/content/free-crowd-cheering-sounds
+- "OoOoOoOoOoOoOo" by Nocturnal_Vanguard, CC0. Source: https://opengameart.org/content/oooooooooooooo
+- Music: made in code for this game.
+
+FONTS
+- Saira, Copyright 2020 The Saira Project Authors. SIL Open Font License 1.1: licenses/OFL-Saira.txt
+- Exo 2, Copyright 2013 The Exo 2 Project Authors. SIL Open Font License 1.1: licenses/OFL-Exo2.txt
