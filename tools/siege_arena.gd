@@ -13,7 +13,7 @@ var cam := Camera3D.new()
 
 
 func _initialize() -> void:
-	var o := {"rings": "4", "cam": "top", "gate": "", "hp": "", "warn": "", "repair": "", "modules": ""}
+	var o := {"rings": "4", "cam": "top", "gate": "", "hp": "", "warn": "", "repair": "", "modules": "", "q": "0", "cleared": "", "crate": "", "garrison": "", "rebuild": ""}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		o[kv[0]] = kv[1] if kv.size() > 1 else "1"
@@ -34,12 +34,30 @@ func _initialize() -> void:
 		g.hp = g.max * 0.4
 	elif o.gate == "open":
 		g.open = true
+	if o.cleared:
+		var y: Dictionary = siege.yards[o.cleared.to_int()]
+		for c in y.camps:
+			c.alive = false
+		for c in y.crates:
+			c.taken = true
+	if o.crate:
+		siege.yards[0].crates[0].progress = o.crate.to_float()
+	if o.garrison:
+		siege.garrison.tier = o.garrison.to_int()
+	if o.rebuild:
+		siege.garrison.respawn_in = 300
+	var q: int = o.q.to_int()
+	var yc := SiegeState.yard_at(q, 40.0, 40.0)
+	var cr: Dictionary = siege.yards[0].crates[0]
+	var cams := CAMS.merged({"yard": [Vector3(yc.x, 0, yc.y), 48.0], "yardclose": [Vector3(yc.x, 0, yc.y), 30.0],
+		"crate": [Vector3(cr.x, 0.5, cr.y), 10.0], "dock": [Vector3(SiegeState.GARRISON_DOCK.x, 2, SiegeState.GARRISON_DOCK.y), 14.0],
+		"edge": [Vector3(0, 0, 70), 48.0], "elite": [Vector3(SiegeState.yard_at(q, 62.0, 62.0).x, 1, SiegeState.yard_at(q, 62.0, 62.0).y), 24.0]})
 	view = SiegeView.new()
 	root.add_child(view)
 	view.build()
 	if o.has("cheer"):
 		view.crowd_mat.set_shader_parameter("cheer", PackedFloat32Array([1, 1, 1, 1]))
-	var c: Array = CAMS[o.cam]
+	var c: Array = cams[o.cam]
 	cam.fov = Main.FOV
 	cam.position = c[0] + Vector3(0, 0, c[1] * 0.09) + Vector3(0, sin(Main.PITCH), cos(Main.PITCH)) * c[1]
 	cam.rotation = Vector3(-Main.PITCH, 0, 0)

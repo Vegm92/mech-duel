@@ -25,6 +25,9 @@ func _process(_dt: float) -> bool:
 				unknown.append("%s/%s" % [p, mn])
 	check(unknown.is_empty(), "every material in core_siege.glb has a view material %s" % [unknown])
 	check(View.FLOOR_SHADER.contains(SiegeView.VIGNETTE), "the duel floor shader still has the vignette the siege floor re-centres")
+	check(View.EMP_SHADER.contains(SiegeView.EMP_EDGE), "the duel EMP shader still has the square edge the yard zones make round")
+	var duel := Mech.models("arena")
+	check(SiegeView.DUEL.all(func(p): return duel.has(p)), "arena.glb still has every duel part the siege arena reuses")
 
 	var v := SiegeView.new()
 	root.add_child(v)
@@ -37,9 +40,31 @@ func _process(_dt: float) -> bool:
 	var stray := 0
 	for f in v.fans:
 		var at: Vector3 = f[0].origin
-		if absf(at.x) <= 5.0 or absf(at.z) <= 5.0 or Vector2(at.x, at.z).length() <= SiegeState.RING_OUT + 8.5 or at.y < 1.5:
+		if maxf(absf(at.x), absf(at.z)) <= SiegeState.HALF + 2.0 or at.y < 1.0:
 			stray += 1
-	check(v.fans.size() > 2000 and v.fans.size() == v.crowd.multimesh.instance_count and stray == 0, "%d fans, all on the blocks: none in a lane, on the ring road or under the block top (%d stray)" % [v.fans.size(), stray])
+	check(v.fans.size() > 3000 and v.fans.size() == v.crowd.multimesh.instance_count and stray == 0, "%d fans, all in the stands outside the border, none in a yard or a lane (%d stray)" % [v.fans.size(), stray])
+	check(v.camps.size() == 4 * SiegeState.CAMPS.size() and v.crates.size() == 4 * SiegeState.CRATES.size(), "a floor marker for every camp and a crate for every crate spot in the 4 yards")
+	var camp: Dictionary = s.yards[0].camps[0]
+	camp.alive = false
+	v.update(s)
+	check(is_equal_approx(v.camps[0].mat.emission_energy_multiplier, SiegeView.YARD.dead), "a cleared camp's marker goes dim")
+	var lit := v.get_child_count()
+	camp.alive = true
+	v.update(s)
+	check(is_equal_approx(v.camps[0].mat.emission_energy_multiplier, SiegeView.YARD.alive) and v.get_child_count() > lit, "a camp that respawns lights up with a pulse")
+	var crate: Dictionary = s.yards[0].crates[0]
+	crate.progress = 0.5
+	v.update(s)
+	check(v.crates[0].segs.filter(func(m): return m.visible).size() == SiegeView.YARD.segs / 2, "a crate half opened shows half its progress ring")
+	crate.taken = true
+	v.update(s)
+	check(not v.crates[0].node.visible, "a taken crate is gone")
+	v.update(s)
+	check(v.dock.lamps.all(func(m): return is_equal_approx(m.emission_energy_multiplier, SiegeView.DOCK.off)) and not v.dock.beam.visible, "an unbuilt garrison leaves the dock dark")
+	s.garrison.tier = 3
+	s.garrison.respawn_in = 120
+	v.update(s)
+	check(v.dock.lamps.filter(func(m): return is_equal_approx(m.emission_energy_multiplier, SiegeView.DOCK.on)).size() == 3 and v.dock.beam.visible, "a tier 3 garrison lights 3 dock lamps and glows while it rebuilds")
 	check(v.towers.size() == 4 and v.towers.all(func(t): return t.spot is SpotLight3D), "4 floodlight spots, in the duel's tower shape so its follow code can drive them")
 	for n in [4, 3, 2, 1, 0]:
 		s.core.rings = SiegeState.ring_hp(n)

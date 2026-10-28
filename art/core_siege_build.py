@@ -43,6 +43,13 @@ MAT = {
     "seat_b": material("seat_b", srgb(40, 85, 150), 0.0, 0.7),
     "led_n": material("led_n", srgb(200, 200, 210), 0.0, 1.0, 3.0),
     "flood": material("flood", srgb(235, 240, 255), 0.0, 1.0, 3.0),
+    "paint": material("paint", srgb(201, 162, 62), 0.15, 0.7),
+    "mark": material("mark", srgb(112, 144, 161), 0.15, 0.65),
+    "yard": material("yard", srgb(70, 60, 58), 0.4, 0.7),
+    "rust": material("rust", srgb(110, 70, 50), 0.3, 0.75),
+    "amber": material("amber", srgb(255, 176, 60), 0.0, 1.0, 3.0),
+    "roof": material("roof", srgb(13, 15, 21), 0.3, 0.8),
+    "aisle": material("aisle", srgb(72, 78, 94), 0.2, 0.7),
 }
 
 col = bpy.data.collections.get("Core_siege") or bpy.data.collections.new("Core_siege")
@@ -115,19 +122,23 @@ def arc(r0, r1, y0, y1, a0, a1, mat, segs, bevel=0.0):
 
 HALF = 80.0
 LANE_W = 10.0
+W = LANE_W / 2
+LANE_WALL = 1.5
 RING_IN, RING_OUT = 16.0, 17.5
 FORT = (RING_IN + RING_OUT) / 2
-ROAD = 26.0
+BLOCK, YARD_IN = 26.0, 27.5
+ARCH = 6.0
 PLAZA = 14.0
 REPAIR = 5.0
 CHOKES = (36.0, 58.0)
 CHOKE_R = 2.0
-VENT = 47.0
 AIR = 74.0
 SPAWN_GAP = 12.0
-BLOCK_H = 1.5
 DIRS = ((0, -1), (1, 0), (0, 1), (-1, 0))
-QUADS = ((-1, -1), (1, -1), (1, 1), (-1, 1))
+QUADS = ((1, -1), (1, 1), (-1, 1), (-1, -1))
+STAND = {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "rows": (0.65, 1.95), "gap": 9.0, "aisle": 40.0, "aisle_w": 0.4, "wall": 7.0, "roof": 16.0}
+BACK = STAND["front"] + STAND["depth"] * STAND["tiers"]
+FLAT = (0.012, 0.018)
 
 def lane_box(d, r0, r1, l0, l1, y0, y1, mat, bevel=0.03):
     dx, dz = d
@@ -138,81 +149,206 @@ def lane_box(d, r0, r1, l0, l1, y0, y1, mat, bevel=0.03):
                 pts.append((dx * r - dz * l, y, dz * r + dx * l))
     hull(pts, mat, bevel)
 
-part("border")
-for k in range(4):
-    a = k * math.pi / 2
-    c, s = math.cos(a), math.sin(a)
-    for sign in (-1, 1):
-        l0, l1 = sorted((sign * SPAWN_GAP / 2, sign * (HALF + 1)))
-        lane_box((c, s), HALF, HALF + 1.0, l0, l1, 0.0, 3.0, "dark")
-        lane_box((c, s), HALF - 0.05, HALF + 0.1, l0, l1, 2.3, 2.42, "strip", 0)
-        lane_box((c, s), HALF + 0.2, HALF + 1.2, l0, l1, 3.0, 3.25, "steel")
-        for j in range(int((HALF - SPAWN_GAP / 2) / 8) + 1):
-            l = sign * (SPAWN_GAP / 2 + 2 + j * 8)
-            if abs(l) < HALF - 1:
-                lane_box((c, s), HALF - 0.3, HALF, l - 0.25, l + 0.25, BLOCK_H if abs(l) > LANE_W / 2 else 0.0, 2.9, "trim")
-for cx, cz in QUADS:
-    x, z, y = cx * AIR, cz * AIR, BLOCK_H
-    cyl(3.2, 3.2, y, y + 0.06, "dark", 8, 0.01, x, z)
-    ring(3.0, 3.2, y + 0.06, y + 0.08, "hazard", 8, math.pi / 8, x=x, z=z)
-    ring(2.3, 2.45, y + 0.06, y + 0.09, "strip", 16, 0, 0.08, x, z)
+def obox(c, axes, half, mat, bevel=0.03):
+    pts = []
+    for sa in (-1, 1):
+        for sb in (-1, 1):
+            for sc in (-1, 1):
+                pts.append(tuple(c[i] + axes[0][i] * sa * half[0] + axes[1][i] * sb * half[1] + axes[2][i] * sc * half[2] for i in range(3)))
+    hull(pts, mat, bevel)
+
+part("markers")
+for sx, sz in QUADS:
+    x, z = sx * AIR, sz * AIR
+    cyl(3.2, 3.2, 0.0, 0.03, "dark", 8, 0.01, x, z)
+    ring(3.0, 3.2, 0.03, 0.045, "hazard", 8, math.pi / 8, x=x, z=z)
+    ring(2.3, 2.45, 0.03, 0.05, "strip", 16, 0, 0.08, x, z)
     for k in range(4):
         a = math.pi / 4 + k * math.pi / 2
-        hull([(x + 1.0 * math.cos(a), y + 0.06, z + 1.0 * math.sin(a)), (x + 1.9 * math.cos(a + 0.25), y + 0.06, z + 1.9 * math.sin(a + 0.25)), (x + 1.9 * math.cos(a - 0.25), y + 0.06, z + 1.9 * math.sin(a - 0.25)), (x + 1.0 * math.cos(a), y + 0.1, z + 1.0 * math.sin(a))], "white", 0)
-    px, pz = cx * (HALF - 2.2), cz * (HALF - 2.2)
-    cyl(0.5, 0.4, y, 6.0, "dark", 8, 0.02, px, pz)
-    cyl(0.55, 0.55, 5.6, 5.9, "white", 8, 0, px, pz)
+        hull([(x + 1.0 * math.cos(a), 0.03, z + 1.0 * math.sin(a)), (x + 1.9 * math.cos(a + 0.25), 0.03, z + 1.9 * math.sin(a + 0.25)), (x + 1.9 * math.cos(a - 0.25), 0.03, z + 1.9 * math.sin(a - 0.25)), (x + 1.0 * math.cos(a), 0.06, z + 1.0 * math.sin(a))], "white", 0)
 
-part("blocks")
-W = LANE_W / 2
-a_lo = math.atan2(W, math.sqrt(ROAD * ROAD - W * W))
-STEPS = 14
-for cx, cz in QUADS:
-    P = lambda a, b, y: (cx * a, y, cz * b)
-    edge = []
-    for k in range(STEPS + 1):
-        t = math.pi / 2 - a_lo - (math.pi / 2 - 2 * a_lo) * k / STEPS
-        edge.append((ROAD * math.cos(t), ROAD * math.sin(t)))
-    for (a0, b0), (a1, b1) in zip(edge, edge[1:]):
-        hull([P(a, b, y) for a, b in ((a0, b0), (a1, b1), (a0, HALF), (a1, HALF)) for y in (0.0, BLOCK_H)], "steel", 0)
-        n = (-(a0 + a1) / 2, -(b0 + b1) / 2)
-        m = math.hypot(*n)
-        n = (n[0] / m, n[1] / m)
-        for y0, y1, mat, o in ((0.0, 0.3, "hazard", 0.04), (0.95, 1.05, "strip", 0.03), (BLOCK_H, BLOCK_H + 0.12, "steel", 0.08)):
-            hull([P(a + n[0] * oo, b + n[1] * oo, y) for a, b in ((a0, b0), (a1, b1)) for oo in (-0.05, o) for y in (y0, y1)], mat, 0)
-    hull([P(a, b, y) for a in (edge[-1][0], HALF) for b in (W, HALF) for y in (0.0, BLOCK_H)], "steel", 0)
-    for a, b, sx, sz, h in ((40, 40, 7, 4, 1.4), (62, 34, 4, 9, 1.1), (34, 63, 10, 3, 0.9), (63, 62, 6, 6, 1.8), (50, 52, 3, 3, 2.4)):
-        box((sx, h, sz), (cx * a, BLOCK_H + h / 2, cz * b), "dark", 0.06)
-        box((sx + 0.3, 0.12, sz + 0.3), (cx * a, BLOCK_H + h + 0.06, cz * b), "trim", 0.03)
-        box((sx * 0.7, 0.05, 0.12), (cx * a, BLOCK_H + h + 0.13, cz * b), "strip", 0)
+part("markings")
 for d in DIRS:
     for side in (-1, 1):
-        l0, l1 = sorted((side * (W - 0.05), side * (W + 0.6)))
-        r = edge[0][1]
-        cuts = sorted([(c - CHOKE_R, c + CHOKE_R) for c in CHOKES] + [(VENT - 1.6, VENT + 1.6)])
-        for c0, c1 in cuts + [(HALF, HALF)]:
-            if c0 > r:
-                lane_box(d, r, c0, l0, l1, BLOCK_H, BLOCK_H + 0.12, "steel")
-                lane_box(d, r + 0.1, c0 - 0.1, side * (W - 0.03), side * W, 0.95, 1.05, "strip", 0)
-                lane_box(d, r, c0, side * (W - 0.04), side * W, 0.0, 0.3, "hazard", 0)
-            r = c1
-        for c in CHOKES:
-            p = (d[0] * c - d[1] * side * W, d[1] * c + d[0] * side * W)
-            cyl(CHOKE_R, CHOKE_R, 0.0, 0.4, "hazard", 12, 0.01, p[0], p[1])
-            cyl(CHOKE_R - 0.05, CHOKE_R - 0.15, 0.4, 2.6, "dark", 12, 0.03, p[0], p[1])
-            cyl(CHOKE_R + 0.05, CHOKE_R + 0.05, 2.6, 2.8, "steel", 12, 0.02, p[0], p[1])
-            cyl(CHOKE_R - 0.1, CHOKE_R - 0.1, 2.8, 2.86, "dark", 12, 0.01, p[0], p[1])
-            ring(CHOKE_R - 0.5, CHOKE_R - 0.4, 2.86, 2.89, "white", 12, 0, 0.1, p[0], p[1])
-            for k in range(6):
-                f = k * math.pi / 3
-                rbox((0.03, 1.4, 0.18), (p[0] + (CHOKE_R - 0.11) * math.cos(f), 1.5, p[1] + (CHOKE_R - 0.11) * math.sin(f)), f, "strip", 0)
-        lane_box(d, VENT - 1.8, VENT - 1.4, side * (W - 0.15), side * W, 0.0, 1.7, "trim")
-        lane_box(d, VENT + 1.4, VENT + 1.8, side * (W - 0.15), side * W, 0.0, 1.7, "trim")
-        lane_box(d, VENT - 1.6, VENT + 1.6, side * (W - 0.1), side * W, 1.2, 1.7, "steel")
-        lane_box(d, VENT - 1.4, VENT + 1.4, side * (W - 0.02), side * W, 0.0, 1.2, "dark", 0)
-        for j in range(5):
-            y = 0.25 + j * 0.18
-            lane_box(d, VENT - 1.3, VENT + 1.3, side * (W - 0.06), side * (W - 0.02), y, y + 0.05, "strip", 0)
+        r = YARD_IN
+        while r < HALF - 1.5:
+            if all(abs(r + 0.7 - c) > CHOKE_R + 0.6 for c in CHOKES):
+                lane_box(d, r, r + 1.4, side * (W - 1.0), side * (W - 0.85), *FLAT, "paint", 0)
+            r += 2.0
+    for k in range(3):
+        r = HALF - 10.0 + k * 2.2
+        for side in (-1, 1):
+            pts = []
+            for f, l in ((r, 0.0), (r + 0.5, 0.0), (r + 1.5, side * 2.0), (r + 2.0, side * 2.0)):
+                for y in FLAT:
+                    pts.append((d[0] * f - d[1] * l, y, d[1] * f + d[0] * l))
+            hull(pts, "mark", 0)
+    l = -HALF + 1.0
+    while l < HALF - 2.4:
+        if abs(l + 0.7) > SPAWN_GAP / 2 + 1.0:
+            lane_box(d, HALF - 1.0, HALF - 0.85, l, l + 1.4, *FLAT, "paint", 0)
+        l += 2.0
+
+part("yard_floor")
+e0 = math.sqrt(YARD_IN ** 2 - (W + LANE_WALL) ** 2)
+for sx, sz in QUADS:
+    P = lambda a, b, y: (sx * a, y, sz * b)
+    edge = []
+    t0, t1 = math.atan2(e0, W + LANE_WALL), math.atan2(W + LANE_WALL, e0)
+    for k in range(17):
+        t = t0 + (t1 - t0) * k / 16
+        edge.append((YARD_IN * math.cos(t), YARD_IN * math.sin(t)))
+    for (a0, b0), (a1, b1) in zip(edge, edge[1:]):
+        hull([P(a, b, y) for a, b in ((a0, b0), (a1, b1), (a0, HALF), (a1, HALF)) for y in (0.0, 0.01)], "yard", 0)
+    hull([P(a, b, y) for a in (edge[-1][0], HALF) for b in (W + LANE_WALL, HALF) for y in (0.0, 0.01)], "yard", 0)
+
+part("yard_arch")
+for s in (-1, 1):
+    z = s * (ARCH / 2 + 0.6)
+    cyl(0.68, 0.6, 0.0, 4.2, "dark", 8, 0.02, 0, z)
+    cyl(0.7, 0.68, 0.0, 0.3, "hazard", 8, 0.01, 0, z)
+    for k in range(4):
+        f = k * math.pi / 2
+        rbox((0.03, 2.6, 0.08), (0.6 * math.cos(f), 2.2, z + 0.6 * math.sin(f)), f, "amber", 0)
+box((1.2, 0.7, ARCH + 2.6), (0, 4.5, 0), "dark", 0.05)
+box((1.3, 0.12, ARCH + 2.7), (0, 4.9, 0), "steel", 0.03)
+for s in (-1, 1):
+    box((0.04, 0.16, ARCH), (s * 0.61, 4.45, 0), "amber", 0)
+box((1.21, 0.14, ARCH), (0, 4.14, 0), "paint", 0)
+
+part("stands")
+for d in DIRS:
+    segs = ((-HALF, -STAND["aisle"] - STAND["aisle_w"]), (-STAND["aisle"] + STAND["aisle_w"], -STAND["gap"]), (STAND["gap"], STAND["aisle"] - STAND["aisle_w"]), (STAND["aisle"] + STAND["aisle_w"], HALF))
+    for l0, l1 in segs:
+        lane_box(d, HALF + 1.0, HALF + STAND["front"], l0, l1, 0.0, 0.03, "tread", 0)
+        for k in range(STAND["tiers"]):
+            o = HALF + STAND["front"] + k * STAND["depth"]
+            h = STAND["base"] + k * STAND["rise"]
+            lane_box(d, o, o + STAND["depth"], l0, l1, 0.0, h - 0.06, "concrete", 0.03)
+            lane_box(d, o, o + STAND["depth"], l0, l1, h - 0.06, h, "tread", 0)
+            lane_box(d, o - 0.06, o, l0, l1, h - 0.95, h - 0.35, "led_n", 0)
+            for row in STAND["rows"]:
+                lane_box(d, o + row + 0.12, o + row + 0.42, l0 + 0.2, l1 - 0.2, h, h + 0.22, "seat_b", 0.02)
+                lane_box(d, o + row + 0.42, o + row + 0.52, l0 + 0.2, l1 - 0.2, h, h + 0.5, "seat_b", 0.02)
+    for s in (-1, 1):
+        a0, a1 = s * (STAND["aisle"] - STAND["aisle_w"]), s * (STAND["aisle"] + STAND["aisle_w"])
+        for k in range(STAND["tiers"]):
+            o = HALF + STAND["front"] + k * STAND["depth"]
+            h = STAND["base"] + k * STAND["rise"]
+            lane_box(d, o, o + STAND["depth"], a0, a1, 0.0, h, "aisle", 0.01)
+        g0, g1 = s * STAND["gap"], s * (STAND["gap"] + 0.6)
+        lane_box(d, HALF + 1.2, HALF + BACK, g0, g1, 0.0, 5.0, "concrete", 0.03)
+        b0, b1 = s * (STAND["gap"] + 0.6), s * (HALF + BACK + 0.6)
+        lane_box(d, HALF + BACK, HALF + BACK + 0.6, b0, b1, 0.0, STAND["wall"], "concrete", 0.03)
+        lane_box(d, HALF + BACK - 0.05, HALF + BACK, b0, b1, 4.7, 5.5, "led_n", 0)
+        lane_box(d, HALF + BACK - 0.45, HALF + BACK - 0.05, b0, b1, 6.6, 6.85, "flood", 0)
+    lane_box(d, HALF + 1.2, HALF + BACK + 0.6, -STAND["gap"] - 0.6, STAND["gap"] + 0.6, 5.0, 5.4, "dark", 0.03)
+    lane_box(d, HALF + BACK, HALF + BACK + 0.6, -STAND["gap"] - 0.6, STAND["gap"] + 0.6, 5.4, STAND["wall"], "concrete", 0.03)
+    lane_box(d, HALF + BACK, HALF + BACK + STAND["roof"], -(HALF + BACK + STAND["roof"]), HALF + BACK + STAND["roof"], STAND["wall"], STAND["wall"] + 0.4, "roof", 0.02)
+    lane_box(d, HALF + 1.2, HALF + BACK, -STAND["gap"], STAND["gap"], 0.0, 0.03, "tread", 0)
+for sx, sz in QUADS:
+    c = HALF + BACK / 2
+    top = STAND["base"] + (STAND["tiers"] - 1) * STAND["rise"]
+    box((BACK, top, BACK), (sx * c, top / 2, sz * c), "concrete", 0.04)
+    box((BACK, 0.06, BACK), (sx * c, top + 0.03, sz * c), "tread", 0)
+
+part("flood_tower")
+cyl(0.4, 0.3, 0.0, 17.2, "steel", 8)
+tilt = math.radians(35)
+fwd = (math.cos(tilt), -math.sin(tilt), 0.0)
+up = (math.sin(tilt), math.cos(tilt), 0.0)
+side = (0.0, 0.0, 1.0)
+c = (0.4, 17.8, 0.0)
+obox(c, (side, up, fwd), (1.9, 1.15, 0.35), "dark")
+obox(tuple(c[i] + fwd[i] * 0.36 for i in range(3)), (side, up, fwd), (1.7, 0.95, 0.03), "flood", 0)
+obox(tuple(c[i] - up[i] * 1.2 - fwd[i] * 0.2 for i in range(3)), (side, up, fwd), (1.2, 0.12, 0.12), "steel")
+
+part("crate")
+box((1.6, 1.1, 1.2), (0, 0.55, 0), "rust", 0.03)
+for a in (-1, 1):
+    for b in (-1, 1):
+        box((0.12, 1.14, 0.12), (a * 0.76, 0.57, b * 0.56), "trim", 0.01)
+for y in (0.3, 0.8):
+    for b in (-1, 1):
+        box((1.5, 0.12, 0.04), (0, y, b * 0.61), "dark", 0)
+box((0.5, 0.3, 0.02), (0, 0.55, 0.615), "paint", 0)
+
+part("crate_lid")
+box((1.7, 0.14, 1.3), (0, 0, 0), "rust", 0.02)
+box((1.74, 0.06, 1.34), (0, -0.04, 0), "trim", 0.01)
+
+part("camp_ring")
+ring(2.6, 2.8, 0.015, 0.03, "amber", 24, 0, 0.08)
+for k in range(4):
+    a = k * math.pi / 2
+    rbox((0.5, 0.015, 0.14), (3.1 * math.cos(a), 0.022, 3.1 * math.sin(a)), a, "amber", 0)
+
+part("camp_pip")
+hull([(x, y, z) for x, z in ((0.22, 0), (-0.22, 0), (0, 0.22), (0, -0.22)) for y in (0.015, 0.03)], "amber", 0)
+
+part("work_light")
+cyl(0.12, 0.1, 0.0, 4.2, "dark", 6, 0.01)
+box((1.0, 0.1, 0.1), (0.45, 4.15, 0), "steel", 0.01)
+box((0.5, 0.3, 0.7), (0.95, 4.0, 0), "dark", 0.03)
+box((0.42, 0.04, 0.6), (0.95, 3.84, 0), "amber", 0)
+
+part("heap")
+for k, (rr, h, ph) in enumerate(((1.0, 0.0, 0.0), (0.72, 0.45, 1.3), (0.42, 0.85, 2.6))):
+    pts = []
+    for j in range(9):
+        a = j * 2 * math.pi / 9 + ph
+        q = rr * (0.8 + 0.2 * math.sin(a * 3 + k))
+        pts.append((q * math.cos(a), h, q * math.sin(a)))
+        pts.append((q * 0.75 * math.cos(a + 0.3), h + 0.38, q * 0.75 * math.sin(a + 0.3)))
+    hull(pts, "rust" if k % 2 == 0 else "dark", 0.02)
+for k in range(5):
+    a = k * 1.7
+    rbox((0.5, 0.1, 0.18), (0.55 * math.cos(a), 0.55 + 0.1 * k, 0.55 * math.sin(a)), a, "trim", 0.01)
+
+part("crane")
+box((3.0, 0.8, 3.0), (0, 0.4, 0), "dark", 0.05)
+box((3.04, 0.3, 3.04), (0, 0.2, 0), "hazard", 0)
+for a in (-1, 1):
+    for b in (-1, 1):
+        box((0.25, 11.4, 0.25), (a * 0.8, 6.5, b * 0.8), "steel", 0.02)
+for y in range(2, 12, 2):
+    for b in (-1, 1):
+        box((1.7, 0.12, 0.12), (0, y + 0.8, b * 0.8), "trim", 0)
+        box((0.12, 0.12, 1.7), (b * 0.8, y + 0.8, 0), "trim", 0)
+box((2.2, 1.6, 2.2), (0, 12.9, 0), "dark", 0.05)
+box((0.04, 0.5, 1.6), (1.11, 13.0, 0), "amber", 0)
+for b in (-1, 1):
+    box((17.0, 0.25, 0.25), (6.5, 13.9, b * 0.5), "steel", 0.02)
+box((3.0, 1.2, 1.4), (-3.5, 13.6, 0), "dark", 0.04)
+box((0.08, 6.2, 0.08), (14.0, 10.6, 0), "dark", 0)
+cyl(1.3, 1.3, 6.9, 7.5, "dark", 12, 0.03, 14.0, 0.0)
+ring(1.18, 1.32, 6.84, 6.9, "amber", 12, 0, 0.06, 14.0, 0.0)
+
+part("steam_grate")
+cyl(1.4, 1.4, 0.0, 0.05, "dark", 8, 0.01, rot=math.pi / 8)
+for k in range(5):
+    box((2.2, 0.02, 0.1), (0, 0.06, -0.8 + k * 0.4), "trim", 0)
+for k in range(4):
+    a = math.pi / 4 + k * math.pi / 2
+    cyl(0.16, 0.16, 0.0, 0.6, "steel", 8, 0.01, 1.9 * math.cos(a), 1.9 * math.sin(a))
+    cyl(0.2, 0.2, 0.55, 0.65, "dark", 8, 0.01, 1.9 * math.cos(a), 1.9 * math.sin(a))
+
+part("dock")
+cyl(2.0, 1.9, 0.0, 0.3, "dark", 8, 0.03, rot=math.pi / 8)
+ring(1.92, 2.04, 0.08, 0.22, "hazard", 8, math.pi / 8)
+cyl(1.7, 1.7, 0.3, 0.33, "steel", 8, 0.01, rot=math.pi / 8)
+ring(1.74, 1.84, 0.3, 0.345, "strip", 8, math.pi / 8)
+for x in (-1.2, 0.9):
+    for z in (-1.8, 1.8):
+        box((0.36, 4.2, 0.36), (x, 2.1, z), "dark", 0.03)
+        box((0.04, 2.6, 0.12), (x + 0.19, 2.0, z), "strip", 0)
+    box((0.4, 0.4, 4.0), (x, 4.2, 0), "steel", 0.03)
+for z in (-1.8, 1.8):
+    box((2.5, 0.3, 0.3), (-0.15, 4.25, z), "steel", 0.03)
+box((0.06, 0.12, 3.2), (1.12, 3.9, 0), "strip", 0)
+
+part("dock_lamp")
+box((0.1, 0.24, 0.42), (0, 0, 0), "pylon", 0)
 
 part("fortress")
 GATE_HALF = math.atan2(LANE_W / 2 + 1.6, FORT)
@@ -244,19 +380,26 @@ for dx, dz in DIRS:
             hull([pt(r + 0.5, 0), pt(r, 1.2), pt(r + 0.35, 1.2), pt(r + 0.85, 0, 0.07)], "white", 0)
 
 part("core_base")
-cyl(2.5, 2.3, 0.0, 0.7, "dark", 8, 0.04, rot=math.pi / 8)
-ring(2.32, 2.45, 0.6, 0.64, "strip", 8, math.pi / 8)
-cyl(1.6, 1.3, 0.7, 1.6, "steel", 8, 0.03, rot=math.pi / 8)
-cyl(1.1, 0.8, 1.6, 2.5, "trim", 8, 0.03)
+cyl(2.5, 2.45, 0.0, 0.14, "dark", 8, 0.02, rot=math.pi / 8)
+ring(2.58, 2.68, 0.0, 0.012, "strip", 8, math.pi / 8)
+cyl(2.4, 2.4, 0.14, 0.44, "hazard", 8, 0.01, rot=math.pi / 8)
+cyl(2.3, 2.3, 0.44, 1.2, "dark", 8, 0.02, rot=math.pi / 8)
+for k in range(8):
+    a = k * math.pi / 4
+    rbox((0.14, 0.8, 0.12), (2.26 * math.cos(a), 0.82, 2.26 * math.sin(a)), a + math.pi / 2, "trim", 0.02)
+    f = math.pi / 8 + k * math.pi / 4
+    rbox((0.03, 0.6, 0.3), (2.14 * math.cos(f), 0.82, 2.14 * math.sin(f)), f, "strip", 0)
+cyl(2.35, 2.3, 1.2, 1.32, "steel", 8, 0.02, rot=math.pi / 8)
+cyl(1.1, 0.8, 1.32, 2.5, "trim", 8, 0.03)
 for k in range(4):
     a = math.pi / 4 + k * math.pi / 2
     c, s = math.cos(a), math.sin(a)
-    hull([(1.0 * c, 1.6, 1.0 * s), (2.2 * c, 1.0, 2.2 * s), (2.3 * c, 2.6, 2.3 * s), (1.6 * c, 3.4, 1.6 * s), (0.9 * c, 2.6, 0.9 * s), (1.8 * c + 0.25 * s, 2.2, 1.8 * s - 0.25 * c), (1.8 * c - 0.25 * s, 2.2, 1.8 * s + 0.25 * c)], "trim", 0.03)
+    hull([(1.0 * c, 1.6, 1.0 * s), (2.2 * c, 1.32, 2.2 * s), (2.3 * c, 2.6, 2.3 * s), (1.6 * c, 3.4, 1.6 * s), (0.9 * c, 2.6, 0.9 * s), (1.8 * c + 0.25 * s, 2.2, 1.8 * s - 0.25 * c), (1.8 * c - 0.25 * s, 2.2, 1.8 * s + 0.25 * c)], "trim", 0.03)
 for dx, dz in DIRS:
     yaw = math.atan2(dz, dx)
     r = 2.0
-    hull([(dx * (r - 0.4) - dz * w, 0.7, dz * (r - 0.4) + dx * w) for w in (-0.45, 0.45)] + [(dx * (r + 0.4) - dz * w, 0.7, dz * (r + 0.4) + dx * w) for w in (-0.45, 0.45)] + [(dx * (r - 0.1) - dz * w, 5.0, dz * (r - 0.1) + dx * w) for w in (-0.2, 0.2)] + [(dx * (r + 0.15) - dz * w, 5.0, dz * (r + 0.15) + dx * w) for w in (-0.2, 0.2)], "dark", 0.04)
-    rbox((0.08, 3.0, 0.22), (dx * (r + 0.3), 2.8, dz * (r + 0.3)), yaw, "pylon", 0)
+    hull([(dx * (r - 0.4) - dz * w, 1.32, dz * (r - 0.4) + dx * w) for w in (-0.45, 0.45)] + [(dx * (r + 0.4) - dz * w, 1.32, dz * (r + 0.4) + dx * w) for w in (-0.45, 0.45)] + [(dx * (r - 0.1) - dz * w, 5.0, dz * (r - 0.1) + dx * w) for w in (-0.2, 0.2)] + [(dx * (r + 0.15) - dz * w, 5.0, dz * (r + 0.15) + dx * w) for w in (-0.2, 0.2)], "dark", 0.04)
+    rbox((0.08, 3.0, 0.22), (dx * (r + 0.3), 3.0, dz * (r + 0.3)), yaw, "pylon", 0)
     cyl(0.26, 0.26, 5.0, 5.15, "steel", 8, 0.01, dx * r, dz * r)
     cyl(0.17, 0.17, 5.15, 5.25, "pylon", 8, 0, dx * r, dz * r)
 
@@ -323,17 +466,6 @@ box((0.1, 0.4, SPAWN_GAP - 1), (-0.75, 7.3, 0), "warn", 0)
 for sd in (-1, 1):
     box((0.1, 2.4, 0.3), (-0.72, 3.8, sd * (SPAWN_GAP / 2 + 0.3)), "warn", 0)
 
-part("build_pad")
-box((4.0, 0.12, 4.0), (0, 0.06, 0), "dark", 0.02)
-for sd in (-1, 1):
-    box((4.0, 0.03, 0.3), (0, 0.135, sd * 1.85), "hazard", 0)
-    box((0.3, 0.03, 3.4), (sd * 1.85, 0.135, 0), "hazard", 0)
-box((3.0, 0.02, 3.0), (0, 0.125, 0), "steel", 0)
-for sd in (-1, 1):
-    for t in (-1, 1):
-        box((0.5, 0.03, 0.08), (sd * 1.3, 0.15, t * 1.5), "strip", 0)
-        box((0.08, 0.03, 0.5), (sd * 1.5, 0.15, t * 1.3), "strip", 0)
-
 part("mod_wall")
 box((1.2, 2.0, 6.0), (0, 1.12, 0), "steel", 0.06)
 for z in (-2.4, -1.2, 0.0, 1.2, 2.4):
@@ -346,50 +478,6 @@ part("mod_mine")
 for x, z in ((-0.9, -0.9), (0.9, -0.9), (-0.9, 0.9), (0.9, 0.9)):
     cyl(0.45, 0.4, 0.12, 0.3, "dark", 8, 0.02, x, z)
     cyl(0.18, 0.18, 0.3, 0.36, "strip", 8, 0, x, z)
-
-part("mod_laser")
-cyl(0.8, 0.7, 0.12, 0.6, "dark", 8, 0.03)
-cyl(0.35, 0.3, 0.6, 1.6, "trim", 8, 0.02)
-box((1.2, 0.5, 0.6), (0.2, 1.8, 0), "steel", 0.04)
-cyl(0.12, 0.12, 0.0, 1.1, "dark", 8, 0.01)
-hull([(0.8, 1.72, -0.08), (0.8, 1.88, -0.08), (0.8, 1.72, 0.08), (0.8, 1.88, 0.08), (1.6, 1.76, -0.05), (1.6, 1.84, -0.05), (1.6, 1.76, 0.05), (1.6, 1.84, 0.05)], "dark", 0.01)
-box((0.04, 0.1, 0.5), (0.81, 1.8, 0), "white", 0)
-
-STANDS = {"front": 1.0, "depth": 2.6, "base": 0.6, "rise": 1.3, "tiers": 3, "rows": (0.65, 1.95), "runs": ((27.5, 33.5), (38.5, 55.5), (60.5, 77.0))}
-TOWER = {"at": 86.0, "h": 22.0}
-
-part("stands")
-for d in DIRS:
-    for side in (-1, 1):
-        L = lambda o: side * (W + o)
-        for r0, r1 in STANDS["runs"]:
-            lane_box(d, r0, r1, L(0.3), L(STANDS["front"]), BLOCK_H, BLOCK_H + 0.03, "tread", 0)
-            for k in range(STANDS["tiers"]):
-                o = STANDS["front"] + k * STANDS["depth"]
-                h = BLOCK_H + STANDS["base"] + k * STANDS["rise"]
-                lane_box(d, r0, r1, L(o), L(o + STANDS["depth"]), BLOCK_H, h - 0.06, "concrete", 0.03)
-                lane_box(d, r0, r1, L(o), L(o + STANDS["depth"]), h - 0.06, h, "tread", 0)
-                lane_box(d, r0, r1, L(o - 0.04), L(o), h - 0.5, h - 0.2, "led_n", 0)
-                for row in STANDS["rows"]:
-                    lane_box(d, r0 + 0.2, r1 - 0.2, L(o + row + 0.12), L(o + row + 0.42), h, h + 0.22, "seat_b", 0.02)
-                    lane_box(d, r0 + 0.2, r1 - 0.2, L(o + row + 0.42), L(o + row + 0.52), h, h + 0.5, "seat_b", 0.02)
-            back = STANDS["front"] + STANDS["tiers"] * STANDS["depth"]
-            top = BLOCK_H + STANDS["base"] + (STANDS["tiers"] - 1) * STANDS["rise"]
-            lane_box(d, r0 - 0.3, r1 + 0.3, L(back), L(back + 0.5), BLOCK_H, top + 2.2, "dark", 0.04)
-            lane_box(d, r0 - 0.3, r1 + 0.3, L(back - 0.04), L(back), top + 1.2, top + 1.5, "led_n", 0)
-            lane_box(d, r0 - 0.4, r1 + 0.4, L(back - 0.3), L(back + 0.6), top + 2.2, top + 2.4, "steel", 0.03)
-            for r in (r0, r1):
-                lane_box(d, r - 0.3, r + 0.3, L(STANDS["front"]), L(back), BLOCK_H, top + 0.9, "dark", 0.03)
-
-part("flood_tower")
-cyl(1.4, 1.1, 0.0, 0.6, "dark", 8, 0.04)
-cyl(0.55, 0.4, 0.6, TOWER["h"] - 1.0, "steel", 8, 0.02)
-for k in range(4):
-    a = math.pi / 4 + k * math.pi / 2
-    hull([(1.1 * math.cos(a), 0.6, 1.1 * math.sin(a)), (1.3 * math.cos(a), 0.6, 1.3 * math.sin(a)), (0.45 * math.cos(a), 6.0, 0.45 * math.sin(a))], "trim", 0.01)
-box((1.2, 2.6, 4.4), (0.4, TOWER["h"], 0), "dark", 0.06)
-box((0.06, 2.2, 4.0), (1.02, TOWER["h"], 0), "flood", 0)
-box((0.5, 0.25, 4.6), (0.4, TOWER["h"] + 1.4, 0), "steel", 0.03)
 
 for name, (ob, bm) in parts.items():
     bm.to_mesh(ob.data)
