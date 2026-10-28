@@ -235,7 +235,7 @@ func _ready() -> void:
 	loadout = flag_loadout()
 	garage = Garage.new()
 	garage.progress = progress
-	garage.siege_btn = siege
+	garage.siege_btn = siege or OS.has_feature("siege")
 	var saved := ConfigFile.new()
 	saved.load(SAVE)
 	var d := str(saved.get_value("garage", "difficulty", "normal"))

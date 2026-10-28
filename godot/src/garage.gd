@@ -148,13 +148,14 @@ func show_help() -> void:
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	help.add_child(dim)
-	var box := panel(help, Rect2(0, 0, 720, 500), PANEL, HI, 14)
+	var tall := 590.0 if siege_btn else 500.0
+	var box := panel(help, Rect2(0, 0, 720, tall), PANEL, HI, 14)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.offset_left = -360
 	box.offset_right = 360
-	box.offset_top = -250
-	box.offset_bottom = 250
+	box.offset_top = -tall / 2.0
+	box.offset_bottom = tall / 2.0
 	text(box, tr("helpTitle"), Vector2(0, 14), 24, TEXT, 720, true, HORIZONTAL_ALIGNMENT_CENTER)
 	para(box, tr("helpGoal"), Rect2(36, 56, 648, 66), 13, DIM, 4)
 	text(box, tr("helpKeys"), Vector2(36, 128), 12, HOLO, 300, true)
@@ -165,7 +166,10 @@ func show_help() -> void:
 		text(box, tr(HELP[i][0]), Vector2(36, y), 13, HI, 190, true)
 		text(box, tr(HELP[i][1]), Vector2(232, y), 13, HI, 120, true)
 		text(box, tr(HELP[i][2]), Vector2(360, y), 13, TEXT, 324)
-	text(box, tr("helpClose"), Vector2(0, 462), 12, LABEL, 720, false, HORIZONTAL_ALIGNMENT_CENTER)
+	if siege_btn:
+		text(box, tr("helpSiege"), Vector2(36, 428), 12, HOLO, 648, true)
+		para(box, tr("helpSiegeText"), Rect2(36, 450, 648, 84), 12, TEXT, 4)
+	text(box, tr("helpClose"), Vector2(0, tall - 38), 12, LABEL, 720, false, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func next_difficulty() -> void:
@@ -368,7 +372,7 @@ func build_right() -> void:
 	f.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	f.pressed.connect(go)
 	root.add_child(f)
-	fit(text(f, tr("fightBtn"), Vector2.ZERO, 20, Color("1a0d05"), f.size.x, true, HORIZONTAL_ALIGNMENT_CENTER, 54), 20, f.size.x - 16, 12)
+	fit(text(f, tr("fightShort" if siege_btn else "fightBtn"), Vector2.ZERO, 20, Color("1a0d05"), f.size.x, true, HORIZONTAL_ALIGNMENT_CENTER, 54), 20, f.size.x - 16, 12)
 	if not siege_btn:
 		return
 	var sb := Button.new()
