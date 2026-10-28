@@ -14,6 +14,8 @@ const MK := [Color8(118, 121, 128), Color8(78, 81, 90), Color8(44, 44, 50)]
 const EYES := [Color8(80, 190, 255), Color8(80, 190, 255), Color8(255, 50, 60)]
 const POSE := {"swing": 0.5, "lift": 0.35, "piston": 0.4, "stride": 1.4, "pace": 1.2, "jump": 2.0, "turn": 0.3, "lean": 0.1, "windup": 0.22, "wind_t": 12.0, "lunge": 0.28, "push": 0.12, "recoil": 12.0, "plant": 0.12, "plant_t": 15.0, "shake": 0.14, "hover": 0.15, "float": 0.08, "flash": 6, "die": 45, "sink": 0.35, "tip": 0.6}
 const GLOW := {"rest": 3.0, "wind": 9.0, "roll": 6.0}
+const NEUTRAL := {"eyes": Color8(255, 165, 40), "rust": Color8(128, 100, 74), "mix": 0.65}
+const NAP := {"wake": 30.0, "sink": 0.18, "pitch": 0.12, "roll": 0.28, "spread": 0.3, "droop": 0.35, "kneel": 0.3, "blink": 3, "tilt": 0.35}
 const BOOM := {"per_m": 0.55, "min": 0.6, "max": 2.4, "big": 3.0}
 const BAR := {"h": 0.12, "y": 0.45, "per_m": 0.35, "min": 0.6, "max": 1.6, "back": Color8(20, 20, 26), "fill": Color8(255, 70, 40)}
 
@@ -21,27 +23,69 @@ var rigs := {}
 var pool := {}
 var bars := {}
 var spare_bars := []
-var swarm: MultiMeshInstance3D
-var free_slots := []
+var swarms := {}
 var marks := Node3D.new()
 var clock := 0.0
 
 
 func _init() -> void:
 	add_child(marks)
-	var mesh: ArrayMesh = Mech.models("bots").swarm[0].duplicate()
-	var mats := paints()
-	mats.body.vertex_color_use_as_albedo = true
-	mats.body.albedo_color = Color.WHITE
-	for i in mesh.get_surface_count():
-		mesh.surface_set_material(i, mats[mesh.surface_get_material(i).resource_name])
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.mesh = mesh
-	swarm = MultiMeshInstance3D.new()
-	swarm.multimesh = mm
-	add_child(swarm)
+
+
+## One MultiMesh of swarm cubes per eye look ("lane", "neutral", "off"); the body tint is per cube.
+func swarm(look: String) -> Dictionary:
+	if not swarms.has(look):
+		var mesh: ArrayMesh = Mech.models("bots").swarm[0].duplicate()
+		var mats := paints()
+		mats.body.vertex_color_use_as_albedo = true
+		mats.body.albedo_color = Color.WHITE
+		var c: Color = {"lane": EYES[0], "neutral": NEUTRAL.eyes, "off": Mech.DARK}[look]
+		mats.glow.albedo_color = c
+		mats.glow.emission = c
+		mats.glow.emission_energy_multiplier = 0.0 if look == "off" else GLOW.rest
+		for i in mesh.get_surface_count():
+			mesh.surface_set_material(i, mats[mesh.surface_get_material(i).resource_name])
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = mesh
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		add_child(mmi)
+		swarms[look] = {"mmi": mmi, "free": [], "used": {}}
+	return swarms[look]
+
+
+static func neutral(e: Dictionary) -> bool:
+	return e.get("neutral", false)
+
+
+static func paint(e: Dictionary) -> Color:
+	return MK[e.mk - 1].lerp(NEUTRAL.rust, NEUTRAL.mix) if neutral(e) else MK[e.mk - 1]
+
+
+static func eyes(e: Dictionary) -> Color:
+	return NEUTRAL.eyes if neutral(e) else EYES[e.mk - 1]
+
+
+## How asleep a bot is: 1 dormant, easing to 0 over a wake.
+static func nap(e: Dictionary) -> float:
+	match e.act:
+		"dormant":
+			return 1.0
+		"wake":
+			return 1.0 - smoothstep(0.0, NAP.wake, e.t)
+	return 0.0
+
+
+## Eyes on (1) or off (0); they flicker through the first half of a wake.
+static func lit(e: Dictionary) -> float:
+	match e.act:
+		"dormant", "die":
+			return 0.0
+		"wake":
+			return 1.0 if e.t >= NAP.wake * 0.5 or (int(e.t) / NAP.blink) % 2 == 1 else 0.0
+	return 1.0
 
 
 ## Draws `siege.enemies`; call it once per physics tick.
@@ -116,9 +160,7 @@ func build(kind: String) -> Dictionary:
 func take(e: Dictionary) -> Dictionary:
 	var r: Dictionary
 	if e.kind == "swarm":
-		if free_slots.is_empty():
-			grow()
-		r = {"kind": "swarm", "slot": free_slots.pop_back(), "yaw": -e.face, "tumble": 0.0}
+		r = {"kind": "swarm", "look": "", "slot": -1, "yaw": -e.face, "tumble": 0.0}
 	else:
 		var spare: Array = pool.get(e.kind, [])
 		r = spare.pop_back() if spare.size() else build(e.kind)
@@ -129,10 +171,7 @@ func take(e: Dictionary) -> Dictionary:
 			leg[0].basis = Basis.IDENTITY
 		if r.turret != null:
 			r.turret.rotation = Vector3.ZERO
-		r.body.albedo_color = MK[e.mk - 1]
 		r.body.emission = Color.BLACK
-		r.glow.albedo_color = EYES[e.mk - 1]
-		r.glow.emission = EYES[e.mk - 1]
 		if r.mk != null:
 			r.mk.visible = e.mk >= 2
 	r.merge({"x": e.x, "y": e.y, "hp": e.hp, "speed": 0.0, "walk": 0.0, "flash": 0, "dead": false, "fresh": true, "phase": randf() * TAU}, true)
@@ -143,8 +182,7 @@ func drop(id) -> void:
 	var r: Dictionary = rigs[id]
 	rigs.erase(id)
 	if r.kind == "swarm":
-		swarm.multimesh.set_instance_transform(r.slot, Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
-		free_slots.append(r.slot)
+		release(r)
 	else:
 		r.root.visible = false
 		if not pool.has(r.kind):
@@ -156,19 +194,36 @@ func drop(id) -> void:
 		bars.erase(id)
 
 
-func grow() -> void:
-	var mm := swarm.multimesh
-	var n := maxi(mm.instance_count * 2, 32)
-	var used := {}
-	for r in rigs.values():
-		if r.kind == "swarm":
-			used[r.slot] = true
-	mm.instance_count = n
-	free_slots.clear()
-	for i in range(n - 1, -1, -1):
-		if not used.has(i):
-			mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
-			free_slots.append(i)
+func release(r: Dictionary) -> void:
+	if r.look == "":
+		return
+	var s: Dictionary = swarms[r.look]
+	s.mmi.multimesh.set_instance_transform(r.slot, Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+	s.used.erase(r.slot)
+	s.free.append(r.slot)
+	r.look = ""
+
+
+func claim(r: Dictionary, look: String) -> void:
+	release(r)
+	var s := swarm(look)
+	if s.free.is_empty():
+		var mm: MultiMesh = s.mmi.multimesh
+		var n := maxi(mm.instance_count * 2, 32)
+		var old: Array = s.used.keys()
+		var saved := old.map(func(i): return [mm.get_instance_transform(i), mm.get_instance_color(i)])
+		mm.instance_count = n
+		for j in old.size():
+			mm.set_instance_transform(old[j], saved[j][0])
+			mm.set_instance_color(old[j], saved[j][1])
+		for i in range(n - 1, -1, -1):
+			if not s.used.has(i):
+				mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+				s.free.append(i)
+	r.slot = s.free.pop_back()
+	s.used[r.slot] = true
+	r.look = look
+	r.fresh = true
 
 
 func move(r: Dictionary, e: Dictionary, dt: float) -> void:
@@ -235,8 +290,24 @@ func pose(r: Dictionary, e: Dictionary) -> void:
 		roll += 0.08 * sin(clock * 1.7 + r.phase)
 	elif not r.legs.is_empty():
 		bob = absf(sin(r.walk)) * 0.025 * h * k
-	var dying: bool = e.act == "die"
-	if dying:
+	var z := nap(e)
+	if z > 0.0:
+		pitch = lerpf(pitch, -NAP.pitch, z)
+		roll = lerpf(roll, NAP.roll, z)
+		drop = lerpf(drop, NAP.sink * h, z)
+		spread = lerpf(spread, NAP.spread, z)
+		bob *= 1.0 - z
+		k *= 1.0 - z
+	if r.turret != null:
+		var sag: float = NAP.droop * z
+		r.turret.rotation.z = -sag if e.kind == "turret" else 0.0
+		r.turret.rotation.x = 0.0 if e.kind == "turret" else sag
+	var on := lit(e)
+	glow *= on
+	r.body.albedo_color = paint(e)
+	r.glow.albedo_color = eyes(e).lerp(Mech.DARK, 1.0 - on)
+	r.glow.emission = eyes(e)
+	if e.act == "die":
 		var f := minf(t / POSE.die, 1.0)
 		if not r.dead:
 			r.dead = true
@@ -244,11 +315,10 @@ func pose(r: Dictionary, e: Dictionary) -> void:
 		pitch = 0.0
 		roll = POSE.tip * f
 		drop = POSE.sink * h * f
-		glow = 0.0
-		r.body.albedo_color = MK[e.mk - 1].darkened(0.75 * f)
+		r.body.albedo_color = paint(e).darkened(0.75 * f)
 		root.visible = t < POSE.die
 		k = 0.0
-	root.position = Vector3(e.x, LIFT.get(e.kind, 0.0), e.y)
+	root.position = Vector3(e.x, LIFT.get(e.kind, 0.0) * (1.0 - z), e.y)
 	lean.rotation.z = pitch if r.fresh else lerpf(lean.rotation.z, pitch, 0.35)
 	lean.rotation.x = roll
 	lean.position = Vector3(push, bob - drop, 0)
@@ -261,7 +331,7 @@ func pose(r: Dictionary, e: Dictionary) -> void:
 		if e.kind in SPLAY:
 			leg[0].basis = Basis(Vector3.UP, s) * Basis(leg[1], up * POSE.lift + spread)
 		else:
-			leg[0].rotation.z = s
+			leg[0].rotation.z = s + z * NAP.kneel * (1.0 if i % 2 else -1.0)
 		if leg.size() > 2:
 			leg[2][0].position = leg[2][1] - leg[2][2] * up * POSE.piston
 	if r.spin != null:
@@ -275,10 +345,14 @@ func pose(r: Dictionary, e: Dictionary) -> void:
 
 func cube(r: Dictionary, e: Dictionary) -> void:
 	var h: float = SIZE.swarm
+	var look := "off" if lit(e) < 0.5 else ("neutral" if neutral(e) else "lane")
+	if look != r.look:
+		claim(r, look)
 	r.yaw = lerp_angle(r.yaw, -float(e.face), 1.0 if r.fresh else POSE.turn)
-	var y: float = LIFT.swarm + POSE.float * sin(clock * 3.0 + r.phase)
+	var z := nap(e)
+	var y: float = (LIFT.swarm + POSE.float * sin(clock * 3.0 + r.phase)) * (1.0 - z) - NAP.sink * h * z
 	var s := 1.0
-	var c: Color = MK[e.mk - 1]
+	var c: Color = paint(e)
 	if e.act == "roll":
 		r.tumble -= r.d / ROLL.swarm
 	elif e.act == "windup":
@@ -291,8 +365,8 @@ func cube(r: Dictionary, e: Dictionary) -> void:
 		s = maxf(1.0 - e.t / 8.0, 0.0)
 	if r.flash > 0:
 		c = Color.WHITE
-	var b := Basis(Vector3.UP, r.yaw) * Basis(Vector3.BACK, r.tumble)
-	var mm := swarm.multimesh
+	var b := Basis(Vector3.UP, r.yaw) * Basis(Vector3.BACK, r.tumble) * Basis(Vector3.RIGHT, NAP.tilt * z)
+	var mm: MultiMesh = swarms[r.look].mmi.multimesh
 	mm.set_instance_transform(r.slot, Transform3D(b.scaled(Vector3.ONE * s), Vector3(e.x, y + h * 0.5 * (1.0 - s), e.y)))
 	mm.set_instance_color(r.slot, c)
 	if r.fresh:
@@ -319,7 +393,7 @@ func bar(e: Dictionary) -> void:
 	b.visible = true
 	var h: float = SIZE[e.kind]
 	b.scale = Vector3(clampf(h * BAR.per_m, BAR.min, BAR.max), 1, 1)
-	b.position = Vector3(e.x, LIFT.get(e.kind, 0.0) + h + BAR.y, e.y)
+	b.position = Vector3(e.x, LIFT.get(e.kind, 0.0) * (1.0 - nap(e)) + h + BAR.y, e.y)
 	var f := clampf(float(e.hp) / e.max, 0.0, 1.0)
 	var fill: Node3D = b.get_child(1)
 	fill.scale.x = maxf(f, 0.001)

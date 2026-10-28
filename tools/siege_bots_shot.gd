@@ -11,13 +11,16 @@ const SPEED := {"scout": 3.0, "swarm": 2.5, "spider": 2.4, "flyer": 2.2, "turret
 const SIGNATURE := {"turret": "plant", "jugg": "roll"}
 const CROWD := {"swarm": 18, "scout": 10, "spider": 8, "flyer": 6, "turret": 4, "walker": 4, "tripod": 3, "quadheavy": 3, "heavy": 2, "jugg": 2}
 const FIELD := Vector2(15.0, 10.0)
-const CYCLE := {"attack": 40, "windup": 40, "hit": 30, "die": 70}
+const CYCLE := {"attack": 40, "windup": 40, "hit": 30, "die": 70, "wake": 70}
+const CAMP := ["swarm", "scout", "spider", "turret", "walker", "heavy"]
+const ROWS := [["dormant", true], ["idle", true], ["idle", false]]
+const SPACE := Vector2(5.5, 7.0)
 const PERF := [120, 600]
 
 var bots: SiegeBots
 var cam: Camera3D
 var siege := {"tick": 0, "enemies": []}
-var opt := {"bot": "", "act": "", "shot": "", "at": 90, "mk": 0, "crowd": 0, "perf": false}
+var opt := {"bot": "", "act": "", "shot": "", "at": 90, "mk": 0, "crowd": 0, "perf": false, "neutral": false, "camp": false}
 var acts := []
 var frame := 0
 var acc := {"gpu": 0.0, "cpu": 0.0, "draws": 0.0, "prims": 0.0, "objs": 0.0, "n": 0}
@@ -28,8 +31,8 @@ func _initialize() -> void:
 		var kv: PackedStringArray = a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2 and opt.has(kv[0]):
 			opt[kv[0]] = kv[1].to_int() if opt[kv[0]] is int else kv[1]
-		elif kv[0] == "perf":
-			opt.perf = true
+		elif kv[0] in ["perf", "neutral", "camp"]:
+			opt[kv[0]] = true
 	var w := WorldEnvironment.new()
 	w.environment = Look.env()
 	root.add_child(w)
@@ -47,7 +50,11 @@ func _initialize() -> void:
 	cam = Camera3D.new()
 	cam.far = 400.0
 	root.add_child(cam)
-	if opt.crowd > 0:
+	if opt.camp:
+		for j in ROWS.size():
+			for i in CAMP.size():
+				add(CAMP[i], Vector2((i - (CAMP.size() - 1) / 2.0) * SPACE.x, (j - 1) * SPACE.y), PI / 2, ROWS[j][0], 1, 1.0, ROWS[j][1])
+	elif opt.crowd > 0:
 		crowd(opt.crowd)
 	elif opt.bot != "":
 		add(opt.bot, Vector2.ZERO, PI / 2 + LINEUP.turn)
@@ -64,10 +71,10 @@ func _initialize() -> void:
 	RenderingServer.frame_post_draw.connect(drawn)
 
 
-func add(kind: String, at: Vector2, face: float, act := "", mk := 0, hp := 1.0) -> void:
+func add(kind: String, at: Vector2, face: float, act := "", mk := 0, hp := 1.0, calm := false) -> void:
 	var i: int = siege.enemies.size()
 	var a: String = opt.act if opt.act != "" else (act if act != "" else SIGNATURE.get(kind, "walk"))
-	siege.enemies.append({"id": i, "kind": kind, "lane": 0, "x": at.x, "y": at.y, "face": face, "hp": 100.0 * hp, "max": 100.0, "act": a, "t": 0, "mk": mk if mk > 0 else maxi(opt.mk, 1)})
+	siege.enemies.append({"id": i, "kind": kind, "lane": 0, "x": at.x, "y": at.y, "face": face, "hp": 100.0 * hp, "max": 100.0, "act": a, "t": 0, "mk": mk if mk > 0 else maxi(opt.mk, 1), "neutral": calm or opt.neutral})
 	acts.append(a)
 
 
@@ -113,7 +120,7 @@ func _physics_process(dt: float) -> bool:
 
 
 func aim() -> void:
-	if opt.crowd > 0:
+	if opt.crowd > 0 or opt.camp:
 		cam.fov = GAME.fov
 		cam.position = Vector3(0, sin(GAME.pitch), cos(GAME.pitch)) * GAME.dist
 		cam.rotation = Vector3(-GAME.pitch, 0, 0)

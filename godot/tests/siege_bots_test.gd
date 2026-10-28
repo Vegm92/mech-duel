@@ -122,10 +122,54 @@ func view() -> void:
 	var slots := {}
 	for r in bots.rigs.values():
 		slots[r.slot] = true
-	check(slots.size() == 40 and bots.swarm.multimesh.instance_count >= 40, "40 swarm cubes take 40 MultiMesh slots")
+	var lane: Dictionary = bots.swarms.lane
+	check(slots.size() == 40 and lane.mmi.multimesh.instance_count >= 40, "40 swarm cubes take 40 MultiMesh slots")
 	swarm.enemies = swarm.enemies.slice(0, 10)
 	bots.sync(swarm, DT)
-	check(bots.free_slots.size() == bots.swarm.multimesh.instance_count - 10, "dropped swarm cubes free their slots")
+	check(lane.free.size() == lane.mmi.multimesh.instance_count - 10, "dropped swarm cubes free their slots")
+	bots.free()
+	camp()
+
+
+func camp() -> void:
+	var bots := SiegeBots.new()
+	root.add_child(bots)
+	var siege := {"enemies": []}
+	for i in SiegeBots.KINDS.size():
+		var e := enemy(i, SiegeBots.KINDS[i], Vector2(i * 4.0, 0), "dormant")
+		e.neutral = true
+		siege.enemies.append(e)
+	for t in 20:
+		for e in siege.enemies:
+			e.t = t
+		bots.sync(siege, DT)
+	for e in siege.enemies:
+		var r: Dictionary = bots.rigs[e.id]
+		if e.kind == "swarm":
+			check(r.look == "off", "a dormant swarm cube has its eyes off")
+			continue
+		check(r.lean.position.y < 0.0 and r.glow.emission_energy_multiplier == 0.0 and absf(r.lean.rotation.z) > 0.1, "a dormant %s slumps, sinks and goes dark" % e.kind)
+		check(r.root.position.y == 0.0, "a dormant %s rests on the ground" % e.kind)
+	for t in int(SiegeBots.NAP.wake) + 1:
+		for e in siege.enemies:
+			e.act = "wake"
+			e.t = t
+		bots.sync(siege, DT)
+	var flyer: Dictionary = bots.rigs[3]
+	var walker: Dictionary = bots.rigs[5]
+	check(is_equal_approx(flyer.root.position.y, SiegeBots.LIFT.flyer), "a woken flyer hovers again")
+	check(walker.glow.emission_energy_multiplier == SiegeBots.GLOW.rest and walker.lean.position.y > -0.01, "a woken walker stands with its eyes on")
+	check(walker.glow.albedo_color == SiegeBots.NEUTRAL.eyes and walker.body.albedo_color == SiegeBots.paint(siege.enemies[5]), "a neutral bot has amber eyes and rusty paint")
+	check(bots.rigs[1].look == "neutral", "a woken neutral swarm cube uses the amber-eyed batch")
+	var we: Dictionary = siege.enemies[5]
+	siege.enemies = [we]
+	bots.sync(siege, DT)
+	we.id += 100
+	we.neutral = false
+	we.act = "idle"
+	bots.sync(siege, DT)
+	var again: Dictionary = bots.rigs[we.id]
+	check(again.glow.albedo_color == SiegeBots.EYES[0] and again.body.albedo_color == SiegeBots.MK[0], "a pooled rig reused as a lane bot gets blue eyes and plain grey back")
 	bots.free()
 
 
