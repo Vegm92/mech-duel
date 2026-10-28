@@ -1789,7 +1789,7 @@ static func update_mines(state) -> void:
 		var caught := []
 		if mi.arm <= 0:
 			for t in foes(state, mi.owner):
-				if not airborne(t) and hypot(t.x - mi.x, t.y - mi.y) <= h.trigger + rad(t):
+				if not airborne(t) and not t.get("fly", false) and hypot(t.x - mi.x, t.y - mi.y) <= h.trigger + rad(t):
 					caught.append(t)
 		if caught.is_empty():
 			keep.append(mi)

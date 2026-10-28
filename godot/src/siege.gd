@@ -7,8 +7,49 @@ const S = preload("res://src/siege_state.gd")
 const RUN := {
 	"first": 10 * Sim.TICKS, "build": 25 * Sim.TICKS, "warn": 8 * Sim.TICKS, "cap": 90 * Sim.TICKS, "gap": 30,
 	"respawn": 8 * Sim.TICKS, "respawnWave": 30, "repairDelay": Sim.TICKS, "repair": 25.0 / Sim.TICKS,
+	"buildLate": 15 * Sim.TICKS, "late": 20, "ranged": 5 * Sim.TICKS, "call": 2, "clear": 0.2,
 	"scrap": 5, "aggro": 6.0, "post": 21.0, "leash": 14.0, "corpse": 90, "spawnRing": 7.0, "players": 0.4, "frame": 24.0,
 }
+const SHOP := {"gate": 40, "rebuild": 120, "ring": 200, "repair": 30, "wall": 60, "mines": 80, "laser": 150, "post": 120}
+const MODULE := {"pad": 2.5, "wall": {"hp": 800, "depth": 1.0}, "mines": {"n": 4, "spread": 2.5, "dmg": 60, "arm": 30},
+	"laser": {"every": 180, "warn": 60, "dmg": 80, "half": 0.6}, "post": {"dmg": 120, "cd": 240, "reach": 2.0, "range": 40.0, "half": 0.5}}
+const SQUADS := {
+	"scoutPack": [["scout", 4]], "swarmCloud": [["swarm", 2]], "raiders": [["scout", 2], ["flyer", 1]], "ambush": [["spider", 3]],
+	"firebase": [["turret", 1], ["swarm", 2]], "airWing": [["flyer", 3]], "lineBreakers": [["walker", 2]], "ram": [["jugg", 1], ["scout", 3]],
+	"sniperNest": [["tripod", 1], ["turret", 1], ["spider", 2]], "shieldWall": [["heavy", 1], ["turret", 2]],
+	"barrage": [["quadheavy", 1], ["tripod", 1], ["swarm", 2]], "titanPush": [["heavy", 1], ["jugg", 1], ["walker", 1]],
+}
+const DIVISIONS := {
+	"vanguard": ["scoutPack", "raiders", "ambush"], "swarm": ["swarmCloud", "firebase"], "air": ["airWing", "raiders"],
+	"armor": ["lineBreakers", "shieldWall"], "siege": ["barrage", "sniperNest", "scoutPack"], "shock": ["ram", "titanPush"],
+}
+const WAVES := [
+	{"lanes": 1, "pool": ["scoutPack"]},
+	{"lanes": 1, "pool": ["scoutPack", "swarmCloud"]},
+	{"lanes": 2, "pool": ["scoutPack", "swarmCloud"]},
+	{"lanes": 2, "pool": ["scoutPack", "ambush"], "must": ["ambush"]},
+	{"lanes": 2, "pool": ["ambush", "swarmCloud", "scoutPack"]},
+	{"lanes": 3, "pool": ["raiders", "scoutPack", "ambush"], "must": ["raiders"]},
+	{"lanes": 4, "pool": ["raiders", "ambush", "swarmCloud"]},
+	{"lanes": 4, "pool": ["firebase", "scoutPack", "ambush"], "must": ["firebase"]},
+	{"lanes": 4, "pool": ["lineBreakers", "firebase", "raiders"], "must": ["lineBreakers"]},
+	{"lanes": 4, "pool": ["scoutPack", "swarmCloud"], "must": ["shieldWall"], "boss": true},
+	{"lanes": 4, "pool": ["lineBreakers", "firebase", "ambush", "raiders"]},
+	{"lanes": 4, "pool": ["lineBreakers", "firebase", "ambush", "raiders"], "must": ["sniperNest"]},
+	{"lanes": 4, "pool": ["lineBreakers", "firebase", "sniperNest", "raiders"], "must": ["airWing"]},
+	{"lanes": 4, "pool": ["lineBreakers", "firebase", "sniperNest", "airWing", "ambush"]},
+	{"lanes": 4, "pool": ["scoutPack"], "must": ["ram"], "boss": true},
+	{"lanes": 4, "pool": ["lineBreakers", "sniperNest", "airWing", "firebase", "shieldWall"]},
+	{"lanes": 4, "pool": ["lineBreakers", "sniperNest", "airWing", "firebase"], "must": ["barrage"]},
+	{"lanes": 4, "pool": ["lineBreakers", "sniperNest", "airWing", "barrage", "shieldWall"]},
+	{"lanes": 4, "pool": ["lineBreakers", "sniperNest", "airWing", "barrage", "shieldWall", "ram"]},
+	{"lanes": 4, "pool": ["scoutPack", "swarmCloud"], "must": ["barrage", "barrage", "sniperNest"], "boss": true},
+]
+const LATE := {"lanes": 4, "pool": ["raiders", "ambush", "firebase", "airWing", "lineBreakers", "ram", "sniperNest", "shieldWall", "barrage", "titanPush"], "mk": 2}
+const LAST := {"lanes": 4, "pool": [], "must": ["titanPush", "shieldWall", "shieldWall", "airWing", "barrage", "sniperNest", "ram", "lineBreakers", "ambush", "swarmCloud", "raiders"], "mk": 2, "boss": true}
+const ENDLESS := {"lanes": 4, "pool": ["raiders", "ambush", "firebase", "airWing", "lineBreakers", "ram", "sniperNest", "shieldWall", "barrage", "titanPush"], "mk": 3}
+const TANKS := ["heavy", "jugg", "walker"]
+const RANGED := ["turret", "tripod", "quadheavy"]
 const MK := [{"hp": 1.0, "dmg": 1.0, "speed": 1.0}, {"hp": 1.5, "dmg": 1.25, "speed": 1.0}, {"hp": 2.2, "dmg": 1.5, "speed": 1.1}]
 const BOTS := {
 	"scout": {"cost": 1, "hp": 60, "speed": 7.5, "r": 0.6, "poise": 1, "attack": "bolt", "range": 12.0, "dmg": 10, "impact": 0, "cd": 60, "windup": 12, "shot": {"speed": 30, "radius": 0.25, "range": 14}, "dodge": 0.35},
@@ -90,7 +131,7 @@ static func create(loadouts: Array, seed := 1) -> Dictionary:
 	state.siege = {
 		"tick": 0, "wave": {"n": 0, "next_in": RUN.first, "lanes_open": [false, false, false, false], "live": false},
 		"core": core, "gates": gates, "pads": S.pads(), "enemies": [], "queue": [], "scrap": 0, "next": 0,
-		"lost": false, "down": {}, "calm": {}, "was": {}, "team": loadouts.size(),
+		"lost": false, "down": {}, "calm": {}, "was": {}, "team": loadouts.size(), "earned": 0,
 	}
 	state.geo = geo_of(state.siege)
 	return state
@@ -122,6 +163,16 @@ static func step(state, inputs: Array):
 		var m = state.mechs[i]
 		if not m.ko:
 			Sim.think(state, m, inputs[i] if i < inputs.size() and inputs[i] != null else Sim.IDLE)
+	for i in team:
+		var inp = inputs[i] if i < inputs.size() and inputs[i] != null else Sim.IDLE
+		if not state.mechs[i].ko:
+			if inp.get("buy", "") != "":
+				buy(state, sg, inp.buy, state.mechs[i])
+			if inp.get("post", false):
+				fire_post(state, sg, state.mechs[i])
+		if inp.get("call", false):
+			call_wave(state, sg)
+	modules(state, sg)
 	for e in sg.enemies:
 		if e.act != "die":
 			drive(state, sg, e, state.mechs[e.m])
@@ -149,15 +200,32 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 	for lane in 4:
 		if state.siege.wave.lanes_open[lane]:
 			open.append(lane)
+	var sg: Dictionary = state.siege
+	var c: Dictionary = sg.core
 	var post := S.at(open[id % open.size()] if open.size() else id % 4, RUN.post)
+	var leash: float = RUN.leash
+	if Sim.foes(state, id).any(func(t): return Sim.hypot(t.x, t.y) < S.RING_OUT + 2.0):
+		post = {"x": c.x, "y": c.y}
+		leash = S.RING_OUT + 4.0
+	var mend: bool = not sg.wave.live and c.hp < c.max * (4 - c.broken) / 4.0
+	if mend:
+		post = S.at(id % 4, S.CORE.repair - 1.5)
 	var o = Bot.pick(state, brain, m)
-	if o.ko or o.team == m.team or Sim.hypot(o.x - post.x, o.y - post.y) > RUN.leash:
+	if mend or o.ko or o.team == m.team or Sim.hypot(o.x - post.x, o.y - post.y) > leash or not open_line(state, m.x, m.y, o.x, o.y):
 		var dx: float = post.x - m.x
 		var dy: float = post.y - m.y
 		var d := Sim.hypot(dx, dy)
 		inp.mx = dx / d if d > 1.5 else 0.0
 		inp.my = dy / d if d > 1.5 else 0.0
 		inp.dash = false
+		if mend:
+			for k in ["left", "right", "hook", "shield", "ult"]:
+				inp[k] = false
+	if not sg.wave.live:
+		for item in ["ring", "rebuild", "gate"]:
+			if sg.scrap >= SHOP[item] and (c.broken > 0 if item == "ring" else sg.gates.any(func(g): return g.hp <= 0 if item == "rebuild" else g.hp > 0 and g.hp < g.max * 0.6)):
+				inp.buy = item
+				break
 	return inp
 
 
@@ -284,16 +352,25 @@ static func target(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dicti
 			nd = d
 	if near != null:
 		return {"x": near.x, "y": near.y, "r": Sim.rad(near), "mech": near}
-	var g: Dictionary = sg.gates[e.lane]
-	if g.hp > 0 and outside(b, e.lane) and not k.get("fly", false) and k.get("first", "") != "core":
-		return {"x": g.x, "y": g.y, "r": (S.RING_OUT - S.RING_IN) / 2.0, "hit": g}
+	if outside(b, e.lane) and not k.get("fly", false) and k.get("first", "") != "core":
+		var mine := along(b, e.lane)
+		var wall = null
+		for pd in sg.pads:
+			if pd.lane == e.lane and pd.module == "wall" and pd.hp > 0 and along(pd, e.lane) < mine and (wall == null or along(pd, e.lane) > along(wall, e.lane)):
+				wall = pd
+		if wall != null:
+			var half: float = MODULE.wall.depth / 2.0
+			return {"x": wall.x, "y": wall.y, "r": half, "hit": wall, "face": along(wall, e.lane) + half}
+		var g: Dictionary = sg.gates[e.lane]
+		if g.hp > 0:
+			return {"x": g.x, "y": g.y, "r": (S.RING_OUT - S.RING_IN) / 2.0, "hit": g, "face": S.RING_OUT}
 	var c: Dictionary = sg.core
 	return {"x": c.x, "y": c.y, "r": c.r, "hit": c}
 
 
 static func open_line(state, x0: float, y0: float, x1: float, y1: float) -> bool:
 	var g: Dictionary = state.geo
-	var n := int(ceil(Sim.hypot(x1 - x0, y1 - y0)))
+	var n := int(ceil(Sim.hypot(x1 - x0, y1 - y0) / 2.0))
 	for i in range(1, n):
 		var x: float = lerpf(x0, x1, i / float(n))
 		var y: float = lerpf(y0, y1, i / float(n))
@@ -307,9 +384,13 @@ static func open_line(state, x0: float, y0: float, x1: float, y1: float) -> bool
 	return true
 
 
-static func outside(b: Dictionary, lane: int) -> bool:
+static func along(p: Dictionary, lane: int) -> float:
 	var l: Dictionary = S.LANES[lane]
-	return b.x * l.dx + b.y * l.dy > S.RING_OUT
+	return p.x * l.dx + p.y * l.dy
+
+
+static func outside(b: Dictionary, lane: int) -> bool:
+	return along(b, lane) > S.RING_OUT
 
 
 static func route(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dictionary, tgt: Dictionary) -> Dictionary:
@@ -333,8 +414,8 @@ static func route(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dictio
 	if outside(b, e.lane):
 		if k.get("first", "") == "core":
 			return S.at(e.lane, maxf(S.RING_OUT + 4.0, stand), e.side)
-		if sg.gates[e.lane].hp > 0:
-			return S.at(e.lane, S.RING_OUT + (k.r + 0.1 if k.range < 5.0 else maxf(stand, k.r + 0.6)), e.side)
+		if tgt.has("face"):
+			return S.at(e.lane, tgt.face + (k.r + 0.1 if k.range < 5.0 else maxf(stand, k.r + 0.6)), e.side)
 		return S.at(e.lane, S.RING_IN - 2.0, clampf(e.side, -3.0, 3.0))
 	return approach(b, c, c.r + maxf(stand, k.r + 0.6))
 
@@ -419,8 +500,8 @@ static func shell_land(state, sg: Dictionary) -> void:
 	for l in state.lobs:
 		if l.t != 1 or state.mechs[l.owner].team == 0:
 			continue
-		for g in sg.gates:
-			if g.hp > 0 and Sim.hypot(g.x - l.x, g.y - l.y) <= l.r + S.LANE_W / 2.0:
+		for g in sg.gates + sg.pads:
+			if g.get("hp", 0) > 0 and Sim.hypot(g.x - l.x, g.y - l.y) <= l.r + S.LANE_W / 2.0:
 				g.hp = maxf(0.0, g.hp - l.dmg)
 		var c: Dictionary = sg.core
 		if Sim.hypot(c.x - l.x, c.y - l.y) <= l.r + c.r:
@@ -433,7 +514,7 @@ static func ram(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dictiona
 		e.roll += 1
 		b.buffs.bubble = 2
 		b.buffs.bubbleHp = 1e9
-		var dest := route(state, sg, e, b, k, {} if not tgt.has("hit") else tgt)
+		var dest := route(state, sg, e, b, k, {} if tgt.has("mech") else tgt)
 		if tgt.has("hit") and not outside(b, e.lane):
 			dest = {"x": tgt.x, "y": tgt.y}
 		var dx: float = dest.x - b.x
@@ -456,7 +537,7 @@ static func ram(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dictiona
 			Sim.hit(state, b, hit, dmg, "LEGS", k.impact, atan2(b.y - hit.y, b.x - hit.x), Sim.next_cast(state))
 			Sim.push(hit, (hit.x - b.x) / hd, (hit.y - b.y) / hd, k.push)
 			unroll(e, b)
-		elif tgt.has("hit") and tgt.hit.has("lane") and tgt.hit.hp > 0 and b.x * S.LANES[e.lane].dx + b.y * S.LANES[e.lane].dy <= S.RING_OUT + k.r + 0.6:
+		elif tgt.has("face") and along(b, e.lane) <= tgt.face + k.r + 0.6:
 			harm(state, tgt.hit, dmg * k.gateK, b)
 			unroll(e, b)
 		elif Sim.hypot(sg.core.x - b.x, sg.core.y - b.y) <= sg.core.r + k.r + 0.6:
@@ -559,6 +640,7 @@ static func settle(state, sg: Dictionary) -> void:
 			if not e.blown:
 				var gain := int(ceil(BOTS[e.kind].cost * RUN.scrap / float(BOTS[e.kind].get("pack", 1))))
 				sg.scrap += gain
+				sg.earned += gain
 				state.fx.append({"k": "scrap", "x": b.x, "y": b.y, "n": gain, "t": 40})
 			act(e, "die")
 		elif e.act == "die":
@@ -639,6 +721,10 @@ static func direct(state, sg: Dictionary) -> void:
 			w.n += 1
 			w.live = true
 			w.next_in = RUN.cap
+			sg.earned = 0
+			for pd in sg.pads:
+				if pd.module == "mines":
+					arm(state, pd)
 	var queue := []
 	for q in sg.queue:
 		if q.at <= state.tick:
@@ -649,27 +735,201 @@ static func direct(state, sg: Dictionary) -> void:
 	if w.live and queue.is_empty() and sg.enemies.filter(func(e): return e.act != "die").is_empty() and w.next_in > RUN.warn:
 		w.live = false
 		w.lanes_open = [false, false, false, false]
-		w.next_in = mini(w.next_in, RUN.build)
+		w.next_in = mini(w.next_in, RUN.build if w.n < RUN.late else RUN.buildLate)
+		var c: Dictionary = sg.core
+		if c.hp >= c.max * 0.75:
+			var bonus := int(floor(sg.earned * RUN.clear))
+			sg.scrap += bonus
+			state.fx.append({"k": "cleared", "n": bonus, "t": 90})
+		else:
+			state.fx.append({"k": "cleared", "n": 0, "t": 90})
+
+
+static func row(n: int) -> Dictionary:
+	if n <= WAVES.size():
+		return WAVES[n - 1]
+	return LATE if n < 30 else (LAST if n == 30 else ENDLESS)
+
+
+static func cost(squad: String) -> int:
+	var c := 0
+	for u in SQUADS[squad]:
+		c += BOTS[u[0]].cost * u[1]
+	return c
 
 
 static func plan(state, sg: Dictionary, n: int) -> void:
+	var r := row(n)
 	var points := budget(n, sg.team)
-	var lanes := []
-	var want := 1 if n < 3 else (2 if n < 6 else (3 if n < 7 else 4))
 	var pick := [0, 1, 2, 3]
-	while lanes.size() < want:
+	var lanes := []
+	while lanes.size() < r.lanes:
 		lanes.append(pick.pop_at(int(floor(Sim.rng(state) * pick.size()))))
-	var start: int = state.tick + RUN.warn
-	var at := []
+	var load := {}
+	var units := {}
 	for lane in lanes:
-		at.append(start)
+		load[lane] = 0
+		units[lane] = []
+	var chosen: Array = r.get("must", []).duplicate()
+	for key in chosen:
+		points -= cost(key)
+	while true:
+		var can: Array = r.pool.filter(func(q): return cost(q) <= points)
+		if can.is_empty():
+			break
+		var key: String = can[int(floor(Sim.rng(state) * can.size()))]
+		chosen.append(key)
+		points -= cost(key)
+	for key in chosen:
+		var lane = lanes[0]
+		for l in lanes:
+			if load[l] < load[lane]:
+				lane = l
+		load[lane] += cost(key)
+		for u in SQUADS[key]:
+			for i in u[1]:
+				units[lane].append(u[0])
+	var mk: int = r.get("mk", 1)
+	var start: int = state.tick + RUN.warn
+	for lane in lanes:
+		if units[lane].is_empty():
+			continue
 		sg.wave.lanes_open[lane] = true
-		state.fx.append({"k": "warn", "lane": lane, "kind": "scout", "t": RUN.warn})
-	var i := 0
-	while points >= BOTS.scout.cost:
-		var lane: int = i % lanes.size()
-		var side := (Sim.rng(state) - 0.5) * 6.0
-		sg.queue.append({"at": at[lane], "kind": "scout", "lane": lanes[lane], "side": side})
-		at[lane] += RUN.gap
-		points -= BOTS.scout.cost
-		i += 1
+		var list: Array = units[lane]
+		list.sort_custom(func(a, b): return (0 if a in TANKS else (2 if a in RANGED else 1)) < (0 if b in TANKS else (2 if b in RANGED else 1)))
+		var top: String = list[0]
+		for kind in list:
+			if BOTS[kind].cost > BOTS[top].cost:
+				top = kind
+		state.fx.append({"k": "warn", "lane": lane, "kind": top, "n": list.size(), "boss": r.get("boss", false), "t": RUN.warn})
+		var at := start
+		var late := start + RUN.ranged
+		for kind in list:
+			var side := (Sim.rng(state) - 0.5) * 6.0
+			if kind in RANGED:
+				sg.queue.append({"at": late, "kind": kind, "lane": lane, "side": side, "mk": mk})
+				late += RUN.gap
+			else:
+				sg.queue.append({"at": at, "kind": kind, "lane": lane, "side": side, "mk": mk})
+				at += RUN.gap
+
+
+static func call_wave(state, sg: Dictionary) -> void:
+	var w: Dictionary = sg.wave
+	if w.live or w.next_in <= RUN.warn + 1:
+		return
+	var bonus: int = RUN.call * int(ceil((w.next_in - RUN.warn) / float(Sim.TICKS)))
+	sg.scrap += bonus
+	w.next_in = RUN.warn + 1
+	state.fx.append({"k": "call", "n": bonus, "t": 60})
+
+
+static func pad_at(sg: Dictionary, m: Dictionary, reach: float):
+	for pd in sg.pads:
+		if Sim.hypot(pd.x - m.x, pd.y - m.y) <= reach:
+			return pd
+	return null
+
+
+static func buy(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
+	if sg.wave.live or not SHOP.has(item) or sg.scrap < SHOP[item]:
+		return false
+	var c: Dictionary = sg.core
+	match item:
+		"gate":
+			var worst = null
+			for g in sg.gates:
+				if g.hp > 0 and g.hp < g.max and (worst == null or g.hp < worst.hp):
+					worst = g
+			if worst == null:
+				return false
+			worst.hp = minf(worst.max, worst.hp + worst.max * 0.2)
+		"rebuild":
+			var gone: Array = sg.gates.filter(func(g): return g.hp <= 0)
+			if gone.is_empty():
+				return false
+			gone[0].hp = gone[0].max * 0.5
+		"ring":
+			if c.broken == 0:
+				return false
+			c.broken -= 1
+			c.hp = c.max * (4 - c.broken) / 4.0
+		"repair":
+			if Sim.total_armor(m) >= Sim.total_armor({"armor": m.max}):
+				return false
+			Sim.repair(m, 1e6)
+		_:
+			var pd = pad_at(sg, m, MODULE.pad)
+			if pd == null or (pd.module != "" and not (pd.module == item and pd.get("hp", 1) <= 0)):
+				return false
+			build(state, pd, item)
+	sg.scrap -= SHOP[item]
+	state.fx.append({"k": "build", "item": item, "x": m.x, "y": m.y, "t": 30})
+	return true
+
+
+static func build(state, pd: Dictionary, item: String) -> void:
+	pd.module = item
+	match item:
+		"wall":
+			var d := along(pd, pd.lane)
+			var half: float = MODULE.wall.depth / 2.0
+			var a := S.at(pd.lane, d - half, -S.LANE_W / 2.0)
+			var z := S.at(pd.lane, d + half, S.LANE_W / 2.0)
+			pd.merge(box(a.x, a.y, z.x, z.y), true)
+			pd.only = 1
+			pd.hp = float(MODULE.wall.hp)
+			pd.max = MODULE.wall.hp
+			if not state.geo.boxes.has(pd):
+				state.geo.boxes.append(pd)
+		"mines":
+			arm(state, pd)
+		"laser":
+			pd.t = 0
+		"post":
+			pd.cd = 0
+
+
+static func arm(state, pd: Dictionary) -> void:
+	var M: Dictionary = MODULE.mines
+	state.mines = state.mines.filter(func(mi): return mi.get("pad", -1) != pd.x * 1000 + pd.y)
+	for i in M.n:
+		var p := S.at(pd.lane, along(pd, pd.lane), (i - (M.n - 1) / 2.0) * M.spread)
+		state.mines.append({"owner": 0, "x": p.x, "y": p.y, "arm": M.arm, "life": 1 << 30, "dmg": M.dmg, "cast": Sim.next_cast(state), "pad": pd.x * 1000 + pd.y})
+
+
+static func modules(state, sg: Dictionary) -> void:
+	var L: Dictionary = MODULE.laser
+	for pd in sg.pads:
+		if pd.module == "post":
+			pd.cd = maxi(0, pd.cd - 1)
+		if pd.module != "laser" or not sg.wave.live:
+			continue
+		pd.t += 1
+		var d := along(pd, pd.lane)
+		var a := S.at(pd.lane, d, -S.LANE_W / 2.0)
+		var z := S.at(pd.lane, d, S.LANE_W / 2.0)
+		if pd.t % L.every == L.every - L.warn:
+			state.fx.append({"k": "laserWarn", "x1": a.x, "y1": a.y, "x2": z.x, "y2": z.y, "x": pd.x, "y": pd.y, "t": L.warn})
+		if pd.t % L.every != 0:
+			continue
+		var cast := Sim.next_cast(state)
+		var ang := atan2(z.y - a.y, z.x - a.x)
+		for t in state.mechs:
+			if t.ko or t.get("fly", false) or Sim.seg_dist(a.x, a.y, z.x, z.y, t.x, t.y) > L.half + Sim.rad(t):
+				continue
+			if t.has("bot"):
+				Sim.hit(state, state.mechs[0], t, L.dmg, "LEGS", 1, ang, cast)
+			else:
+				Sim.env_hit(state, t, L.dmg, "legs", 1, ang)
+		state.fx.append({"k": "zap", "kind": "laser", "x1": a.x, "y1": a.y, "x2": z.x, "y2": z.y, "t": 10})
+		state.fx.append({"k": "laneLaser", "x": pd.x, "y": pd.y, "t": 10})
+
+
+static func fire_post(state, sg: Dictionary, m: Dictionary) -> void:
+	var P: Dictionary = MODULE.post
+	var pd = pad_at(sg, m, P.reach)
+	if pd == null or pd.module != "post" or pd.cd > 0:
+		return
+	pd.cd = P.cd
+	Sim.line_attack(state, m, pd.x, pd.y, m.aim, P.range, P.half, P.dmg, 2, "ARMS", Sim.next_cast(state), "rail", {"perfectCut": 0.5})

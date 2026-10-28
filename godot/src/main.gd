@@ -98,6 +98,7 @@ var siege := false
 var team_n := 2
 var wave_arg := 1
 var spawn_arg := ""
+var modules_arg := false
 var allies := []
 var siege_view: Node3D
 var siege_bots: Node3D
@@ -164,6 +165,8 @@ func _ready() -> void:
 			auto_ult = true
 		elif a == "--siege":
 			siege = true
+		elif a == "--modules":
+			modules_arg = true
 		elif a.begins_with("--spawn="):
 			spawn_arg = a.substr(8)
 		elif a.begins_with("--wave="):
@@ -327,6 +330,9 @@ func new_match() -> void:
 			allies.append(Bot.create_brain(s + 10 + i))
 		state = Siege.create(los, s)
 		state.siege.wave.n = wave_arg - 1
+		if modules_arg:
+			for b in [[0, "wall"], [1, "mines"], [2, "laser"], [3, "post"]]:
+				Siege.build(state, state.siege.pads[b[0]], b[1])
 		if Siege.BOTS.has(spawn_arg):
 			Siege.look(state, spawn_arg)
 	else:
@@ -383,6 +389,9 @@ func player_input() -> Dictionary:
 		"hook": key(KEY_E) or tapped.has("hook") or pad("hook"),
 		"dash": key(KEY_SPACE) or tapped.has("dash") or pad("dash"),
 		"ult": key(KEY_R) or tapped.has("ult") or pad("ult"),
+		"buy": tapped.get("buy", ""),
+		"call": tapped.has("call"),
+		"post": tapped.has("post"),
 	}
 	tapped.clear()
 	return inp
@@ -440,6 +449,11 @@ func _input(event: InputEvent) -> void:
 					get_viewport().set_input_as_handled()
 			KEY_L:
 				I18n.toggle()
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8:
+				if siege:
+					tapped.buy = Hud.SHOP[event.physical_keycode - KEY_1]
+			KEY_X:
+				tapped.post = true
 			KEY_F:
 				frozen = not frozen
 				tapped.clear()
@@ -457,6 +471,7 @@ func _input(event: InputEvent) -> void:
 				auto_fire = not auto_fire
 			KEY_G:
 				guard = not guard
+				tapped.call = true
 			KEY_K:
 				refill = not refill
 			KEY_J:

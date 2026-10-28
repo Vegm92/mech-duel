@@ -10,7 +10,7 @@ var failed := 0
 func _initialize() -> void:
 	Sfx.buses()
 	check(["SFX", "Env", "Crowd", "Music"].all(func(b): return AudioServer.get_bus_index(b) > 0), "the four buses exist")
-	var src := FileAccess.get_file_as_string("res://src/sim.gd")
+	var src := FileAccess.get_file_as_string("res://src/sim.gd") + FileAccess.get_file_as_string("res://src/siege.gd")
 	var re := RegEx.create_from_string("\"k\": \"(\\w+)\"")
 	var kinds := {"beam": true}
 	for line in src.split("\n"):

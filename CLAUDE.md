@@ -200,8 +200,19 @@ $P = "$R\godot"
   `vent`, `plant`, `hunt`, `keep`, `first`, `dodge`, `pack`; size `r` read by `Sim.rad`), Mk 1..3
   scale through `MK`. Bot shells reuse `state.lobs` (`shell_land` hurts gates and the core), the
   Tripod's rail is `Sim.line_attack` after a `sight` fx. `--spawn=<bot id>` puts 3 of one bot on
-  the north lane and stops the waves (look check). Not built yet: waves as data, scrap shop,
-  full HUD, progression, VS (design only).
+  the north lane and stops the waves (look check). Waves: `WAVES` (1-20), `LATE` (21-29, Mk 2),
+  `LAST` (30), `ENDLESS`; a row has `lanes`, `pool`, `must`, `mk`, `boss`; `plan` fills
+  `budget(n, team)` with `SQUADS`, spreads them over lanes, tanks first, `RANGED` 5 s later, and
+  emits a `warn` fx per lane 8 s ahead. Scrap: kills pay 5 × cost, a wave cleared above 75% core
+  pays +20%, G calls the wave early (+2 per second skipped). Build phase shop (`SHOP`, keys 1-8,
+  `buy` in the input): gate repair, gate rebuild, core ring, mech repair, and pad modules
+  (`MODULE`): barricade (a `boxes` entry bots must break), mine field (re-armed each wave), lane
+  laser (fixed beam on a 3 s cycle, 1 s `laserWarn`), rail post (X fires a rail on your own aim).
+  AI allies hold lane posts, fall back to the core when a bot gets inside, repair it between
+  waves and buy only rings and gate fixes. HUD: wave plate, shop, warning markers over gates
+  (edge arrow off screen), red arrows to gates or the core under attack. `--modules` builds one
+  of each on the north lane. Not built yet: progression, endless mutators, gamepad shop, VS
+  (design only).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
