@@ -6,3 +6,6 @@ PRD.md
 
 # Blender auto-backups
 *.blend1
+
+# Exported builds
+build/

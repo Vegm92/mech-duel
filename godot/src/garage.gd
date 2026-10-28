@@ -6,6 +6,7 @@ signal ui(kind: String)
 const Sim = preload("res://src/sim.gd")
 const PartView = preload("res://src/part_view.gd")
 const I18n = preload("res://src/i18n.gd")
+const Progress = preload("res://src/progress.gd")
 const Look = preload("res://src/look.gd")
 
 const SIZE := Vector2(1280, 720)
@@ -39,6 +40,7 @@ static var GOOD := Color("7dffa8")
 static var BAD := Color("ff7a6a")
 
 var loadout: Dictionary = Sim.DEFAULT_LOADOUT.duplicate()
+var progress := Progress.new()
 var tab := 0
 var hover = null
 var pad := false
@@ -83,7 +85,7 @@ func _init() -> void:
 
 
 func open(lo: Dictionary, at := -1) -> void:
-	loadout = Sim.normalize(lo)
+	loadout = progress.fit(lo)
 	if at >= 0:
 		tab = at % SLOTS.size()
 	hover = null
@@ -163,9 +165,18 @@ func card(slot: String, key: String, r: Rect2) -> void:
 		v.show_mech(p)
 	else:
 		v.show_part(slot, key)
+	var lock := locked(h)
+	if lock:
+		v.modulate = Color(0.1, 0.12, 0.18)
 	var x := ts + 16.0
 	var tw := r.size.x - x - 8.0
-	var title := text(b, tr(("set_" if is_set else "p_") + key), Vector2(x, 4), 14, TEXT, tw, true)
+	var lvl := 0 if is_set else progress.level(slot, key)
+	var tag := tr("lockedTag") if lock else (tr("mk").format({"n": lvl}) if lvl > 1 else "")
+	if tag != "":
+		var tagw := bold.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 8.0
+		text(b, tag, Vector2(r.size.x - tagw - 6.0, 6), 11, BAD if lock else GOOD, tagw, true, HORIZONTAL_ALIGNMENT_RIGHT)
+		tw -= tagw
+	var title := text(b, tr(("set_" if is_set else "p_") + key), Vector2(x, 4), 14, DIM if lock else TEXT, tw, true)
 	fit(title, 14, tw, 10)
 	var kind: Array
 	if is_set:
@@ -285,8 +296,8 @@ func refresh() -> void:
 		px -= 1
 	skill_name.add_theme_font_size_override("font_size", px)
 	skill_name.add_theme_color_override("font_color", Color.WHITE if changing else SKILL)
-	var now := sheet(loadout)
-	var then := sheet(next)
+	var now := sheet(progress.with_levels(loadout))
+	var then := sheet(progress.with_levels(next))
 	for i in now.size():
 		var row: Array = now[i]
 		info_rows[i][0].text = tr(row[0])
@@ -312,6 +323,11 @@ func about() -> void:
 	if key == "":
 		return
 	about_title.text = tr(("set_" if s != "" else "p_") + key)
+	var part: Dictionary = {"set": s} if s != "" else {"slot": slot, "key": key}
+	if locked(part):
+		about_title.text += "  ·  " + tr("lockedTag")
+	elif s == "" and progress.level(slot, key) > 1:
+		about_title.text += "  ·  " + tr("mk").format({"n": progress.level(slot, key)})
 	about_desc.text = tr(("sd_" if s != "" else "d_") + key)
 	var skill := ""
 	if s != "":
@@ -338,7 +354,15 @@ func leave(h: Dictionary) -> void:
 		set_hover(null)
 
 
+func locked(h: Dictionary) -> bool:
+	if h.has("set"):
+		return not progress.complete(Sim.SETS[h.set])
+	return not progress.has(h.slot, h.key)
+
+
 func equip(h: Dictionary) -> void:
+	if locked(h):
+		return
 	if h.has("set"):
 		loadout = Sim.SETS[h.set].duplicate()
 	else:
@@ -471,21 +495,24 @@ static func card_stats(slot: String, p: Dictionary) -> Array:
 
 
 static func sheet(lo: Dictionary) -> Array:
+	var lv: Dictionary = lo.get("lv", {})
 	var mx := Sim.max_armor(lo)
-	var c: Dictionary = Sim.CORES[lo.core]
-	var legs: Dictionary = Sim.LEG_PARTS[lo.legs]
-	var b: Dictionary = Sim.BOOSTERS[lo.booster]
+	var head := Sim.tuned("head", lo.head, lv.get("head", 1))
+	var c := Sim.tuned("core", lo.core, lv.get("core", 1))
+	var arms := Sim.tuned("arms", lo.arms, lv.get("arms", 1))
+	var legs := Sim.tuned("legs", lo.legs, lv.get("legs", 1))
+	var b := Sim.tuned("booster", lo.booster, lv.get("booster", 1))
 	return [
 		["siHead", mx.head, 0, false],
 		["siArms", mx.rarm, 0, false],
 		["siLegs", mx.legs, 0, false],
 		["siTotal", mx.head + mx.rarm + mx.larm + mx.legs, 0, false],
 		["siPoise", legs.poise, 0, false],
-		["siCharge", 100.0 * Sim.HEADS[lo.head].surge * c.get("surgeGain", 1.0), 0, false],
+		["siCharge", 100.0 * head.surge * c.get("surgeGain", 1.0), 0, false],
 		["siSpeed", legs.top * Sim.speed_of(lo) * c.get("speed", 1.0), 1, false],
 		["siDash", b.dash * c.get("dashDist", 1.0), 1, false],
 		["siDashCd", b.dashCd * c.get("dashCd", 1.0) / Sim.TICKS, 1, true],
-		["siHandling", 100.0 / Sim.ARMS[lo.arms].handling, 0, false],
+		["siHandling", 100.0 / arms.handling, 0, false],
 		["siVent", Sim.HEAT.vent * c.get("vent", 1.0), 0, false],
 		["siWeight", Sim.weight_of(lo), 0, true],
 	]

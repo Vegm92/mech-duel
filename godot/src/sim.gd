@@ -156,6 +156,8 @@ const BODY := ["head", "core", "arms", "legs", "booster"]
 const HANDS := ["left", "right"]
 const ARM_OF := {"left": "larm", "right": "rarm"}
 const CATALOG := {"head": HEADS, "core": CORES, "arms": ARMS, "legs": LEG_PARTS, "booster": BOOSTERS, "left": WEAPONS, "right": WEAPONS}
+const MAX_LEVEL := 3
+const TWIST := {"head": ["surge", 0.06], "core": ["vent", 0.1], "arms": ["handling", -0.04], "legs": ["top", 0.03], "booster": ["dashCd", -0.06], "weapon": ["cd", -0.04]}
 const DEFAULT_LOADOUT := {"head": "rookie", "core": "furnace", "arms": "frame", "legs": "greaves", "booster": "thruster", "left": "rivet", "right": "saw"}
 const SETS := {
 	"duelist": {"head": "horn", "core": "furnace", "arms": "frame", "legs": "greaves", "booster": "twin", "left": "rivet", "right": "drill"},
@@ -373,6 +375,24 @@ static func normalize(lo) -> Dictionary:
 	for slot in DEFAULT_LOADOUT:
 		var ok: bool = lo is Dictionary and lo.has(slot) and lo[slot] is String and CATALOG[slot].has(lo[slot])
 		out[slot] = lo[slot] if ok else DEFAULT_LOADOUT[slot]
+	if lo is Dictionary and lo.get("lv") is Dictionary:
+		var lv := {}
+		for slot in DEFAULT_LOADOUT:
+			var n = lo.lv.get(slot, 1)
+			if (n is int or n is float) and n > 1:
+				lv[slot] = clampi(int(n), 1, MAX_LEVEL)
+		if not lv.is_empty():
+			out.lv = lv
+	return out
+
+
+static func tuned(slot: String, key: String, lv: int) -> Dictionary:
+	var row: Dictionary = CATALOG[slot][key]
+	if lv <= 1:
+		return row
+	var t: Array = TWIST[slot if BODY.has(slot) else "weapon"]
+	var out := row.duplicate()
+	out[t[0]] = out.get(t[0], 1) * (1 + t[1] * (lv - 1))
 	return out
 
 
@@ -394,7 +414,7 @@ static func speed_of(lo) -> float:
 
 
 static func weapon(m, hand):
-	return WEAPONS[m.loadout[hand]]
+	return m.rows[hand] if m.has("rows") else WEAPONS[m.loadout[hand]]
 
 
 static func is_gun(w) -> bool:
@@ -402,15 +422,15 @@ static func is_gun(w) -> bool:
 
 
 static func arms(m):
-	return ARMS[m.loadout.arms]
+	return m.rows.arms if m.has("rows") else ARMS[m.loadout.arms]
 
 
 static func feet(m):
-	return LEG_PARTS[m.loadout.legs]
+	return m.rows.legs if m.has("rows") else LEG_PARTS[m.loadout.legs]
 
 
 static func booster(m):
-	return BOOSTERS[m.loadout.booster]
+	return m.rows.booster if m.has("rows") else BOOSTERS[m.loadout.booster]
 
 
 static func move_of(m):
@@ -445,11 +465,11 @@ static func charges(lo) -> int:
 
 
 static func head(m):
-	return HEADS[m.loadout.head]
+	return m.rows.head if m.has("rows") else HEADS[m.loadout.head]
 
 
 static func core(m):
-	return CORES[m.loadout.core]
+	return m.rows.core if m.has("rows") else CORES[m.loadout.core]
 
 
 static func e_skill(m) -> String:
@@ -576,7 +596,7 @@ static func power(m, melee: bool) -> float:
 static func make_mech(id: int, loadout, team: int, s) -> Dictionary:
 	var lo := normalize(loadout)
 	var mx := max_armor(lo)
-	return {
+	var m := {
 		"id": id, "team": team, "loadout": lo, "max": mx, "x": float(s.x), "y": float(s.y), "vx": 0.0, "vy": 0.0, "aim": float(s.aim), "tx": float(s.x), "ty": float(s.y),
 		"armor": mx.duplicate(), "heat": 0.0, "ventDelay": 0, "overheat": 0, "surge": CORES[lo.core].get("surgeStart", 0),
 		"cd": {"left": 0, "right": 0, "hook": 0, "shield": 0, "dash": 0},
@@ -585,6 +605,12 @@ static func make_mech(id: int, loadout, team: int, s) -> Dictionary:
 		"buffs": {"overdrive": 0, "berserk": 0, "bubble": 0, "bubbleHp": 0, "jam": 0, "slow": 0, "speed": 0, "power": 0, "cool": 0, "deflect": 0, "mirror": 0, "brace": 0, "cleanse": 0, "focus": 0, "pulse": 0, "xray": 0, "root": 0},
 		"act": null, "stagger": 0, "pull": null, "afterburn": 0, "lastHitCast": 0, "ko": false, "dashes": charges(lo), "lift": 0, "liftT": 1,
 	}
+	if lo.has("lv"):
+		var rows := {}
+		for slot in DEFAULT_LOADOUT:
+			rows[slot] = tuned(slot, lo[slot], lo.lv.get(slot, 1))
+		m.rows = rows
+	return m
 
 
 static func create_state(loadouts: Array = [], teams: Array = FORMATS["1v1"]) -> Dictionary:

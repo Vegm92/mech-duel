@@ -8,6 +8,8 @@ const Hud = preload("res://src/hud.gd")
 const I18n = preload("res://src/i18n.gd")
 const PartView = preload("res://src/part_view.gd")
 const Garage = preload("res://src/garage.gd")
+const Progress = preload("res://src/progress.gd")
+const Claim = preload("res://src/claim.gd")
 const CrowdSound = preload("res://src/crowd_sound.gd")
 const Sfx = preload("res://src/sfx.gd")
 const Killcam = preload("res://src/killcam.gd")
@@ -70,6 +72,16 @@ var garage_arg := -1
 var hover_arg := ""
 var loadout: Dictionary
 var garage: CanvasLayer
+var claim: CanvasLayer
+var progress := Progress.new()
+var progress_arg := ""
+var unlock_arg := false
+var claim_arg := false
+var rival_key := ""
+var rival_lo: Dictionary
+var broke := []
+var foe_ko := false
+var settled := false
 var target := 0
 var orbit := Vector2.ZERO
 var zoom := 1.0
@@ -123,6 +135,12 @@ func _ready() -> void:
 			garage_arg = a.substr(9).to_int() if a.contains("=") else 0
 		elif a.begins_with("--hover="):
 			hover_arg = a.substr(8)
+		elif a == "--unlock-all":
+			unlock_arg = true
+		elif a == "--claim":
+			claim_arg = true
+		elif a.begins_with("--progress="):
+			progress_arg = a.substr(11)
 		elif a == "--guard":
 			guard = true
 		elif a == "--block":
@@ -142,6 +160,12 @@ func _ready() -> void:
 		elif a == "--sandbox" or a.begins_with("--sandbox="):
 			sandbox = true
 			gun = Sim.WEAPONS.keys().find(a.substr(10)) if a.contains("=") else -1
+	var real := progress_arg != "" or not (autopilot or sandbox or shot_path != "")
+	progress.unlock_all = unlock_arg or not real
+	if progress_arg != "":
+		progress.path = progress_arg
+	if real:
+		progress.load_file()
 	if parts_arg != "":
 		part_sheet(parts_arg)
 		return
@@ -161,7 +185,12 @@ func _ready() -> void:
 	add_child(hud)
 	loadout = flag_loadout()
 	garage = Garage.new()
+	garage.progress = progress
 	add_child(garage)
+	claim = Claim.new()
+	add_child(claim)
+	claim.picked.connect(claimed)
+	claim.ui.connect(sfx.ui)
 	garage.fight.connect(start)
 	hud.resume.connect(resume)
 	hud.restart.connect(new_match)
@@ -175,6 +204,8 @@ func _ready() -> void:
 	else:
 		garage.visible = false
 		new_match()
+		if claim_arg:
+			claim.open(progress.pool(["larm", "legs"], rival_lo, true), rival_key, progress.tier(rival_key), progress)
 
 
 func flag_loadout() -> Dictionary:
@@ -199,7 +230,7 @@ func flag_loadout() -> Dictionary:
 func saved_loadout() -> Dictionary:
 	var cfg := ConfigFile.new()
 	cfg.load(SAVE)
-	return Sim.normalize(cfg.get_value("garage", "loadout", {}))
+	return progress.fit(cfg.get_value("garage", "loadout", {}))
 
 
 func save_loadout() -> void:
@@ -251,11 +282,21 @@ func new_match() -> void:
 	tapped.clear()
 	rec = Killcam.recorder()
 	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
-	var rival: Dictionary = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
+	var rival: Dictionary
+	if progress.unlock_all:
+		rival_key = ""
+		rival = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
+	else:
+		rival_key = progress.next_rival()
+		rival = progress.rival(rival_key)
+	rival_lo = rival
+	broke = []
+	foe_ko = false
+	settled = false
 	if sandbox:
 		loadout.left = Sim.WEAPONS.keys()[gun]
 		loadout.right = loadout.left
-	state = Sim.create_state([loadout.duplicate(), rival])
+	state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
 	if sandbox:
 		pin()
 	brain = Bot.create_brain(s + 1)
@@ -339,7 +380,7 @@ func aim_point() -> Vector3:
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode in [KEY_M, KEY_N]:
 		Sfx.toggle("muted" if event.physical_keycode == KEY_M else "music_on")
-	if garage.visible:
+	if garage.visible or claim.visible:
 		return
 	if event is InputEventMouseMotion:
 		on_pad = false
@@ -463,6 +504,7 @@ func _physics_process(delta: float) -> void:
 			start_replay()
 	if not frozen and not held:
 		view.sync(state, aim, delta)
+	track()
 	crowd_sound.update(view.fresh_fx, view.hype, state.phase == "fight" and not paused, not paused)
 	sfx.update(state, view.fresh_fx, paused)
 	view.fresh_fx = []
@@ -491,6 +533,39 @@ func _physics_process(delta: float) -> void:
 	if replay_at >= 0 and shot_path != "" and not replay.is_empty() and replay.i >= replay_at and not shooting:
 		shooting = true
 		take_shot()
+
+
+func track() -> void:
+	for f in view.fresh_fx:
+		if f.k == "break" and f.id == 1 and not broke.has(f.part):
+			broke.append(f.part)
+		elif f.k == "ko" and f.id == 1:
+			foe_ko = true
+	if state.phase == "over" and not settled:
+		settle()
+
+
+func settle() -> void:
+	settled = true
+	if progress.unlock_all or rival_key == "" or state.score[0] <= state.score[1]:
+		return
+	var drops := progress.pool(broke, rival_lo, foe_ko)
+	if drops.is_empty():
+		progress.win(rival_key)
+		progress.save_file()
+		return
+	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	claim.open(drops, rival_key, progress.tier(rival_key), progress)
+
+
+func claimed(slot: String, key: String) -> void:
+	progress.claim(slot, key)
+	progress.win(rival_key)
+	progress.save_file()
+	loadout = Sim.normalize(loadout.merged({slot: key}, true))
+	if not autopilot and shot_path == "":
+		save_loadout()
+	to_garage()
 
 
 func pin() -> void:
