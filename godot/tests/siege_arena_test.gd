@@ -34,6 +34,13 @@ func _process(_dt: float) -> bool:
 		s.pads[k].module = ["wall", "mine", "laser"][k]
 	v.update(s)
 	check(v.gates.size() == 4 and v.pads.size() == 12, "4 gates and 12 build pads from the state")
+	var stray := 0
+	for f in v.fans:
+		var at: Vector3 = f[0].origin
+		if absf(at.x) <= 5.0 or absf(at.z) <= 5.0 or Vector2(at.x, at.z).length() <= SiegeState.RING_OUT + 8.5 or at.y < 1.5:
+			stray += 1
+	check(v.fans.size() > 2000 and v.fans.size() == v.crowd.multimesh.instance_count and stray == 0, "%d fans, all on the blocks: none in a lane, on the ring road or under the block top (%d stray)" % [v.fans.size(), stray])
+	check(v.towers.size() == 4 and v.towers.all(func(t): return t.spot is SpotLight3D), "4 floodlight spots, in the duel's tower shape so its follow code can drive them")
 	for n in [4, 3, 2, 1, 0]:
 		s.core.rings = SiegeState.ring_hp(n)
 		v.update(s)
@@ -41,6 +48,19 @@ func _process(_dt: float) -> bool:
 	s.core.rings = SiegeState.ring_hp(2)
 	v.update(s)
 	check(v.rings.map(func(r): return r.visible) == [false, false, true, true], "outer rings break first, inner last")
+	var whole := SiegeView.new()
+	var cracked := SiegeView.new()
+	for w in [whole, cracked]:
+		root.add_child(w)
+		w.build()
+	whole.update(SiegeState.stub(4))
+	var s2 := SiegeState.stub(2)
+	cracked.update(s2)
+	check(cracked.get_child_count() == whole.get_child_count(), "rings already broken on the first frame make no break burst")
+	var before := cracked.get_child_count()
+	s2.core.rings = SiegeState.ring_hp(1)
+	cracked.update(s2)
+	check(cracked.get_child_count() > before, "a ring breaking during play makes a break burst")
 	s.core.hp = s.core.max * 0.1
 	v.update(s)
 	check(v.smoke.emitting, "a core under 25 % smokes")

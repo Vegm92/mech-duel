@@ -38,6 +38,11 @@ MAT = {
     "shield": material("shield", srgb(90, 200, 255), 0.0, 1.0, 3.0),
     "pylon": material("pylon", srgb(43, 182, 221), 0.0, 1.0, 3.0),
     "warn": material("warn", srgb(255, 60, 40), 0.0, 1.0, 3.0),
+    "concrete": material("concrete", srgb(48, 54, 70), 0.0, 0.85),
+    "tread": material("tread", srgb(32, 36, 48), 0.1, 0.8),
+    "seat_b": material("seat_b", srgb(40, 85, 150), 0.0, 0.7),
+    "led_n": material("led_n", srgb(200, 200, 210), 0.0, 1.0, 3.0),
+    "flood": material("flood", srgb(235, 240, 255), 0.0, 1.0, 3.0),
 }
 
 col = bpy.data.collections.get("Core_siege") or bpy.data.collections.new("Core_siege")
@@ -96,11 +101,11 @@ def cyl(r0, r1, y0, y1, mat, segs=8, bevel=0.02, x=0.0, z=0.0, rot=0.0):
             pts.append((x + r * math.cos(a), y, z + r * math.sin(a)))
     hull(pts, mat, bevel)
 
-def ring(r0, r1, y0, y1, mat, segs=16, rot=0.0, gap=0.0):
+def ring(r0, r1, y0, y1, mat, segs=16, rot=0.0, gap=0.0, x=0.0, z=0.0):
     for k in range(segs):
         a0 = rot + k * 2 * math.pi / segs + gap / 2
         a1 = rot + (k + 1) * 2 * math.pi / segs - gap / 2
-        hull([(r * math.cos(a), y, r * math.sin(a)) for r in (r0, r1) for a in (a0, a1) for y in (y0, y1)], mat, 0)
+        hull([(x + r * math.cos(a), y, z + r * math.sin(a)) for r in (r0, r1) for a in (a0, a1) for y in (y0, y1)], mat, 0)
 
 def arc(r0, r1, y0, y1, a0, a1, mat, segs, bevel=0.0):
     for k in range(segs):
@@ -149,11 +154,8 @@ for k in range(4):
 for cx, cz in QUADS:
     x, z, y = cx * AIR, cz * AIR, BLOCK_H
     cyl(3.2, 3.2, y, y + 0.06, "dark", 8, 0.01, x, z)
-    ring(3.0, 3.2, y + 0.06, y + 0.08, "hazard", 8, math.pi / 8)
-    for k in range(16):
-        a0 = k * 2 * math.pi / 16 + 0.04
-        a1 = a0 + 2 * math.pi / 16 - 0.08
-        hull([(x + r * math.cos(a), yy, z + r * math.sin(a)) for r in (2.3, 2.45) for a in (a0, a1) for yy in (y + 0.06, y + 0.09)], "strip", 0)
+    ring(3.0, 3.2, y + 0.06, y + 0.08, "hazard", 8, math.pi / 8, x=x, z=z)
+    ring(2.3, 2.45, y + 0.06, y + 0.09, "strip", 16, 0, 0.08, x, z)
     for k in range(4):
         a = math.pi / 4 + k * math.pi / 2
         hull([(x + 1.0 * math.cos(a), y + 0.06, z + 1.0 * math.sin(a)), (x + 1.9 * math.cos(a + 0.25), y + 0.06, z + 1.9 * math.sin(a + 0.25)), (x + 1.9 * math.cos(a - 0.25), y + 0.06, z + 1.9 * math.sin(a - 0.25)), (x + 1.0 * math.cos(a), y + 0.1, z + 1.0 * math.sin(a))], "white", 0)
@@ -172,15 +174,15 @@ for cx, cz in QUADS:
         t = math.pi / 2 - a_lo - (math.pi / 2 - 2 * a_lo) * k / STEPS
         edge.append((ROAD * math.cos(t), ROAD * math.sin(t)))
     for (a0, b0), (a1, b1) in zip(edge, edge[1:]):
-        hull([P(a, b, y) for a, b in ((a0, b0), (a1, b1), (a0, HALF), (a1, HALF)) for y in (0.0, BLOCK_H)], "dark", 0)
+        hull([P(a, b, y) for a, b in ((a0, b0), (a1, b1), (a0, HALF), (a1, HALF)) for y in (0.0, BLOCK_H)], "steel", 0)
         n = (-(a0 + a1) / 2, -(b0 + b1) / 2)
         m = math.hypot(*n)
         n = (n[0] / m, n[1] / m)
         for y0, y1, mat, o in ((0.0, 0.3, "hazard", 0.04), (0.95, 1.05, "strip", 0.03), (BLOCK_H, BLOCK_H + 0.12, "steel", 0.08)):
             hull([P(a + n[0] * oo, b + n[1] * oo, y) for a, b in ((a0, b0), (a1, b1)) for oo in (-0.05, o) for y in (y0, y1)], mat, 0)
-    hull([P(a, b, y) for a in (edge[-1][0], HALF) for b in (W, HALF) for y in (0.0, BLOCK_H)], "dark", 0)
+    hull([P(a, b, y) for a in (edge[-1][0], HALF) for b in (W, HALF) for y in (0.0, BLOCK_H)], "steel", 0)
     for a, b, sx, sz, h in ((40, 40, 7, 4, 1.4), (62, 34, 4, 9, 1.1), (34, 63, 10, 3, 0.9), (63, 62, 6, 6, 1.8), (50, 52, 3, 3, 2.4)):
-        box((sx, h, sz), (cx * a, BLOCK_H + h / 2, cz * b), "steel", 0.06)
+        box((sx, h, sz), (cx * a, BLOCK_H + h / 2, cz * b), "dark", 0.06)
         box((sx + 0.3, 0.12, sz + 0.3), (cx * a, BLOCK_H + h + 0.06, cz * b), "trim", 0.03)
         box((sx * 0.7, 0.05, 0.12), (cx * a, BLOCK_H + h + 0.13, cz * b), "strip", 0)
 for d in DIRS:
@@ -199,7 +201,8 @@ for d in DIRS:
             cyl(CHOKE_R, CHOKE_R, 0.0, 0.4, "hazard", 12, 0.01, p[0], p[1])
             cyl(CHOKE_R - 0.05, CHOKE_R - 0.15, 0.4, 2.6, "dark", 12, 0.03, p[0], p[1])
             cyl(CHOKE_R + 0.05, CHOKE_R + 0.05, 2.6, 2.8, "steel", 12, 0.02, p[0], p[1])
-            cyl(CHOKE_R - 0.3, CHOKE_R - 0.3, 2.8, 2.84, "white", 12, 0, p[0], p[1])
+            cyl(CHOKE_R - 0.1, CHOKE_R - 0.1, 2.8, 2.86, "dark", 12, 0.01, p[0], p[1])
+            ring(CHOKE_R - 0.5, CHOKE_R - 0.4, 2.86, 2.89, "white", 12, 0, 0.1, p[0], p[1])
             for k in range(6):
                 f = k * math.pi / 3
                 rbox((0.03, 1.4, 0.18), (p[0] + (CHOKE_R - 0.11) * math.cos(f), 1.5, p[1] + (CHOKE_R - 0.11) * math.sin(f)), f, "strip", 0)
@@ -351,6 +354,42 @@ box((1.2, 0.5, 0.6), (0.2, 1.8, 0), "steel", 0.04)
 cyl(0.12, 0.12, 0.0, 1.1, "dark", 8, 0.01)
 hull([(0.8, 1.72, -0.08), (0.8, 1.88, -0.08), (0.8, 1.72, 0.08), (0.8, 1.88, 0.08), (1.6, 1.76, -0.05), (1.6, 1.84, -0.05), (1.6, 1.76, 0.05), (1.6, 1.84, 0.05)], "dark", 0.01)
 box((0.04, 0.1, 0.5), (0.81, 1.8, 0), "white", 0)
+
+STANDS = {"front": 1.0, "depth": 2.6, "base": 0.6, "rise": 1.3, "tiers": 3, "rows": (0.65, 1.95), "runs": ((27.5, 33.5), (38.5, 55.5), (60.5, 77.0))}
+TOWER = {"at": 86.0, "h": 22.0}
+
+part("stands")
+for d in DIRS:
+    for side in (-1, 1):
+        L = lambda o: side * (W + o)
+        for r0, r1 in STANDS["runs"]:
+            lane_box(d, r0, r1, L(0.3), L(STANDS["front"]), BLOCK_H, BLOCK_H + 0.03, "tread", 0)
+            for k in range(STANDS["tiers"]):
+                o = STANDS["front"] + k * STANDS["depth"]
+                h = BLOCK_H + STANDS["base"] + k * STANDS["rise"]
+                lane_box(d, r0, r1, L(o), L(o + STANDS["depth"]), BLOCK_H, h - 0.06, "concrete", 0.03)
+                lane_box(d, r0, r1, L(o), L(o + STANDS["depth"]), h - 0.06, h, "tread", 0)
+                lane_box(d, r0, r1, L(o - 0.04), L(o), h - 0.5, h - 0.2, "led_n", 0)
+                for row in STANDS["rows"]:
+                    lane_box(d, r0 + 0.2, r1 - 0.2, L(o + row + 0.12), L(o + row + 0.42), h, h + 0.22, "seat_b", 0.02)
+                    lane_box(d, r0 + 0.2, r1 - 0.2, L(o + row + 0.42), L(o + row + 0.52), h, h + 0.5, "seat_b", 0.02)
+            back = STANDS["front"] + STANDS["tiers"] * STANDS["depth"]
+            top = BLOCK_H + STANDS["base"] + (STANDS["tiers"] - 1) * STANDS["rise"]
+            lane_box(d, r0 - 0.3, r1 + 0.3, L(back), L(back + 0.5), BLOCK_H, top + 2.2, "dark", 0.04)
+            lane_box(d, r0 - 0.3, r1 + 0.3, L(back - 0.04), L(back), top + 1.2, top + 1.5, "led_n", 0)
+            lane_box(d, r0 - 0.4, r1 + 0.4, L(back - 0.3), L(back + 0.6), top + 2.2, top + 2.4, "steel", 0.03)
+            for r in (r0, r1):
+                lane_box(d, r - 0.3, r + 0.3, L(STANDS["front"]), L(back), BLOCK_H, top + 0.9, "dark", 0.03)
+
+part("flood_tower")
+cyl(1.4, 1.1, 0.0, 0.6, "dark", 8, 0.04)
+cyl(0.55, 0.4, 0.6, TOWER["h"] - 1.0, "steel", 8, 0.02)
+for k in range(4):
+    a = math.pi / 4 + k * math.pi / 2
+    hull([(1.1 * math.cos(a), 0.6, 1.1 * math.sin(a)), (1.3 * math.cos(a), 0.6, 1.3 * math.sin(a)), (0.45 * math.cos(a), 6.0, 0.45 * math.sin(a))], "trim", 0.01)
+box((1.2, 2.6, 4.4), (0.4, TOWER["h"], 0), "dark", 0.06)
+box((0.06, 2.2, 4.0), (1.02, TOWER["h"], 0), "flood", 0)
+box((0.5, 0.25, 4.6), (0.4, TOWER["h"] + 1.4, 0), "steel", 0.03)
 
 for name, (ob, bm) in parts.items():
     bm.to_mesh(ob.data)
