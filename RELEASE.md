@@ -2,10 +2,10 @@
 
 ## Scope (decided 2026-10-28)
 
-V1 ships **Duel**: you against an AI rival, first to 3 rounds, in the garage → fight → claim a part → garage loop.
+V1 comes in two builds from the same code:
 
-- In: garage (63 parts, 20 weapons, 12 sets), Salvage unlocks, the 12-rival ladder, kill cam, crowd, sound, keyboard + mouse and gamepad, English and Spanish.
-- Cut from V1: **Core Siege**. The button is hidden; `--siege` still turns it on for development. It is still being built and is not tested enough to ship.
+- **Duel** (`MechDuel-v<version>-windows.zip`): you against an AI rival, first to 3 rounds, in the garage → fight → claim a part → garage loop. Garage (63 parts, 20 weapons, 12 sets), Salvage unlocks, the 12-rival ladder, kill cam, crowd, sound, keyboard + mouse and gamepad, English and Spanish.
+- **Full** (`MechDuel-v<version>-full-windows.zip`, Victor 2026-10-28: "one version with the other mode too"): Duel plus **Core Siege** (co-op wave defense with an AI ally, from the CORE SIEGE button). Same exe; the export preset `Windows Desktop (Full)` adds the feature tag `siege`, and `main.gd` shows the button when `OS.has_feature("siege")` (or `--siege`).
 - Not in V1: multiplayer, more modes, a settings screen (pause menu sliders and M/N/L keys cover sound and language).
 
 ## V1 changes
@@ -25,7 +25,7 @@ Needs Godot 4.7.2 at `C:\Users\victo\Tools\Godot\` with the 4.7.2 export templat
 & "C:\Users\victo\Proyectos\Claude-Code-Game-Studios\games\mech-duel\tools\build_release.ps1"
 ```
 
-It runs the 7 duel test suites, exports `build\MechDuel-v<version>-windows\` (exe + `CREDITS.txt` + `licenses\`) and zips it. To bump the version, change `config/version` in `godot/project.godot` and the two version lines in `godot/export_presets.cfg`.
+It runs the 11 test suites (duel and siege), exports both builds to `build\MechDuel-v<version>-windows\` and `build\MechDuel-v<version>-full-windows\` (exe + `CREDITS.txt` + `licenses\`) and zips them. To bump the version, change `config/version` in `godot/project.godot` and the two version lines in `godot/export_presets.cfg`.
 
 ## Release checklist
 
@@ -36,7 +36,8 @@ It runs the 7 duel test suites, exports `build\MechDuel-v<version>-windows\` (ex
 | 3 | Controls explained | done | How to play screen |
 | 4 | Enemy AI + difficulty choice | done (automated), **not human-tested** | `difficulty_test`, `v1-difficulty-*-2026-10-28.png` |
 | 5 | Visuals and sound | done (existing) | `v1-exe-match`, `v1-exe-killcam`; sound not checked by ear |
-| 6 | No crashes in tests | done | 7 suites ALL PASSED, 2026-10-28 |
+| 6 | No crashes in tests | done | 11 suites ALL PASSED, 2026-10-28 |
+| 6b | Core Siege from the full exe: garage button, help, waves 2 and 8 | done (autopilot), **not human-tested** | `v1-full-*-2026-10-28.png` |
 | 7 | UI at 16:9, 21:9, 4:3 | done | `v1-exe-ultrawide`, `v1-exe-4x3-*` |
 | 8 | Reproducible build + version | done | `tools/build_release.ps1`, v1.0.0, built from commit `c331893`, zip SHA-256 `7CBB72DC…7312ACF8` |
 | 9 | Store page text + screenshots | done (draft) | `production/store/itch-page.md`, `production/store/screens/` |
@@ -50,3 +51,5 @@ It runs the 7 duel test suites, exports `build\MechDuel-v<version>-windows\` (ex
 - Exe has the default Godot icon in Explorer (`application/modify_resources=false`; needs rcedit).
 - Exe is not code-signed: Windows SmartScreen will warn on first run ("More info → Run anyway").
 - Sound mix is not checked by ear.
+- The difficulty button only changes the Duel rival; Core Siege ignores it.
+- Core Siege is still being tuned by its own session; the full build ships whatever `main` has at build time.

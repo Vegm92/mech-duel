@@ -3,15 +3,15 @@
 - **Title:** Mech Duel
 - **Kind:** Downloadable game, Windows
 - **Price:** free (no payments set up)
-- **Upload:** `build/MechDuel-v1.0.0-windows.zip`, tagged Windows
-- **Genre:** Action. **Tags:** mechs, robots, arena, top-down, twin-stick, pve, singleplayer, gamepad
-- **Screenshots (in order):** `screens/1-fight.png`, `screens/4-artillery.png`, `screens/2-killcam.png`, `screens/3-garage-sets.png`
+- **Upload:** `build/MechDuel-v1.0.0-full-windows.zip` (Duel + Core Siege), tagged Windows, display name "Mech Duel 1.0.0 (Windows)". Optional second file: `build/MechDuel-v1.0.0-windows.zip`, display name "Duel only".
+- **Genre:** Action. **Tags:** mechs, robots, arena, top-down, twin-stick, pve, singleplayer, gamepad, tower-defense
+- **Screenshots (in order):** `screens/1-fight.png`, `screens/5-core-siege.png`, `screens/4-artillery.png`, `screens/2-killcam.png`, `screens/3-garage-sets.png`
 - **Cover (630×500):** crop of `screens/1-fight.png`
 - **AI disclosure:** code written with AI help (Claude Code); art and sound are not AI-generated
 
 ## Short description
 
-Build a robot from five parts and two weapons. Beat a ladder of rival mechs. Win their parts.
+Build a robot from five parts and two weapons. Beat a ladder of rival mechs, or hold the core against waves of bots.
 
 ## Description
 
@@ -27,6 +27,8 @@ Mech Duel is a top-down arena fighter. You aim every shot yourself: no auto-aim,
 
 **Watch the knockout.** The last K.O. of every round plays back as a slow-motion replay.
 
+**Core Siege.** A second mode: you and an AI ally hold the Reactor Core against waves of bots coming down four lanes. Earn scrap, shop in the plaza between waves for repairs, upgrades and traps, and see how far you can go.
+
 ## Controls
 
 | Action | Keyboard / mouse | Gamepad |
@@ -40,6 +42,11 @@ Mech Duel is a top-down arena fighter. You aim every shot yourself: no auto-aim,
 | R skill | R | R3 |
 | Pause | Esc | Start |
 | Mute / music / language | M / N / L | |
+| Core Siege: shop (in the center plaza) | Shift | Y |
+| Core Siege: open a crate / donate | V | A |
+| Core Siege: recall to the core (hold) | B | X |
+| Core Siege: call the next wave early | G | |
+| Core Siege: fire a rail post you built | X | |
 
 ## Install
 
