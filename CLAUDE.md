@@ -270,7 +270,8 @@ $P = "$R\godot"
   entries carry `w` = their group's warn tick), and a `tactic` fx is the announcer call (`dir_*`
   text, `|` splits headline and sub line). No spawn within `DIRECTOR.near` (8 m) of a player: a
   vent flips side, else it waits `DIRECTOR.retry`. Waves 1-3 plan as if it were off.
-  `--director=off` turns it off; `director.force = <tactic>` is the test hook. `bot.gd` `SKILL`
+  The game starts it off until the meter is tuned (Victor 2026-10-28: v0 made every bot team
+  lose about a wave sooner); `--director=on` turns it on. `director.force = <tactic>` is the test hook. `bot.gd` `SKILL`
   (skilled / average / weak) merges into a brain; `tools/siege_balance.gd -- --director=both
   --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
   Not built yet: a second local player, netcode, VS (design only).
