@@ -103,6 +103,7 @@ var spawn_arg := ""
 var modules_arg := false
 var top_arg := false
 var guard_arg := 0
+var farm_arg := false
 var core_arg_pct := -1.0
 var shot_on := ""
 var allies := []
@@ -171,6 +172,8 @@ func _ready() -> void:
 			auto_ult = true
 		elif a == "--siege":
 			siege = true
+		elif a == "--farm":
+			farm_arg = true
 		elif a.begins_with("--guard="):
 			guard_arg = clampi(a.substr(8).to_int(), 0, 5)
 		elif a == "--top":
@@ -379,6 +382,8 @@ func new_match() -> void:
 		pin()
 	brain = Bot.create_brain(s + 1)
 	pilot = Bot.create_brain(s + 2)
+	if farm_arg:
+		pilot.farm = true
 	view.reset(state)
 	hud.state = state
 	snap_camera()

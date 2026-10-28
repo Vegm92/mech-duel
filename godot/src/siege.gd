@@ -14,7 +14,7 @@ const SHOP := {"gate": 40, "rebuild": 120, "ring": 200, "wall": 60, "mine": 80, 
 const WALLET := {"repair": 30, "upgrade": 80, "reinforce": 100, "revive": 50}
 const YARD := {"wake": 8.0, "leash": 18.0, "wakeTime": 30, "pay": 25.0, "elite": 5, "raidFrom": 15, "raid": ["scoutPack", "ambush"],
 	"reinforce": 1.15, "donate": 10, "donateEvery": 15, "crush": {"every": 360, "warn": 60, "dmg": 60}, "emp": {"every": 480, "on": 120, "tick": 30, "dmg": 10, "slow": 40},
-	"farmLeash": 22.0}
+	"farmLeash": 22.0, "raidAt": [72.0, 48.0]}
 const MODULE := {"pad": 2.5, "wall": {"hp": 800, "depth": 1.0, "len": 6.0}, "mine": {"n": 4, "spread": 2.5, "dmg": 60, "arm": 30},
 	"laser": {"every": 180, "warn": 60, "dmg": 80, "half": 0.6}, "post": {"dmg": 120, "cd": 240, "reach": 2.0, "range": 40.0, "half": 0.5}}
 const SQUADS := {
@@ -106,11 +106,14 @@ static func geo_of(sg: Dictionary) -> Dictionary:
 	var boxes := []
 	for lane in 4:
 		for side in [-1, 1]:
-			for span in [[S.BLOCK, S.DOORS[lane][0]], [S.DOORS[lane][1], h]]:
-				var a := S.at(lane, span[0], side * w)
-				var z := S.at(lane, span[1], side * (w + S.LANE_WALL))
-				boxes.append(box(a.x, a.y, z.x, z.y))
+			var a := S.at(lane, S.BLOCK, side * w)
+			var z := S.at(lane, h, side * (w + S.LANE_WALL))
+			boxes.append(box(a.x, a.y, z.x, z.y))
 	for q in S.QUADS.size():
+		var wp := S.yard_at(q, S.WRECK.a, S.WRECK.b)
+		var wreck := {"x": wp.x, "y": wp.y, "r": S.WRECK.r}
+		pillars.append(wreck)
+		solids.append(wreck)
 		for hp in S.HEAPS:
 			var p := S.yard_at(q, hp.a, hp.b)
 			var heap := {"x": p.x, "y": p.y, "r": hp.r}
@@ -241,7 +244,8 @@ static func step(state, inputs: Array):
 
 
 static func ally_input(state, brain, id: int) -> Dictionary:
-	brain.lanes_only = not (id == 1 and state.siege.team >= 2)
+	var farmer: bool = brain.get("farm", id == 1 and state.siege.team >= 2)
+	brain.lanes_only = not farmer
 	var inp := Bot.bot_input(state, brain, id)
 	var m = state.mechs[id]
 	if m.ko:
@@ -261,7 +265,7 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 	if mend:
 		post = S.at(id % 4, S.CORE.repair - 1.5)
 	var o = Bot.pick(state, brain, m)
-	if id == 1 and sg.team >= 2 and not mend and not Sim.foes(state, id).any(func(t): return t.team == 1 and Sim.hypot(t.x, t.y) < S.RING_OUT + 2.0):
+	if farmer and not mend and not Sim.foes(state, id).any(func(t): return t.team == 1 and Sim.hypot(t.x, t.y) < S.RING_OUT + 2.0):
 		return farm(state, sg, m, o, inp)
 	var camp_bot: bool = o.team == 2 or o.team == m.team
 	if mend or camp_bot or o.ko or o.team == m.team or Sim.hypot(o.x - post.x, o.y - post.y) > leash or not open_line(state, m.x, m.y, o.x, o.y):
@@ -910,8 +914,8 @@ static func direct(state, sg: Dictionary) -> void:
 	var queue := []
 	for q in sg.queue:
 		if q.at <= state.tick and q.get("raid", -1) >= 0:
-			var air: Array = S.AIR[(q.raid + 1) % 4]
-			var e := spawn(state, q.kind, q.lane, q.side, q.get("mk", 1), {"x": air[0] * 0.95 + q.side, "y": air[1] * 0.95})
+			var at := S.yard_at(q.raid, YARD.raidAt[0] + q.side, YARD.raidAt[1])
+			var e := spawn(state, q.kind, q.lane, q.side, q.get("mk", 1), at)
 			for r in sg.enemies:
 				if r.kind == q.kind and r.id > e.id - BOTS[q.kind].get("pack", 1):
 					r.raid = q.raid

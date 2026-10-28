@@ -20,7 +20,6 @@ const ACTS := ["walk", "idle", "attack", "windup", "roll", "plant", "hit", "die"
 const LANE_WALL := 1.0
 const YARD_IN := 27.5
 const ARCH := 8.0
-const DOORS := [[39.0, 45.0], [61.0, 67.0], [39.0, 45.0], [61.0, 67.0]]
 const QUADS := [{"name": "NE", "sx": 1, "sy": -1}, {"name": "SE", "sx": 1, "sy": 1}, {"name": "SW", "sx": -1, "sy": 1}, {"name": "NW", "sx": -1, "sy": -1}]
 const CAMP_TIERS := {"small": {"scrap": 10}, "medium": {"scrap": 25}, "big": {"scrap": 45}, "elite": {"scrap": 120, "token": 1}}
 const CAMPS := [
@@ -36,6 +35,7 @@ const HEAPS := [
 	{"a": 40.0, "b": 58.0, "r": 2.0, "kind": "stack"}, {"a": 66.0, "b": 40.0, "r": 3.0, "kind": "hulk"}, {"a": 46.0, "b": 70.0, "r": 2.0, "kind": "stack"},
 	{"a": 70.0, "b": 56.0, "r": 1.5, "kind": "pillar"}, {"a": 58.0, "b": 26.0, "r": 2.0, "kind": "stack"}, {"a": 40.0, "b": 74.0, "r": 1.5, "kind": "crane"},
 ]
+const WRECK := {"a": 67.0, "b": 67.0, "r": 3.5}
 const STEAM := [{"a": 46.0, "b": 36.0, "r": 3.0}, {"a": 30.0, "b": 56.0, "r": 3.0}]
 const YARD_HAZARDS := [{"kind": "crush", "a": 56.0, "b": 20.0, "half": 1.5}, {"kind": "emp", "a": 20.0, "b": 56.0, "r": 2.5}]
 const GARRISON_DOCK := {"x": 0.0, "y": 8.0, "face": PI / 2.0}

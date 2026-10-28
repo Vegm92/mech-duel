@@ -6,7 +6,7 @@ const Siege = preload("res://src/siege.gd")
 const S = preload("res://src/siege_state.gd")
 const Progress = preload("res://src/progress.gd")
 
-const GOLDEN := 2974256445
+const GOLDEN := 2229595869
 
 var failed := 0
 var filter := ""
@@ -758,7 +758,7 @@ func test_raids_from_wave_15_wipe_camps_and_pay_nothing() -> int:
 	var raid: Array = s.siege.queue.filter(func(q): return q.get("raid", -1) >= 0)
 	var q: int = raid[0].raid
 	for u in raid:
-		Siege.spawn(s, u.kind, u.lane, u.side, 1, {"x": S.AIR[(q + 1) % 4][0] * 0.95, "y": S.AIR[(q + 1) % 4][1] * 0.95})
+		Siege.spawn(s, u.kind, u.lane, u.side, 1, S.yard_at(q, Siege.YARD.raidAt[0], Siege.YARD.raidAt[1] + u.side))
 	for r in s.siege.enemies:
 		if not r.neutral and r.camp < 0:
 			r.raid = q

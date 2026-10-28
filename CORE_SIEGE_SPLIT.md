@@ -82,9 +82,9 @@ quadrant-local (a, b) to world). What changes in the arena, numbers in `siege_st
   stay in those walls (spiders pop out into the lane and into the yard).
 - The ring road keeps its outer wall from `BLOCK` 26 to `YARD_IN` 27.5, with the 4 lane gaps plus
   one yard arch per quadrant on the 45° diagonal, `ARCH` 6 m wide (no door).
-- Layout numbers agreed with `siege-arena` 2026-10-28: lane walls at lateral 5 (1 m thick in the
-  sim), open doors in the lane walls (`DOORS`: N/S at 39..45, E/W at 61..67, open for everyone),
-  an 8 m arch per yard, 4 camps (`CAMPS`, `tier` is the string small/medium/big/elite; the bots
+- Layout numbers agreed with `siege-arena` 2026-10-28 (both read `siege_state.gd` at runtime):
+  lane walls from lateral 5 (`LANE_WALL` thick, no doors), an `ARCH` m arch per yard, the elite
+  wreck (`WRECK`, solid), 4 camps (`CAMPS`, `tier` is the string small/medium/big/elite; the bots
   are existing kinds), 4 crates (`CRATES`), 9 cover pieces (`HEAPS`, solid circles that block
   shots and sight), 2 steam patches (`STEAM`, hide a mech like duel smoke: `Sim.hidden`), a crush
   plate and an EMP zone (`YARD_HAZARDS`, they hit bots too). Crowd and floodlights move to an
