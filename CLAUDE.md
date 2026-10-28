@@ -93,8 +93,9 @@ $P = "$R\godot"
   `physics_ticks_per_second` to 60 × speed; physics interpolation keeps the mechs smooth and the
   camera moves in `_process` on real time (`get_global_transform_interpolated`, its interpolation
   off).
-  HUD: only black bars, a blinking ● REPLAY, a progress line and a skip hint (`kcReplay`, `kcSkip`);
-  Enter, click or A skip after `grace` ticks (mashing doesn't); a rewind swoosh (`ui_rewind`) starts
+  HUD: only black bars, a blinking ● REPLAY, a progress line and a skip hint (`kcReplay`, `kcSkip`),
+  plus the damage numbers; the aim reticle and the team ring and arrow hide (`view.replaying`;
+  Victor 2026-10-28: "Hide them"). Enter, click or A skip after `grace` ticks (mashing doesn't); a rewind swoosh (`ui_rewind`) starts
   it. The end (or a skip) steps the live state through the rest of the K.O. phase, so the next round
   starts at once. Look flag: `--replay=<n>` fast-forwards an autopilot match to its first K.O. and
   plays the kill cam; add `--shot=<abs>.png` to save its n-th step. Evidence (one replay, 8 moments):

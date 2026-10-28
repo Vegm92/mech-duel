@@ -463,7 +463,6 @@ func _physics_process(delta: float) -> void:
 			start_replay()
 	if not frozen and not held:
 		view.sync(state, aim, delta)
-		view.reticle.visible = view.reticle.visible and replay.is_empty()
 	crowd_sound.update(view.fresh_fx, view.hype, state.phase == "fight" and not paused, not paused)
 	sfx.update(state, view.fresh_fx, paused)
 	view.fresh_fx = []
@@ -563,6 +562,7 @@ func start_replay() -> void:
 	replay = Killcam.start(rec, live)
 	replay.live = live
 	cut_to(replay.state)
+	view.replaying = true
 	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	sfx.ui("rewind")
 
@@ -576,6 +576,7 @@ func end_replay() -> void:
 	Engine.time_scale = 1.0
 	Engine.physics_ticks_per_second = Sim.TICKS
 	cam.fov = FOV
+	view.replaying = false
 	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
 
 

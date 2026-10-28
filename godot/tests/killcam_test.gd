@@ -146,6 +146,9 @@ func test_a_ko_in_a_match_plays_the_replay_then_the_next_round() -> int:
 	var started: bool = not m.replay.is_empty()
 	var round: int = m.replay.live.round if started else -1
 	var bars: bool = started and m.hud.replay >= 0.0
+	frame(m)
+	var marks: Array = m.view.mechs[0].get_meta("marks")
+	var clean: bool = not (m.view.reticle.visible or marks[0].visible or marks[1].visible)
 	var slow := false
 	for i in 4000:
 		if m.replay.is_empty():
@@ -153,7 +156,7 @@ func test_a_ko_in_a_match_plays_the_replay_then_the_next_round() -> int:
 		frame(m)
 		slow = slow or Engine.physics_ticks_per_second < Sim.TICKS
 	var next: bool = m.state.phase == "over" or (m.state.phase == "countdown" and m.state.round == round + 1)
-	var bad := ensure(started, "a K.O. starts the replay") or ensure(bars, "the replay bars show") or ensure(slow, "the K.O. plays in slow motion") 		or ensure(m.replay.is_empty() and next, "then the next round starts (phase %s, round %d)" % [m.state.phase, m.state.round]) 		or ensure(Engine.time_scale == 1.0 and Engine.physics_ticks_per_second == Sim.TICKS and m.hud.replay < 0.0, "speed and HUD back to normal")
+	var bad := ensure(started, "a K.O. starts the replay") or ensure(bars, "the replay bars show") or ensure(clean, "no aim reticle, team ring or arrow in the replay") or ensure(slow, "the K.O. plays in slow motion") 		or ensure(m.replay.is_empty() and next, "then the next round starts (phase %s, round %d)" % [m.state.phase, m.state.round]) 		or ensure(Engine.time_scale == 1.0 and Engine.physics_ticks_per_second == Sim.TICKS and m.hud.replay < 0.0, "speed and HUD back to normal") 		or ensure(m.view.mechs[0].get_meta("marks")[0].visible, "the team ring comes back after the replay")
 	m.queue_free()
 	return bad
 
