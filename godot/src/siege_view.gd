@@ -14,7 +14,7 @@ const STATIC := ["markers", "markings", "fortress", "plaza", "stands"]
 const PARTS := ["markers", "markings", "fortress", "plaza", "stands", "yard_floor", "yard_arch", "core_base", "core_crystal",
 	"ring1", "ring2", "ring3", "ring4", "gate", "gate_light", "gate_door", "gate_broken", "spawn_gate", "spawn_light",
 	"mod_wall", "mod_mine", "flood_tower", "crate", "crate_lid", "camp_ring", "camp_pip", "work_light", "heap", "crane",
-	"steam_grate", "dock", "dock_lamp"]
+	"steam_grate", "dock", "dock_lamp", "parts_bay"]
 const DUEL := ["wall", "wall_post", "pillar", "vent", "crush_plate", "crush_head", "tesla", "tesla_orb", "fan"]
 const JUNK := [["guns", "rivet"], ["guns", "gatling"], ["guns", "mortar"], ["guns", "saw"], ["guns", "missiles"], ["guns", "hammer"],
 	["arms", "anvil_fore_R"], ["arms", "bulwark_upper_L"], ["arms", "brace_fore_L"], ["heads", "rookie"], ["heads", "demon"],
@@ -37,6 +37,10 @@ const YARD := {"rust": 0.5, "warm": 0.15, "dirt": 0.95, "tint": 0.45, "polish": 
 	"scorch": 8, "scorch_r": Vector2(1.0, 2.0), "grime": 1.2}
 const STEAM := {"amount": 40, "life": 3.0, "size": 2.4, "y": 0.4, "alpha": 0.45}
 const DOCK := {"lamps": [-1.2, -0.6, 0.0, 0.6, 1.2], "lamp": Vector2(0.9, 4.45), "on": 1.4, "off": 0.04, "beam": Vector2(1.4, 4.0)}
+const BAY_AT := {"x": 0.0, "y": -8.0, "face": PI / 2.0}
+const BAY := {"size": 1.8, "idle": 0.75, "open": 2.2, "light": 2.0, "spin": 0.5, "pulse": [2.0, 4.0, 0.3],
+	"items": [["heads", "visor", Vector3(0.35, 1.7, -1.28)], ["arms", "brace_fore_R", Vector3(0.35, 2.0, 1.28)], ["guns", "rivet", Vector3(1.15, 1.6, 0)]]}
+const RECALL := {"r": 1.0, "h": 6.0, "core": 0.25, "ring": 1.6, "segs": 24, "alpha": 0.3, "done": 0.95, "land": Vector3(0, 1.5, 0), "flash": [3.0, 8.0, 0.4]}
 const VIGNETTE := "smoothstep(0.0, 40.0, length(p - vec2(38.0, 30.0)))"
 const EMP_EDGE := "float edge = max(smoothstep(0.9, 1.0, q.x), smoothstep(0.8, 1.0, q.y));"
 
@@ -50,10 +54,12 @@ static var MATS := Look.ARENA.merged({
 	"mark": Look.paint("painted", Look.PAL.steel_hi),
 	"rust": Look.paint("painted", Look.PAL.grime.lerp(Look.PAL.orange, 0.3)),
 	"yard": Look.ARENA.dark,
+	"counter": Look.neon(Look.PAL.cyan, Look.NEON.cyan),
 })
 static var JUNK_MATS := {
 	"body": MATS.rust, "trim": Look.paint("gunmetal", Look.PAL.gunmetal), "joint": Look.paint("gunmetal", Look.PAL.void),
 }
+static var DISPLAY := {"body": MATS.steel, "trim": MATS.trim, "joint": MATS.dark, "gem": MATS.strip, "glow": MATS.strip, "core": MATS.strip, "boost": MATS.strip}
 static var CYAN_LAMPS := MATS.merged({"amber": MATS.strip}, true)
 
 var crystal: MeshInstance3D
@@ -75,6 +81,8 @@ var camps := []
 var crates := []
 var dock := {}
 var raids := []
+var bay := {}
+var recalls := {}
 
 
 static func dir(lane: int) -> Vector3:
@@ -88,6 +96,10 @@ static func yaw(lane: int) -> float:
 static func yard(q: int, a: float, b: float, y := 0.0) -> Vector3:
 	var p := SiegeState.yard_at(q, a, b)
 	return Vector3(p.x, y, p.y)
+
+
+static func contract(key: String, fallback: Variant) -> Variant:
+	return (load("res://src/siege_state.gd") as Script).get_script_constant_map().get(key, fallback)
 
 
 static func facing(fwd: Vector3) -> Basis:
@@ -123,6 +135,7 @@ func build(env := true, shared: ShaderMaterial = null) -> void:
 	build_towers()
 	build_yards()
 	build_dock()
+	build_bay()
 
 
 func floor_mat(knobs: Dictionary) -> ShaderMaterial:
@@ -572,6 +585,33 @@ func build_dock() -> void:
 	dock = {"node": n, "lamps": lamps, "beam": beam}
 
 
+func build_bay() -> void:
+	var b: Dictionary = contract("BAY", BAY_AT)
+	var n := Node3D.new()
+	n.position = Vector3(b.x, 0, b.y)
+	n.rotation.y = -b.face
+	add_child(n)
+	var m: StandardMaterial3D = MATS.counter.duplicate()
+	Mech.add_part(n, "parts_bay", MATS.merged({"counter": m}, true), "core_siege")
+	var items := []
+	for it in BAY.items:
+		items.append(junk(n, it[0], it[1], DISPLAY, Transform3D(Basis().scaled(Vector3.ONE * BAY.size), it[2])))
+	bay = {"node": n, "mat": m, "items": items, "light": accent(n.transform * Vector3(1.6, 2.0, 0), Look.PAL.cyan), "buys": 0}
+
+
+func make_recall() -> Dictionary:
+	var n := Node3D.new()
+	add_child(n)
+	var glow := Mech.flat(Color(Look.PAL.cyan, RECALL.alpha), true)
+	var beam := Mech.add(n, Mech.cyl(RECALL.r, RECALL.r, 1.0), glow)
+	var core := Mech.add(n, Mech.cyl(RECALL.core, RECALL.core, 1.0), Mech.flat(Color(0.85, 0.95, 1.0, 0.8), true))
+	var segs := []
+	for i in RECALL.segs:
+		var a := TAU * i / RECALL.segs
+		segs.append(Mech.add(n, Mech.box(Vector3(0.38, 0.04, 0.12)), Mech.flat(Look.PAL.cyan, true), Vector3(cos(a) * RECALL.ring, 0.06, sin(a) * RECALL.ring), Vector3(0, -a + PI / 2.0, 0)))
+	return {"node": n, "beam": beam, "core": core, "segs": segs, "f": 0.0}
+
+
 func accent(at: Vector3, c: Color) -> OmniLight3D:
 	var l := OmniLight3D.new()
 	l.light_color = c
@@ -617,6 +657,49 @@ func update(siege: Dictionary) -> void:
 		draw_crate(crates[i], all_crates[i], t)
 	if siege.has("garrison"):
 		draw_dock(siege.garrison, t)
+	draw_bay(siege, t)
+	draw_recall(siege.get("recall", []))
+
+
+func draw_bay(siege: Dictionary, t: float) -> void:
+	var open: bool = siege.get("shop_open", []).has(true)
+	bay.mat.emission_energy_multiplier = BAY.open if open else BAY.idle
+	bay.light.light_energy = Look.STAGE.accent * (BAY.light if open else 1.0)
+	for i in bay.items.size():
+		bay.items[i].basis = Basis(Vector3.UP, t * BAY.spin * (1.0 if i % 2 == 0 else -1.0)).scaled(Vector3.ONE * BAY.size)
+	var buys: int = siege.get("buys", 0)
+	if buys > bay.buys:
+		Fx.ring(self, bay.node.position + Vector3(0, 0.3, 0), BAY.pulse[0], BAY.pulse[1], BAY.pulse[2], Look.PAL.cyan)
+		Fx.flash(self, bay.node.transform * Vector3(1.15, 1.5, 0), 0.8, 0.12, Color(0.85, 0.95, 1.0))
+	bay.buys = buys
+
+
+func draw_recall(list: Array) -> void:
+	var seen := {}
+	for r in list:
+		seen[r.player] = true
+		if not recalls.has(r.player):
+			recalls[r.player] = make_recall()
+		var rv: Dictionary = recalls[r.player]
+		var f: float = clampf(float(r.t) / r.max, 0.0, 1.0) if r.max > 0 else 0.0
+		rv.node.position = Vector3(r.x, 0, r.y)
+		rv.node.visible = true
+		var h: float = RECALL.h * maxf(f, 0.05)
+		rv.beam.scale = Vector3(0.4 + 0.6 * f, h, 0.4 + 0.6 * f)
+		rv.beam.position.y = h / 2.0
+		rv.core.scale = Vector3(1, h, 1)
+		rv.core.position.y = h / 2.0
+		for i in RECALL.segs:
+			rv.segs[i].visible = i < ceili(f * RECALL.segs)
+		rv.f = f
+	for key in recalls:
+		var rv: Dictionary = recalls[key]
+		if not seen.has(key) and rv.node.visible:
+			if rv.f >= RECALL.done:
+				Fx.flash(self, rv.node.position + Vector3(0, 1.0, 0), 1.2, 0.15, Color(0.85, 0.95, 1.0))
+				Fx.ring(self, RECALL.land, RECALL.flash[0], RECALL.flash[1], RECALL.flash[2], Look.PAL.cyan)
+				Fx.flash(self, RECALL.land, 2.0, 0.18, Color(0.85, 0.95, 1.0))
+			rv.node.visible = false
 
 
 func draw_core(core: Dictionary, t: float) -> void:

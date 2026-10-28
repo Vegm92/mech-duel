@@ -50,6 +50,7 @@ MAT = {
     "amber": material("amber", srgb(255, 176, 60), 0.0, 1.0, 3.0),
     "roof": material("roof", srgb(13, 15, 21), 0.3, 0.8),
     "aisle": material("aisle", srgb(72, 78, 94), 0.2, 0.7),
+    "counter": material("counter", srgb(43, 182, 221), 0.0, 1.0, 3.0),
 }
 
 col = bpy.data.collections.get("Core_siege") or bpy.data.collections.new("Core_siege")
@@ -349,6 +350,35 @@ box((0.06, 0.12, 3.2), (1.12, 3.9, 0), "strip", 0)
 
 part("dock_lamp")
 box((0.1, 0.24, 0.42), (0, 0, 0), "pylon", 0)
+
+part("parts_bay")
+
+def bar3(p0, p1, w, mat):
+    hull([(p[0] + a * w, p[1] + b * w, p[2] + c * w) for p in (p0, p1) for a in (-1, 1) for b in (-1, 1) for c in (-1, 1)], mat, 0.01)
+
+box((3.6, 0.25, 5.2), (0, 0.125, 0), "dark", 0.04)
+box((3.64, 0.08, 5.24), (0, 0.2, 0), "steel", 0.02)
+box((0.06, 0.06, 5.0), (1.81, 0.2, 0), "strip", 0)
+for z in (-2.3, 2.3):
+    box((0.3, 2.0, 0.3), (-1.5, 1.25, z), "dark", 0.03)
+    box((0.04, 1.2, 0.1), (-1.33, 1.3, z), "strip", 0)
+box((0.4, 0.25, 5.0), (-1.5, 2.3, 0), "steel", 0.03)
+box((0.15, 1.4, 4.3), (-1.62, 0.95, 0), "dark", 0.02)
+for y in (0.8, 1.5):
+    box((0.5, 0.08, 4.0), (-1.35, y, 0), "trim", 0.01)
+    box((0.02, 0.04, 3.8), (-1.09, y + 0.06, 0), "strip", 0)
+box((0.9, 1.0, 4.2), (1.15, 0.75, 0), "steel", 0.04)
+box((1.0, 0.1, 4.4), (1.15, 1.3, 0), "trim", 0.02)
+box((0.94, 0.03, 4.0), (1.15, 1.36, 0), "counter", 0)
+box((0.04, 0.5, 3.6), (1.61, 0.8, 0), "counter", 0)
+for z in (-1.6, 1.6):
+    cyl(0.35, 0.3, 0.25, 0.6, "dark", 8, 0.02, -0.7, z)
+    bar3((-0.7, 0.6, z), (-0.5, 1.9, z * 0.95), 0.12, "trim")
+    bar3((-0.5, 1.9, z * 0.95), (0.1, 2.5, z * 0.8), 0.1, "trim")
+    cyl(0.16, 0.16, 1.82, 1.98, "dark", 8, 0, -0.5, z * 0.95)
+    for k in (-1, 1):
+        bar3((0.1, 2.5, z * 0.8), (0.4, 2.35, z * 0.8 + k * 0.18), 0.04, "steel")
+    box((0.06, 0.06, 0.06), (0.1, 2.5, z * 0.8), "strip", 0)
 
 part("fortress")
 GATE_HALF = math.atan2(LANE_W / 2 + 1.6, FORT)

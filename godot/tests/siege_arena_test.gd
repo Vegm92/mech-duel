@@ -55,6 +55,25 @@ func _process(_dt: float) -> bool:
 	s.yards[0].raided = 0.5
 	v.update(s)
 	check(v.raids[0].node.visible and v.raids[0].crates.filter(func(m): return m.visible).size() == SiegeView.YARD.raid / 2 and not v.raids[1].node.visible, "a half-raided yard shows half its raid damage, an untouched yard none")
+	v.update(s)
+	check(is_equal_approx(v.bay.mat.emission_energy_multiplier, SiegeView.BAY.idle), "the Parts Bay counter idles when nobody is in shop range")
+	s.shop_open = [true]
+	v.update(s)
+	check(is_equal_approx(v.bay.mat.emission_energy_multiplier, SiegeView.BAY.open), "the Parts Bay counter glows brighter when a player is in shop range")
+	var shop := v.get_child_count()
+	s.buys = 1
+	v.update(s)
+	check(v.get_child_count() > shop, "a purchase makes a buy pulse at the Bay")
+	s.recall = [{"player": 0, "t": 120, "max": 240, "x": 0.0, "y": -30.0}]
+	v.update(s)
+	var rc: Dictionary = v.recalls[0]
+	check(rc.node.visible and rc.segs.filter(func(m): return m.visible).size() == SiegeView.RECALL.segs / 2, "a recall half done shows a beam and half its floor ring")
+	s.recall[0].t = 240
+	v.update(s)
+	var before_end := v.get_child_count()
+	s.recall = []
+	v.update(s)
+	check(not rc.node.visible and v.get_child_count() > before_end, "a finished recall hides its beam and flashes at the plaza")
 	var crate: Dictionary = s.yards[0].crates[0]
 	crate.progress = 0.5
 	v.update(s)
