@@ -230,7 +230,7 @@ const TRAPS := {
 	"tesla": {"at": [{"x": CX, "y": CY - 5.5}, {"x": CX, "y": CY + 5.5}, {"x": CX, "y": CY - 18}, {"x": CX, "y": CY + 18}], "r": 0.45, "reach": 3, "every": 4 * TICKS, "warn": 48, "dmg": 40, "impact": 1},
 	"oil": {"at": [{"x": CX - 6.5, "y": CY}, {"x": CX + 6.5, "y": CY}], "r": 2, "grip": 0.2},
 }
-const HAZARDS := {"vents": 20 * TICKS, "slot": 3 * TICKS, "warn": TICKS, "burn": 90, "reach": 5, "half": 1, "dmg": 12, "heat": 8, "every": 30, "close": 45 * TICKS, "shrink": 18, "wallDmg": 4, "wallEvery": 15}
+const HAZARDS := {"vents": 20 * TICKS, "slot": 3 * TICKS, "warn": TICKS, "burn": 90, "reach": 5, "half": 1, "dmg": 12, "slow": 40, "every": 30, "close": 45 * TICKS, "shrink": 18, "wallDmg": 4, "wallEvery": 15}
 const SOLIDS := [
 	{"x": CX - 6.5, "y": CY - 5.5, "r": 1.5}, {"x": CX + 6.5, "y": CY - 5.5, "r": 1.5},
 	{"x": CX - 6.5, "y": CY + 5.5, "r": 1.5}, {"x": CX + 6.5, "y": CY + 5.5, "r": 1.5},
@@ -1920,7 +1920,7 @@ static func traps(state) -> void:
 				if along < -MECH_R or along > HAZARDS.reach + MECH_R or absf(rx * g.dy - ry * g.dx) > HAZARDS.half + MECH_R:
 					continue
 				env_hit(state, m, HAZARDS.dmg, "legs", 0, atan2(-g.dy, -g.dx))
-				add_heat(m, HAZARDS.heat)
+				m.buffs.slow = maxi(m.buffs.slow, HAZARDS.slow)
 	if state.shrink <= 0 or int(state.tick) % HAZARDS.wallEvery != 0:
 		return
 	for m in live:

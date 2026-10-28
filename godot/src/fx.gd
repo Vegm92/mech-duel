@@ -17,7 +17,9 @@ const PARRY := {"flash": 0.6, "star": 2.4, "secs": 0.13, "ring": 2.2, "ring_secs
 const BREAK := {"flash": 0.6, "star": 2.0, "smoke_secs": 3.0, "stop": 4}
 const KO := {"r": 2.0, "ring": 1.8, "ring_secs": 0.45, "stop": 8, "slow": 0.3, "slow_secs": 0.6}
 const LAND := {"ring": 1.15, "ring_secs": 0.3, "spikes": 0.75, "dust": 0.55, "crack": 1.0}
-const DASH := {"every": 3, "ghost_secs": 0.22, "ghost_alpha": 0.4}
+const DASH := {"every": 3, "ghost_secs": 0.25, "ghost_alpha": 0.4, "ghost_dim": 0.25, "ring": 1.3, "flash": 0.5, "lines": 3, "line": Vector2(1.6, 2.8), "line_w": 0.06, "line_secs": 0.16, "line_spread": 0.9}
+const ULT := {"flash": 0.7, "star": 2.4, "ring": 3.0, "secs": 0.32, "spikes": 0.5, "shake": 0.3}
+const FIELD := {"stasis": Color8(110, 235, 255), "well": Color8(205, 125, 255), "fill": 0.05, "inner": 0.6, "pulse": 0.02}
 const RIPPLE := {"panel": 1.25, "face": 1.33, "y": 1.05, "r": 0.75, "secs": 0.22, "card": 0.55, "card_secs": 0.07, "broke": 1.7}
 const HOOKED := {"flash": 0.4, "star": 1.4, "ring": 1.1, "secs": 0.18}
 const EMP := {"flash": 0.5, "star": 1.8, "secs": 0.35, "inner": 0.8, "band": 0.97, "zap": 0.9}
@@ -37,7 +39,7 @@ const CHARGE := {"ring": 1.8, "max_secs": 0.5, "spikes": 0.9}
 const VOID_C := Color8(205, 125, 255)
 const HEAL_C := Color8(90, 255, 150)
 const KICK := {"hit": 1.6, "decay": 14.0, "freq": 42.0}
-const RIBBON := {"steps": 12, "y": 0.07, "edge": 1.2, "tail": 1.2, "head": 0.4, "tip": 0.35, "fade": 0.35, "hot": 0.1, "gain": 1.0}
+const RIBBON := {"steps": 12, "y": 0.07, "edge": 1.2, "tail": 1.2, "head": 0.4, "tip": 0.35, "fade": 0.35, "hot": 0.1, "gain": 0.45}
 const SMOKE := {"step": 0.35, "per": 0.8, "spread": 0.75, "size": Vector2(0.4, 0.75), "grow": 18.0, "swell": 0.35, "rise": 0.7, "fade_in": 6.0, "fade_out": 0.35, "greys": [0.42, 0.34, 0.27], "alpha": 0.65, "gain": 1.3, "segs": 24}
 const SMOKE_SHADER := """
 shader_type spatial;
@@ -690,9 +692,31 @@ static func land(parent: Node3D, marks: Node3D, f: Dictionary, c: Color) -> void
 static func dash(parent: Node3D, f: Dictionary, c: Color, dir: Vector2) -> void:
 	var p := Vector3(f.x, 0.35, f.y)
 	var back := Vector3(-dir.x, 0.05, -dir.y).normalized()
-	ring(parent, Vector3(f.x, 0.08, f.y), 0.2, 0.9, 0.2, c)
+	flash(parent, Vector3(f.x, 0.3, f.y), DASH.flash, 0.05)
+	ring(parent, Vector3(f.x, 0.08, f.y), 0.2, DASH.ring, 0.2, c)
 	burst(parent, p, back, LAYERS.dash_streaks, 1.0, 1.0, tint(c))
 	burst(parent, Vector3(f.x, 0.15, f.y), back, LAYERS.dash_dust)
+
+
+## Speed lines: thin white streaks trailing a dashing mech, along its direction.
+static func lines(parent: Node3D, p: Vector3, dir: Vector2) -> void:
+	var rot := Vector3(0, -dir.angle(), 0)
+	var side := Vector3(-dir.y, 0, dir.x)
+	for i in DASH.lines:
+		var ln := randf_range(DASH.line.x, DASH.line.y)
+		var at := p - Vector3(dir.x, 0, dir.y) * ln * 0.6 + side * randf_range(-DASH.line_spread, DASH.line_spread) + Vector3(0, randf_range(0.3, 1.7), 0)
+		fade(bar(parent, at, Mech.box(Vector3.ONE), Color(1, 1, 1, 0.9), Vector3(ln, DASH.line_w, DASH.line_w), rot), DASH.line_secs, Vector3(ln * 0.3, 0.01, 0.01), Tween.EASE_OUT)
+
+
+## The moment an R skill fires: flash, team star, a wide team ring and team spikes on the floor.
+static func ult(parent: Node3D, f: Dictionary, c: Color) -> void:
+	var p := Vector3(f.x, 1.05, f.y)
+	var ground := Vector3(f.x, 0.08, f.y)
+	flash(parent, p, ULT.flash, 0.06)
+	star(parent, p, ULT.star, ULT.secs * 0.5, c)
+	ring(parent, ground, 0.4, ULT.ring, ULT.secs, c)
+	ring(parent, ground, 0.3, ULT.ring * 0.65, ULT.secs * 0.8, Color.WHITE)
+	on_ring(burst(parent, ground, Vector3.UP, LAYERS.land_spikes, 1.0, 1.0, tint(c)), ULT.ring * ULT.spikes)
 
 
 static func emp(parent: Node3D, f: Dictionary, inside: Array) -> void:
@@ -797,19 +821,20 @@ static func ghost(parent: Node3D, mech: Node3D, c: Color) -> void:
 	var g := take(mech.get_meta("spare_ghosts")) as Node3D
 	if g == null:
 		g = mech.duplicate(0) as Node3D
-		var m := Mech.flat(Color(c, DASH.ghost_alpha), true).duplicate() as StandardMaterial3D
+		var m := Mech.flat(Color(c.darkened(DASH.ghost_dim), DASH.ghost_alpha)).duplicate() as StandardMaterial3D
 		var pairs := []
 		var src := mech.find_children("*", "Node3D", true, false)
 		var dst := g.find_children("*", "Node3D", true, false)
 		for i in dst.size():
 			var n: Node3D = dst[i]
-			if n is CPUParticles3D or n.top_level:
+			if n is CPUParticles3D or n.top_level or src[i].has_meta("aura"):
 				n.visible = false
 				if n is CPUParticles3D:
 					(n as CPUParticles3D).emitting = false
 				continue
 			if n is GeometryInstance3D:
 				n.material_override = m
+				n.material_overlay = null
 				n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			pairs.append([src[i], n])
 		g.set_meta("pairs", pairs)

@@ -66,7 +66,8 @@ raises a perfect shield before each shot lands (parry). K (`--norefill`): armor 
 parts break and the target gets K.O.'d. J (`--dash`): your mech dashes every `SANDBOX.dash` ticks
 (add `--legs=jets` or `--legs=stompers` for the landing hit). `--block`: the target holds its
 shield up all the time (normal blocks, then the shield drops at max hold). `--hook`: your mech
-throws the hook whenever it is ready. Combine with `--shot`
+throws the hook whenever it is ready. `--ult`: your R charge stays full and your mech fires its R
+skill whenever it can (the default core's lance shows the wind-up bar). Combine with `--shot`
 and `--at` for screenshots of any weapon.
 
 ## Recipes
@@ -82,7 +83,8 @@ and `--at` for screenshots of any weapon.
 | hook | chain = team-color cable with a white core; on catch: flash, star, ring, sparks in the thrower's color; a cable joins the two mechs while the pull lasts (`HOOKED`) |
 | break | big chunks in the part's color, the mech trails black smoke for 3 s, hit-stop 4 |
 | ko | hit-stop 8, slow-mo, big boom, a smoke column that stays |
-| dash / land / crush | dust ring + streaks; land and crush leave a floor crack (`Fx.crush` = `Fx.land` in warm white, `CRUSH`) |
+| dash / land / crush | dust ring + streaks; land and crush leave a floor crack (`Fx.crush` = `Fx.land` in warm white, `CRUSH`). Dash start: a white flash and a wider team ring; while dashing: team afterimages every 3 ticks and white speed lines along the path (`DASH`, `Fx.lines`) |
+| ult (an R skill fires) | flash, team star, a wide team ring with a white one inside, team spikes on a ring, camera shake (`ULT`). Every R skill gets it, on top of its own effect |
 | heal / pickup | green + white rings on the floor, flat green squares floating up and spinning (`HEAL`) |
 | emp | flash + cyan star, thin cyan and white rings out to the radius, cyan needles; a star and sparks on every other mech inside (`EMP`) |
 | blink | purple: a ring shrinking at the start, sparks, a thin purple ray with a white core, a ring opening at the end (`BLINK`) |
@@ -106,7 +108,8 @@ and `--at` for screenshots of any weapon.
 4. **Done (Victor 2026-10-27: "keep working on the dashes and smoke"):** booster trails. Arc /
    flame / frost = `Fx.ribbon`, a soft additive ribbon on the floor over the sim's trail line,
    booster color in the middle fading to clear edges, pointed tail, fading with the trail's life
-   (`RIBBON`). Keep `gain` at 1: brighter colors turn white under the AgX tonemapper. Smoke (Twin
+   (`RIBBON`). Keep `gain` at or under 1: brighter colors turn white under the AgX tonemapper
+   (0.45 since 2026-10-27, item 9). Smoke (Twin
    booster dash and the Shroud R skill) = `Fx.smoke`, lit grey low-poly puffs scattered along the
    line, growing in, swelling and rising slowly, fading in the last 35% (`SMOKE`). Same hide zone
    as the sim. Evidence: `production/qa/evidence/godot-dash-smoke-before-after-2026-10-27.png`.
@@ -153,5 +156,27 @@ and `--at` for screenshots of any weapon.
    glowing `view.pop` / `beam` / `sparks` helpers are gone, so no one-shot effect uses `Mech.glow` now (arena props in `view.gd` still
    do: pads, heal station, hazard jets, reticle).
    Evidence: `godot-misc-fx-before-after-2026-10-27.png` (top before, bottom after).
+8. **Done (2026-10-27, visual overhaul M3):** the lance and rail wind-up bar (`mech.gd`
+   `aim_line`) is `Mech.flat` additive (`SKIN.aim`), no longer a glow at 4.0 that bloomed.
+9. **Done (2026-10-27, Victor: "improve the effects for ultimates, and dashes"):**
+   - **R skills:** the sim's `ult` event (sent by every R skill when it fires, unused until now)
+     plays `Fx.ult`. Lasting R skills are drawn from the mech's state, not from events:
+     Overdrive, Berserk, Deflect and Mirror had no visual of their own (Overdrive and Berserk
+     only tinted the body, which hid the team color). Now each has an aura (`mech.gd` `AURA`):
+     Overdrive three purple dashes spinning around the feet, Berserk two pulsing red rings,
+     Deflect a cyan ring on its 3 m zone, Mirror five light slats on its 70° front arc. The body
+     keeps its team color. Bubble is a thin cyan shell with a ring at the waist, no longer a lit
+     sphere that turned the mech lavender.
+   - **No more glow on R skills:** Stasis and Gravity Well fields were big pale discs with a
+     blooming rim; now a faint fill, a crisp ring and a white ring that spreads out (Stasis) or
+     closes in (Well, the pull) (`FIELD`). Bastion's wall is solid team color with a white top
+     edge (was `TEAM_LIGHT` glow, near white). Titan's mines are a flat red light (was a glow at
+     6.0).
+   - **Dash:** afterimages in the team color with normal blend, darkened 25 % (additive ones
+     piled up into a pale blob), every 3 ticks; white speed lines each tick; a white flash and a
+     wider ring at the start. Booster trails at `RIBBON.gain` 0.45 (was 1.0): the flame trail
+     came out beige under AgX, now orange.
+   Evidence: `visual-m3-ults-before-after-2026-10-27.png`,
+   `visual-m3-dash-before-after-2026-10-27.png`.
 
 Later: chips bouncing on the floor; calming the white arena lamps, which are bloomy too.

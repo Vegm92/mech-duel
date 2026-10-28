@@ -27,6 +27,8 @@ const TAIL := 1.6
 const TIP := {"drill": 1.4, "bunker": 1.25, "fist": 0.72}
 const WHIP := {"links": 16, "len": 3.95, "coil": 2.2, "back": 2.4, "crack": 2.5}
 const TRAIL_LIFE := 0.16
+const SKIN := {"body": [0.35, 0.4], "trim": [0.75, 0.35], "joint": [0.6, 0.55], "accent": 0.9, "aim": Color(1.0, 0.75, 0.35, 0.7)}
+const AURA := {"overdrive": Color8(205, 125, 255), "berserk": Color8(255, 64, 48), "deflect": Color8(90, 255, 230), "mirror": Color8(235, 245, 255), "shield": Color8(110, 220, 255), "alpha": 0.7, "spin": 3.0, "pulse": 14.0, "slats": 5}
 
 var team := 0
 var body_mat: StandardMaterial3D
@@ -52,6 +54,7 @@ var shield: Node3D
 var shield_mesh: MeshInstance3D
 var bubble: MeshInstance3D
 var aim_line: MeshInstance3D
+var auras := {}
 var smoke: CPUParticles3D
 var saw: Node3D
 var walk := 0.0
@@ -134,6 +137,14 @@ static func ball(r: float, segs := 12) -> Mesh:
 	return _meshes[key]
 
 
+static func plane() -> Mesh:
+	if not _meshes.has("plane"):
+		var p := PlaneMesh.new()
+		p.size = Vector2.ONE
+		_meshes["plane"] = p
+	return _meshes["plane"]
+
+
 static func ring(inner: float, outer: float) -> Mesh:
 	var key := "t%s/%s" % [inner, outer]
 	if not _meshes.has(key):
@@ -204,10 +215,15 @@ static func weapon_node(name: String, mats: Dictionary, side := 1.0) -> Node3D:
 static func paints(lo: Dictionary, t: int) -> Dictionary:
 	var body := StandardMaterial3D.new()
 	body.albedo_color = TEAM[t]
-	body.metallic = 0.3
-	body.roughness = 0.5
+	body.metallic = SKIN.body[0]
+	body.roughness = SKIN.body[1]
 	body.emission_enabled = true
 	body.emission = Color.BLACK
+	var accent := StandardMaterial3D.new()
+	accent.albedo_color = Color.BLACK
+	accent.emission_enabled = true
+	accent.emission = TEAM[t]
+	accent.emission_energy_multiplier = SKIN.accent
 	var gem := StandardMaterial3D.new()
 	gem.albedo_color = EYES[t]
 	gem.emission_enabled = true
@@ -218,7 +234,7 @@ static func paints(lo: Dictionary, t: int) -> Dictionary:
 	boost.albedo_color = bc
 	boost.emission_enabled = true
 	boost.emission = bc
-	return {"body": body, "trim": mat(STEEL, 0.0, 0.55, 0.5), "joint": mat(DARK, 0.0, 0.4, 0.6), "gem": gem, "boost": boost, "core": glow(CORE_C[lo.core], 3.0), "heal": glow(Color8(90, 255, 150), 3.0), "glow": glow(TEAM_LIGHT[t], 1.6), "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)}
+	return {"body": body, "trim": mat(STEEL, 0.0, SKIN.trim[0], SKIN.trim[1]), "joint": mat(DARK, 0.0, SKIN.joint[0], SKIN.joint[1]), "gem": gem, "boost": boost, "core": glow(CORE_C[lo.core], 3.0), "heal": glow(Color8(90, 255, 150), 3.0), "glow": accent, "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)}
 
 
 static func arm(p: Node3D, kind: String, s: String, parts: Dictionary) -> MeshInstance3D:
@@ -298,9 +314,25 @@ func build(lo: Dictionary, t: int) -> void:
 	add_child(shield)
 	shield_mesh = add(shield, box(Vector3(0.12, 1.4, 2.3)), glow(Color8(120, 190, 255), 2.5, 0.55), Vector3(1.25, 1.05, 0))
 	shield.visible = false
-	bubble = add(self, ball(1.35, 20), glow(Color8(110, 170, 255), 1.2, 0.18), Vector3(0, 1.0, 0))
+	bubble = add(self, ball(1.35, 20), flat(Color(AURA.shield, 0.1), true), Vector3(0, 1.0, 0))
+	add(bubble, ring(1.3, 1.38), flat(Color(AURA.shield, AURA.alpha), true))
 	bubble.visible = false
-	aim_line = add(torso, box(Vector3(1, 0.06, 1)), glow(Color8(255, 190, 90), 4.0, 0.6), Vector3(0, 1.08, 0))
+	var a := flat(Color(AURA.overdrive, AURA.alpha), true)
+	add(aura(self, "overdrive"), ring(1.33, 1.42), flat(Color(AURA.overdrive, 0.35), true), Vector3(0, 0.1, 0))
+	for i in 3:
+		var ang := TAU * i / 3.0
+		add(auras.overdrive, box(Vector3(0.9, 0.03, 0.16)), a, Vector3(cos(ang) * 1.4, 0.12, sin(ang) * 1.4), Vector3(0, -ang - PI / 2.0, 0))
+	a = flat(Color(AURA.berserk, AURA.alpha), true)
+	add(aura(self, "berserk"), ring(1.3, 1.4), a, Vector3(0, 0.1, 0))
+	add(auras.berserk, ring(1.55, 1.62), a, Vector3(0, 0.1, 0))
+	var r: float = Sim.ULTS.deflect.radius
+	add(aura(self, "deflect"), ring(r - 0.08, r), flat(Color(AURA.deflect, AURA.alpha), true), Vector3(0, 0.08, 0))
+	add(auras.deflect, cyl(r, r, 0.02, 32), flat(Color(AURA.deflect, 0.03), true), Vector3(0, 0.05, 0))
+	a = flat(Color(AURA.mirror, AURA.alpha), true)
+	for i in AURA.slats:
+		var ang: float = (float(i) / (AURA.slats - 1) - 0.5) * Sim.ULTS.mirror.arc
+		add(aura(torso, "mirror"), box(Vector3(0.04, 1.3, 0.28)), a, Vector3(cos(ang) * 1.4, 1.0, sin(ang) * 1.4), Vector3(0, -ang, 0))
+	aim_line = add(torso, box(Vector3(1, 0.06, 1)), flat(SKIN.aim, true), Vector3(0, 1.08, 0))
 	aim_line.visible = false
 	var tm := StandardMaterial3D.new()
 	tm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -316,6 +348,17 @@ func build(lo: Dictionary, t: int) -> void:
 	trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	trail.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(trail)
+
+
+## A hidden holder for one buff's aura (`AURA`); dash afterimages skip it.
+func aura(parent: Node3D, key: String) -> Node3D:
+	if not auras.has(key):
+		var n := Node3D.new()
+		n.set_meta("aura", true)
+		n.visible = false
+		parent.add_child(n)
+		auras[key] = n
+	return auras[key]
 
 
 func build_legs(kind: String, parts: Dictionary) -> void:
@@ -366,6 +409,10 @@ func sync(m: Dictionary, tick: int, dt: float) -> void:
 		shield.rotation.y = -m.act.angle
 		shield_mesh.transparency = 0.0 if m.act.t < Sim.perfect_of(m) else 0.35
 	bubble.visible = m.buffs.bubble > 0 and m.buffs.bubbleHp > 0
+	for key in auras:
+		auras[key].visible = m.buffs[key] > 0 and not m.ko
+	auras.overdrive.rotation.y += dt * AURA.spin
+	auras.berserk.scale = Vector3.ONE * (1.0 + 0.08 * sin(clock * AURA.pulse))
 	var winding: bool = m.act != null and m.act.k == "ult" and m.act.ph == "wind" and Sim.ult(m).kind in ["lance", "rail"]
 	aim_line.visible = winding
 	if winding:
@@ -400,11 +447,7 @@ func sync(m: Dictionary, tick: int, dt: float) -> void:
 	var flash := 0.0
 	if m.stagger > 0 and (tick / 3) % 2 == 0:
 		flash = 0.9
-	if m.buffs.berserk > 0:
-		body_mat.emission = Color(1, 0.15, 0.1) * 0.6
-	elif m.buffs.overdrive > 0:
-		body_mat.emission = Color(0.7, 0.4, 1.0) * 0.5
-	elif m.buffs.brace > 0:
+	if m.buffs.brace > 0:
 		body_mat.emission = Color(1.0, 0.72, 0.25) * 0.5
 	elif m.buffs.cleanse > 0:
 		body_mat.emission = Color(0.85, 0.95, 1.0) * 0.5
