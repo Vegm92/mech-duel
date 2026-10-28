@@ -10,9 +10,11 @@ const PartView = preload("res://src/part_view.gd")
 const Garage = preload("res://src/garage.gd")
 const CrowdSound = preload("res://src/crowd_sound.gd")
 const Sfx = preload("res://src/sfx.gd")
+const Killcam = preload("res://src/killcam.gd")
 const Look = preload("res://src/look.gd")
 
 const PITCH := deg_to_rad(60.0)
+const FOV := 40.0
 const SAVE := "user://loadout.cfg"
 const CAMS := [[], [0.6, 0.3, 5.0, true], [PI / 2, 0.12, 5.0, true], [PI + 0.6, 0.4, 5.0, true], [PI / 2, PITCH, 6.0, false]]
 const DEAD := 0.2
@@ -75,6 +77,9 @@ var pad_id := 0
 var on_pad := false
 var reach := Vector2.ZERO
 var recent: Array[Vector2] = []
+var rec := Killcam.recorder()
+var replay := {}
+var replay_at := -1
 
 
 func _ready() -> void:
@@ -89,6 +94,9 @@ func _ready() -> void:
 			autopilot = true
 		elif a.begins_with("--seed="):
 			seed_arg = a.substr(7).to_int()
+		elif a.begins_with("--replay="):
+			replay_at = a.substr(9).to_int()
+			autopilot = true
 		elif a.begins_with("--shot="):
 			shot_path = a.substr(7)
 		elif a.begins_with("--at="):
@@ -139,7 +147,7 @@ func _ready() -> void:
 		return
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 	cam = Camera3D.new()
-	cam.fov = 40.0
+	cam.fov = FOV
 	cam.far = 400.0
 	cam.rotation = Vector3(-PITCH, 0, 0)
 	add_child(cam)
@@ -206,6 +214,7 @@ func resume() -> void:
 
 
 func to_garage() -> void:
+	end_replay()
 	paused = false
 	crowd_sound.update([], 0.0, false, false)
 	sfx.menu()
@@ -234,11 +243,13 @@ func start(lo: Dictionary) -> void:
 
 
 func new_match() -> void:
+	end_replay()
 	paused = false
 	stop = 0
 	slow = 0.0
 	Engine.time_scale = 1.0
 	tapped.clear()
+	rec = Killcam.recorder()
 	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
 	var rival: Dictionary = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
 	if sandbox:
@@ -251,6 +262,17 @@ func new_match() -> void:
 	pilot = Bot.create_brain(s + 2)
 	view.reset(state)
 	hud.state = state
+	snap_camera()
+	if replay_at >= 0:
+		while state.phase != "over" and not Killcam.wants(state, rec):
+			var ins := [Bot.bot_input(state, pilot, 0), Bot.bot_input(state, brain, 1)]
+			Killcam.record(rec, state, ins)
+			Sim.step(state, ins)
+		if Killcam.wants(state, rec):
+			start_replay()
+
+
+func snap_camera() -> void:
 	var me = state.mechs[0]
 	var foe = state.mechs[1]
 	focus = Vector3((me.x + foe.x) / 2.0, 0, (me.y + foe.y) / 2.0)
@@ -336,7 +358,9 @@ func _input(event: InputEvent) -> void:
 			KEY_ESCAPE:
 				paused = not paused
 			KEY_ENTER, KEY_KP_ENTER:
-				if state.phase == "over":
+				if skip():
+					get_viewport().set_input_as_handled()
+				elif state.phase == "over":
 					to_garage()
 					get_viewport().set_input_as_handled()
 			KEY_L:
@@ -367,6 +391,7 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			tapped.left = true
+			skip()
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			tapped.right = true
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -379,6 +404,8 @@ func _input(event: InputEvent) -> void:
 			tapped[k] = true
 		elif event.button_index == JOY_BUTTON_START:
 			paused = not paused
+		elif event.button_index == JOY_BUTTON_A:
+			skip()
 	elif event is InputEventJoypadMotion and event.axis_value > 0.5:
 		var k = TRIGGER.find_key(event.axis)
 		if k:
@@ -397,7 +424,11 @@ func _physics_process(delta: float) -> void:
 	var held := stop > 0
 	if held:
 		stop -= 1
-	if not paused and not frozen and not held:
+	if not paused and not frozen and not held and not replay.is_empty():
+		Killcam.advance(replay)
+		if Killcam.done(replay):
+			back_to_live()
+	elif not paused and not frozen and not held:
 		var me = Bot.bot_input(state, pilot, 0) if autopilot and not sandbox else player_input()
 		var foe = Bot.bot_input(state, brain, 1)
 		if sandbox:
@@ -425,7 +456,11 @@ func _physics_process(delta: float) -> void:
 				for s in state.shots:
 					if s.owner == 0 and Vector2(s.x - t.x, s.y - t.y).length() < SANDBOX.guard:
 						foe.shield = true
+		else:
+			Killcam.record(rec, state, [me, foe])
 		Sim.step(state, [me, foe])
+		if Killcam.wants(state, rec):
+			start_replay()
 	if not frozen and not held:
 		view.sync(state, aim, delta)
 	crowd_sound.update(view.fresh_fx, view.hype, state.phase == "fight" and not paused, not paused)
@@ -442,14 +477,18 @@ func _physics_process(delta: float) -> void:
 	slow = maxf(slow, view.slow)
 	view.slow = 0.0
 	view.process_mode = Node.PROCESS_MODE_DISABLED if stop > 0 else Node.PROCESS_MODE_INHERIT
-	if cam_mode == 0:
+	if replay.is_empty() and cam_mode == 0:
 		follow(delta)
-	else:
+	elif replay.is_empty():
 		close_camera()
-	hud.visible = cam_mode == 0
+	hud.visible = cam_mode == 0 or not replay.is_empty()
+	hud.replay = Killcam.progress(replay)
 	hud.paused = paused
 	hud.pad = on_pad
 	if shot_at >= 0 and state.tick >= shot_at and not shooting:
+		shooting = true
+		take_shot()
+	if replay_at >= 0 and shot_path != "" and not replay.is_empty() and replay.i >= replay_at and not shooting:
 		shooting = true
 		take_shot()
 
@@ -518,8 +557,80 @@ func close_camera() -> void:
 	cam.look_at(at)
 
 
+func start_replay() -> void:
+	var live := state
+	replay = Killcam.start(rec, live)
+	replay.live = live
+	cut_to(replay.state)
+	view.replaying = true
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	sfx.ui("rewind")
+
+
+## Drops the replay (also on a restart or quit) and gives the match back its live state.
+func end_replay() -> void:
+	if replay.is_empty():
+		return
+	state = replay.live
+	replay = {}
+	Engine.time_scale = 1.0
+	Engine.physics_ticks_per_second = Sim.TICKS
+	cam.fov = FOV
+	view.replaying = false
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+
+
+func back_to_live() -> void:
+	end_replay()
+	while state.phase == "ko":
+		Sim.step(state, [])
+	Killcam.untag(state)
+	cut_to(state)
+	snap_camera()
+
+
+func skip() -> bool:
+	if replay.is_empty() or paused or replay.i < Killcam.KILLCAM.grace:
+		return false
+	back_to_live()
+	return true
+
+
+func cut_to(s: Dictionary) -> void:
+	state = s
+	hud.state = s
+	var h: float = view.hype
+	view.reset(s)
+	view.hype = h
+	stop = 0
+	slow = 0.0
+	tapped.clear()
+
+
+## Slow motion = fewer physics ticks per real second (the sim steps once per tick) with time_scale
+## keeping each tick's delta at 1/60; time_scale alone only shrinks delta.
+func direct(real: float) -> void:
+	var f := Killcam.film(replay, spot(replay.killer), spot(replay.victim), real)
+	var ticks := roundi(Sim.TICKS * f.speed)
+	if ticks != Engine.physics_ticks_per_second:
+		Engine.physics_ticks_per_second = ticks
+		Engine.time_scale = ticks / float(Sim.TICKS)
+	cam.fov = f.fov
+	cam.position = f.eye
+	cam.look_at(f.look)
+
+
+func spot(id: int) -> Vector3:
+	var m: Dictionary = state.mechs[id]
+	var n = view.mechs[id]
+	return n.get_global_transform_interpolated().origin if is_same(n.src, m) else Killcam.spot_of(m)
+
+
 func _process(delta: float) -> void:
-	if slow > 0.0:
+	if not replay.is_empty():
+		if not paused:
+			direct(delta / Engine.time_scale)
+	elif slow > 0.0:
 		slow -= delta / Engine.time_scale
 		Engine.time_scale = Fx.KO.slow if slow > 0.0 else 1.0
 	shake = maxf(0.0, shake - delta * 2.5)

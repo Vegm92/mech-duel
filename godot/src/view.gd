@@ -201,6 +201,7 @@ var emp_mats := [ShaderMaterial.new(), ShaderMaterial.new()]
 var cones := {}
 var muzzle_off := {}
 var pops := []
+var replaying := false
 var kick := Vector3.ZERO
 var reticle: MeshInstance3D
 var danger: MeshInstance3D
@@ -553,8 +554,8 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		var marks_of: Array = mechs[i].get_meta("marks")
 		var seen := not Sim.hidden(state, sm)
 		place_marks(marks_of, sm)
-		marks_of[0].visible = seen
-		marks_of[1].visible = seen and not sm.ko
+		marks_of[0].visible = seen and not replaying
+		marks_of[1].visible = seen and not sm.ko and not replaying
 		marks_of[2].set_shader_parameter("strength", Look.RIM.strength if seen else 0.0)
 		var act = state.mechs[i].act
 		if act != null and act.k == "dash" and act.get("ph") == "go" and not sm.ko:
@@ -572,7 +573,7 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 			tether(cab, d.length(), Mech.TEAM[by.team])
 			settle(cab)
 	reticle.position = aim + Vector3(0, 0.05, 0)
-	reticle.visible = state.phase == "fight" and not state.mechs[0].ko
+	reticle.visible = state.phase == "fight" and not state.mechs[0].ko and not replaying
 	var fresh := []
 	for f in state.fx:
 		if not f.has("seen"):

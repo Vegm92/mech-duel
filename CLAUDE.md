@@ -21,6 +21,8 @@ $G --headless --path godot -s res://tests/sim_rules_test.gd     # sim tests (gol
 $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow; gamepad in match + garage
 $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon has a sound, banks load, synth + music bake, volume settings
 $G --headless --path godot -s res://tests/hype_test.gd         # crowd hype and crowd sounds
+$G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-run lands on the same K.O., one smooth move, pillars, match flow, skip
+$G --path godot -- --replay=0 --seed=1                          # watch a kill cam right away (bots fight to the first K.O.)
 ```
 
 Same in PowerShell (Victor runs commands there; works from any folder):
@@ -36,6 +38,8 @@ $P = "$R\godot"
 & $G --headless --path $P -s res://tests/garage_parts_test.gd   # garage, parts, flow, gamepad tests
 & $G --headless --path $P -s res://tests/sound_test.gd          # sound tests
 & $G --headless --path $P -s res://tests/hype_test.gd           # crowd tests
+& $G --headless --path $P -s res://tests/killcam_test.gd        # kill cam tests
+& $G --path $P -- --replay=0 --seed=1                           # watch a kill cam right away
 & $G --path $P --resolution 1920x1080 -s "$R\tools\perf_probe.gd" -- --autopilot --seed=3   # speed: one PERF line after ~40 s
 & $G --path $P --resolution 1920x1080 -s "$R\tools\arena_shot.gd" -- --autopilot --seed=3 --tick=700 "--out=$env:TEMP\arena.png"   # arena-only still (--top: whole arena)
 ```
@@ -68,6 +72,34 @@ $P = "$R\godot"
   weapon, T auto-fire, G guard, K refill, J dash, `--block` held shield, `--hook` auto hook, `--ult` R skill on repeat; see `FX_DESIGN.md`). Evidence:
   `production/qa/evidence/godot-hit-fx-before-after-2026-10-26.png`,
   `godot-weapon-fx-before-after-2026-10-27.png`, `godot-moves-fx-before-after-2026-10-27.png`.
+- **Kill cam** (Victor 2026-10-28: "new and different perspectives to the last kill, zooms and
+  slowmotions. dramatic stuff like on TV"). `killcam.gd`, presentation only. It re-runs the last
+  `KILLCAM.secs` (4 s) instead of recording frames: at a round's first fight tick `record`
+  deep-copies the state into a ghost (nothing is shared between dicts yet, so the copy is exact; later
+  a dash trail is shared by `state.trails` and `m.act.trail`, which `duplicate(true)` would split)
+  and steps it `lag()` ticks behind the live one with the saved inputs. When the round's last K.O.
+  (`finalKo`) has played `live` ticks, main.gd swaps the ghost in as `state` (`cut_to`: view reset,
+  hype kept) and steps it on with the queued inputs; view, crowd and sfx see it like live. `film` is
+  the director: **one smooth camera move, no cuts** (Victor 2026-10-28, after a first version that cut
+  4 times between 8 shot kinds: "TOO MANY CAMERA CHANGES, KEEP IT SIMPLER AND SMOOTHER"). `SHOT` keys
+  it to ticks from the K.O.: wide on both mechs (backing off to fit them, `fit`), glide in on the
+  victim (`close`), ease into 0.2× slow motion (`slow`, `speed_at`), then pull back and rise
+  (`after`) and speed up (`fast`), with a slow orbit (`spin`, on game time) all along. The eye and
+  the look ease toward the move (`dolly`, `track`), so nothing jumps. `aim` picks the side and start
+  angle (rolled per K.O., then ±25/50°, then the mirror side) that keeps pillars and tesla pylons out
+  of the way at the start, the K.O. and the pull-back (`hidden` = `blocked` or `crowded`); if one
+  still gets in the way, the camera floats up over it (`lift`). Slow motion: `Engine.time_scale` alone only shrinks delta (the physics
+  loop stays at 60 Hz and the sim steps once per tick), so `direct` also sets
+  `physics_ticks_per_second` to 60 × speed; physics interpolation keeps the mechs smooth and the
+  camera moves in `_process` on real time (`get_global_transform_interpolated`, its interpolation
+  off).
+  HUD: only black bars, a blinking ● REPLAY, a progress line and a skip hint (`kcReplay`, `kcSkip`),
+  plus the damage numbers; the aim reticle and the team ring and arrow hide (`view.replaying`;
+  Victor 2026-10-28: "Hide them"). Enter, click or A skip after `grace` ticks (mashing doesn't); a rewind swoosh (`ui_rewind`) starts
+  it. The end (or a skip) steps the live state through the rest of the K.O. phase, so the next round
+  starts at once. Look flag: `--replay=<n>` fast-forwards an autopilot match to its first K.O. and
+  plays the kill cam; add `--shot=<abs>.png` to save its n-th step. Evidence (one replay, 8 moments):
+  `production/qa/evidence/godot-kill-cam-shots-2026-10-28.png`.
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
   saves that tick's frame and quits. `--lang=en|es` picks the language and `--pad` shows the pad
   captions (HUD stills). Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
@@ -365,7 +397,8 @@ $P = "$R\godot"
 - **Calm follow camera, never rotating.** W must always be up the screen. The first follow camera
   (2026-10-19) felt disorienting; for the big stadium (2026-10-21) Victor chose a calm one: dead
   zone, slow easing, you stay in the middle 70%, edge arrow for an off-screen rival. Only the K.O.
-  zooms.
+  zooms. The one exception is the kill cam replay (nobody plays during it): one smooth move that
+  turns around the kill (Victor 2026-10-28).
 - **Original names only** in anything player-facing. No Medabots names (Medabot, Medal, Robattle,
   Medaforce, Metabee...). Same rule as `../../../to_develop/medabots-survivor`.
 - **Sim stays pure.** Randomness, time and DOM never enter `godot/src/sim.gd`.
