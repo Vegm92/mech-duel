@@ -21,6 +21,7 @@ func _initialize() -> void:
 	await run("garage_works_with_a_pad", test_garage_works_with_a_pad)
 	await run("decor_keeps_off_pads_spawns_and_traps", test_decor_keeps_off_pads_spawns_and_traps)
 	await run("garage_locks_parts_you_have_not_won", test_garage_locks_parts_you_have_not_won)
+	await run("help_blocks_fight_and_siege_stays_hidden", test_help_blocks_fight_and_siege_stays_hidden)
 	await run("winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part", test_winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part)
 	await run("losing_a_match_gives_no_claim", test_losing_a_match_gives_no_claim)
 	print("FAILED" if failed else "ALL PASSED")
@@ -310,6 +311,29 @@ func test_garage_locks_parts_you_have_not_won() -> int:
 	await process_frame
 	await mouse(card_at(g, demon), true)
 	bad += ensure(g.loadout.head == "demon" and not g.locked(demon), "once claimed the part equips")
+	g.queue_free()
+	return int(bad > 0)
+
+
+func test_help_blocks_fight_and_siege_stays_hidden() -> int:
+	var g = Garage.new()
+	g.progress = Progress.new()
+	root.add_child(g)
+	g.open(Sim.DEFAULT_LOADOUT)
+	await process_frame
+	var fights := [0]
+	g.fight.connect(func(_lo): fights[0] += 1)
+	var labels: Array = g.find_children("*", "Label", true, false).map(func(l): return l.text)
+	var bad := ensure(not labels.has(g.tr("siegeBtn")), "the Core Siege button is hidden by default")
+	bad += ensure(labels.has(g.tr("helpBtn")) and labels.has(g.tr("quitBtn")), "how to play and quit buttons are there")
+	g.show_help()
+	var enter := InputEventKey.new()
+	enter.physical_keycode = KEY_ENTER
+	enter.pressed = true
+	g._input(enter)
+	bad += ensure(g.help == null and fights[0] == 0, "Enter closes the help without starting a fight")
+	g._unhandled_key_input(enter)
+	bad += ensure(fights[0] == 1, "the next Enter fights")
 	g.queue_free()
 	return int(bad > 0)
 

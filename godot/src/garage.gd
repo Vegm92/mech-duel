@@ -20,6 +20,8 @@ const BOTTOM := 700.0
 const SLOTS := ["head", "core", "arms", "legs", "booster", "left", "right", "set"]
 const TITLES := ["gHead", "gCore", "gArms", "gLegs", "gBooster", "gLeftHand", "gRightHand", "gSets"]
 const MAIN := [["mainParts", 0, 4], ["mainWeapons", 5, 6], ["mainSets", 7, 7]]
+const HELP := [["hkMove", "hpMove", "haMove"], ["hkAim", "hpAim", "haAim"], ["hkLeft", "LT", "haLeft"], ["hkRight", "RT", "haRight"], ["Q", "RB", "haShield"], ["E", "L3", "haE"], ["hkSpace", "LB", "haDash"], ["R", "R3", "haUlt"], ["Esc", "Start", "haPause"], ["M / N / L", "", "haMisc"]]
+const DIFFICULTY := ["easy", "normal", "hard"]
 const UNIT := {"siSpeed": "vMs", "siDash": "vM", "siDashCd": "vS", "siHandling": "vPct", "siCharge": "vPct", "siVent": "vPs"}
 
 static var SERIES_C := {"light": Color("7ef0ff"), "standard": Color("c6d4e8"), "heavy": Color("ffb45f")}
@@ -59,6 +61,10 @@ var info_rows := []
 var about_title: Label
 var about_desc: Label
 var about_skill: Label
+var siege_btn := false
+var help: Control
+var difficulty := "normal"
+var diff_label: Label
 
 
 func _init() -> void:
@@ -104,9 +110,87 @@ func build() -> void:
 	title.add_theme_constant_override("shadow_outline_size", 8)
 	title.add_theme_constant_override("shadow_offset_x", 0)
 	title.add_theme_constant_override("shadow_offset_y", 0)
-	text(root, tr("garageHint"), Vector2(PAD + 236, 12), 13, DIM, AREA - 236, false, HORIZONTAL_ALIGNMENT_LEFT, 42)
+	text(root, tr("garageHint"), Vector2(PAD + 236, 12), 13, DIM, AREA - 236 - 236, false, HORIZONTAL_ALIGNMENT_LEFT, 42)
+	for i in 2:
+		var b := Button.new()
+		b.position = Vector2(PAD + AREA - 228 + i * 120, 17)
+		b.size = Vector2(108, 32)
+		b.focus_mode = Control.FOCUS_NONE
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		b.add_theme_stylebox_override("normal", plate(CARD, LINE, 1, 8))
+		for s in ["hover", "pressed", "hover_pressed"]:
+			b.add_theme_stylebox_override(s, plate(HOV, LINE_HOV, 1, 8))
+		b.pressed.connect(show_help if i == 0 else quit_game)
+		root.add_child(b)
+		text(b, tr("helpBtn" if i == 0 else "quitBtn"), Vector2.ZERO, 13, TEXT, 108, true, HORIZONTAL_ALIGNMENT_CENTER, 32)
+	text(root, tr("version").format({"v": ProjectSettings.get_setting("application/config/version", "dev")}), Vector2(RX, 703), 10, LABEL, RW, false, HORIZONTAL_ALIGNMENT_RIGHT)
 	build_right()
 	build_tab()
+	if help != null:
+		help.queue_free()
+		help = null
+		show_help()
+
+
+func show_help() -> void:
+	if help != null:
+		return
+	ui.emit("tab")
+	help = Button.new()
+	help.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	help.flat = true
+	help.focus_mode = Control.FOCUS_NONE
+	help.set_anchors_preset(Control.PRESET_FULL_RECT)
+	help.pressed.connect(hide_help)
+	add_child(help)
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.02, 0.06, 0.82)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	help.add_child(dim)
+	var box := panel(help, Rect2(0, 0, 720, 500), PANEL, HI, 14)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.offset_left = -360
+	box.offset_right = 360
+	box.offset_top = -250
+	box.offset_bottom = 250
+	text(box, tr("helpTitle"), Vector2(0, 14), 24, TEXT, 720, true, HORIZONTAL_ALIGNMENT_CENTER)
+	para(box, tr("helpGoal"), Rect2(36, 56, 648, 66), 13, DIM, 4)
+	text(box, tr("helpKeys"), Vector2(36, 128), 12, HOLO, 300, true)
+	text(box, tr("helpPad"), Vector2(232, 128), 12, HOLO, 120, true)
+	for i in HELP.size():
+		var y := 152.0 + i * 27.0
+		rect(box, Rect2(36, y - 3, 648, 1), Color8(80, 150, 230, 31))
+		text(box, tr(HELP[i][0]), Vector2(36, y), 13, HI, 190, true)
+		text(box, tr(HELP[i][1]), Vector2(232, y), 13, HI, 120, true)
+		text(box, tr(HELP[i][2]), Vector2(360, y), 13, TEXT, 324)
+	text(box, tr("helpClose"), Vector2(0, 462), 12, LABEL, 720, false, HORIZONTAL_ALIGNMENT_CENTER)
+
+
+func next_difficulty() -> void:
+	difficulty = DIFFICULTY[(DIFFICULTY.find(difficulty) + 1) % DIFFICULTY.size()]
+	ui.emit("tab")
+	paint_difficulty()
+
+
+func paint_difficulty() -> void:
+	if diff_label == null:
+		return
+	diff_label.text = tr("lv_" + difficulty)
+	diff_label.add_theme_color_override("font_color", {"easy": GOOD, "normal": TEXT, "hard": BAD}[difficulty])
+
+
+func quit_game() -> void:
+	get_tree().quit()
+
+
+func hide_help() -> void:
+	if help == null:
+		return
+	help.queue_free()
+	help = null
+	ui.emit("tab")
 
 
 func build_tab() -> void:
@@ -257,9 +341,24 @@ func build_right() -> void:
 	about_desc = para(ab, "", Rect2(14, 34, RW - 28, 68), 12, DIM, 4)
 	about_skill = para(ab, "", Rect2(14, 106, RW - 28, 48), 12, SKILL, 3)
 	var sw := 132.0
+	var dw := 120.0
+	var db := Button.new()
+	db.position = Vector2(RX, 646)
+	db.size = Vector2(dw, 54)
+	db.focus_mode = Control.FOCUS_NONE
+	db.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	db.add_theme_stylebox_override("normal", plate(CARD, LINE_HOV, 2, 12))
+	for s in ["hover", "pressed", "hover_pressed"]:
+		db.add_theme_stylebox_override(s, plate(HOV, HI, 2, 12))
+	db.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	db.pressed.connect(next_difficulty)
+	root.add_child(db)
+	text(db, tr("diffLabel"), Vector2(0, 8), 10, DIM, dw, true, HORIZONTAL_ALIGNMENT_CENTER)
+	diff_label = text(db, "", Vector2(0, 22), 18, TEXT, dw, true, HORIZONTAL_ALIGNMENT_CENTER)
+	paint_difficulty()
 	var f := Button.new()
-	f.position = Vector2(RX, 646)
-	f.size = Vector2(RW - sw - 8, 54)
+	f.position = Vector2(RX + dw + 8, 646)
+	f.size = Vector2(RW - dw - 8 - (sw + 8 if siege_btn else 0.0), 54)
 	f.focus_mode = Control.FOCUS_NONE
 	f.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var glow := Color(1.0, 0.48, 0.18, 0.9)
@@ -269,7 +368,9 @@ func build_right() -> void:
 	f.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	f.pressed.connect(go)
 	root.add_child(f)
-	text(f, tr("fightBtn"), Vector2.ZERO, 20, Color("1a0d05"), f.size.x, true, HORIZONTAL_ALIGNMENT_CENTER, 54)
+	fit(text(f, tr("fightBtn"), Vector2.ZERO, 20, Color("1a0d05"), f.size.x, true, HORIZONTAL_ALIGNMENT_CENTER, 54), 20, f.size.x - 16, 12)
+	if not siege_btn:
+		return
 	var sb := Button.new()
 	sb.position = Vector2(RX + RW - sw, 646)
 	sb.size = Vector2(sw, 54)
@@ -393,6 +494,7 @@ func select_tab(i: int) -> void:
 
 
 func go() -> void:
+	hide_help()
 	ui.emit("start")
 	fight.emit(loadout.duplicate())
 
@@ -420,6 +522,10 @@ func use_pad(on: bool) -> void:
 
 
 func _input(e: InputEvent) -> void:
+	if visible and help != null and ((e is InputEventJoypadButton and e.pressed) or (e is InputEventKey and e.pressed and not e.echo and e.physical_keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_ESCAPE, KEY_SPACE])):
+		hide_help()
+		get_viewport().set_input_as_handled()
+		return
 	if e is InputEventMouseMotion:
 		use_pad(false)
 	elif (e is InputEventJoypadButton and e.pressed) or (e is InputEventJoypadMotion and absf(e.axis_value) > 0.5):
@@ -436,6 +542,8 @@ func _unhandled_input(e: InputEvent) -> void:
 			select_tab((tab + 1) % SLOTS.size())
 		JOY_BUTTON_START:
 			go()
+		JOY_BUTTON_BACK:
+			next_difficulty()
 		_:
 			return
 	get_viewport().set_input_as_handled()

@@ -51,6 +51,7 @@ var state: Dictionary
 var view: Node3D
 var paused := false
 var pad := false
+var level := ""
 var canvas: Control
 var font: Font
 var bold: FontVariation
@@ -190,7 +191,7 @@ func paint() -> void:
 			label(tr("rematch"), Vector2(0, cy + 118), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
 	else:
 		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
-		mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot"))
+		mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot") + ("  ·  " + tr("lv_" + level) if level != "" else ""))
 		clock(size)
 		if not paused:
 			slots(size)

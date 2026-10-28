@@ -23,6 +23,7 @@ const SIEGE_CAM := {"dist": 48.0, "edge": 62.0, "near": 36.0, "far": 64.0, "top"
 const PITCH := deg_to_rad(60.0)
 const FOV := 40.0
 const SAVE := "user://loadout.cfg"
+const DEV_KEYS := [KEY_F, KEY_C, KEY_TAB, KEY_T, KEY_K, KEY_J]
 const CAMS := [[], [0.6, 0.3, 5.0, true], [PI / 2, 0.12, 5.0, true], [PI + 0.6, 0.4, 5.0, true], [PI / 2, PITCH, 6.0, false]]
 const DEAD := 0.2
 const REACH := 16.0
@@ -234,6 +235,11 @@ func _ready() -> void:
 	loadout = flag_loadout()
 	garage = Garage.new()
 	garage.progress = progress
+	garage.siege_btn = siege
+	var saved := ConfigFile.new()
+	saved.load(SAVE)
+	var d := str(saved.get_value("garage", "difficulty", "normal"))
+	garage.difficulty = d if Bot.LEVELS.has(d) else "normal"
 	add_child(garage)
 	claim = Claim.new()
 	add_child(claim)
@@ -250,6 +256,8 @@ func _ready() -> void:
 		gun = maxi(0, Sim.WEAPONS.keys().find(loadout.left))
 	if garage_arg >= 0 or not (autopilot or shot_at >= 0 or sandbox):
 		to_garage()
+		if real and not FileAccess.file_exists(SAVE):
+			garage.show_help()
 	else:
 		garage.visible = false
 		new_match()
@@ -319,6 +327,7 @@ func saved_loadout() -> Dictionary:
 func save_loadout() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("garage", "loadout", loadout)
+	cfg.set_value("garage", "difficulty", garage.difficulty)
 	cfg.save(SAVE)
 
 
@@ -418,6 +427,9 @@ func new_match() -> void:
 	if sandbox:
 		pin()
 	brain = Bot.create_brain(s + 1)
+	hud.level = "" if autopilot or sandbox or siege else garage.difficulty
+	if hud.level != "":
+		brain.merge(Bot.LEVELS[hud.level], true)
 	pilot = Bot.create_brain(s + 2)
 	if farm_arg:
 		pilot.farm = true
@@ -518,6 +530,8 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
 		pad_id = event.device
 	if event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode in DEV_KEYS and not OS.is_debug_build():
+			return
 		match event.physical_keycode:
 			KEY_Q:
 				tapped.shield = true

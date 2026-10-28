@@ -3,6 +3,15 @@ extends RefCounted
 const Sim = preload("res://src/sim.gd")
 
 const SKILL := {"skilled": {"aimError": 0.3, "reaction": 0.15, "dodge": 0.5}, "average": {"aimError": 0.9, "reaction": 0.3, "dodge": 0.25}, "weak": {"aimError": 1.6, "reaction": 0.5, "dodge": 0.1}}
+## Duel rival difficulty, picked in the garage. Merged into the rival's brain; any key left out uses BOT.
+## block = chance to shield an incoming shot, lead = how far ahead it aims at a moving target (0 = where you are now), move = top speed share,
+## pause = extra ticks between shots, rhythm = random extra delay cap, heatCap = heat it stops firing at,
+## juke = ticks between strafe flips (long = predictable). Check with tests/difficulty_test.gd.
+const LEVELS := {
+	"easy": {"aimError": 2.4, "reaction": 0.6, "dodge": 0.0, "block": 0.1, "lead": 0.0, "move": 0.7, "pause": 30, "jukeMin": 60, "jukeMax": 120},
+	"normal": {"aimError": 1.6, "reaction": 0.45, "dodge": 0.1, "block": 0.2, "lead": 0.5, "move": 0.85, "pause": 18, "jukeMin": 30, "jukeMax": 90},
+	"hard": {"aimError": 0.25, "reaction": 0.15, "dodge": 0.5, "rhythm": 0, "heatCap": 95, "jukeMin": 10, "jukeMax": 40},
+}
 const BOT := {"aimError": 0.9, "guard": 0.35, "dodge": 0.25, "reaction": 0.3, "jukeMin": 18, "jukeMax": 70, "close": [1.6, 2.6], "heatCap": 82, "rhythm": 18, "healAt": 0.6, "grab": 14, "stick": 1.3}
 
 
@@ -280,7 +289,7 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 	var threat = incoming(state, m, brain.get("reaction", BOT.reaction))
 	if threat != null and threat.s.cast != brain.threat:
 		brain.threat = threat.s.cast
-		brain.guardRoll = Sim.rng(brain) < BOT.guard
+		brain.guardRoll = Sim.rng(brain) < brain.get("block", BOT.guard)
 		brain.dodgeRoll = Sim.rng(brain) < brain.get("dodge", BOT.dodge)
 	var veiled := Sim.hidden(state, o)
 	var sight: bool = not veiled and clear_line(m.x, m.y, o.x, o.y, Sim.geo(state).pillars)
@@ -294,7 +303,8 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 
 	if tick >= brain.nextJuke:
 		flip(brain, tick)
-		brain.nextJuke = tick + BOT.jukeMin + floor(Sim.rng(brain) * (BOT.jukeMax - BOT.jukeMin))
+		var j0: int = brain.get("jukeMin", BOT.jukeMin)
+		brain.nextJuke = tick + j0 + floor(Sim.rng(brain) * (brain.get("jukeMax", BOT.jukeMax) - j0))
 	if threat != null and not brain.guardRoll and tick - brain.lastFlip > 12:
 		flip(brain, tick)
 	var wx := 0.0
@@ -320,13 +330,18 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 		inp.my = py * brain.side + uy * radial + wy * 0.8
 	inp.mx += avoid.x * 1.5
 	inp.my += avoid.y * 1.5
+	var cap: float = brain.get("move", 1.0)
+	var ln := Sim.hypot(inp.mx, inp.my)
+	if cap < 1.0 and ln > cap:
+		inp.mx *= cap / ln
+		inp.my *= cap / ln
 
 	var h = Sim.ult(m)
 	var ulting: bool = (m.act != null and m.act.k == "ult") or (m.surge >= Sim.SURGE.max and h.kind == "orbital")
 	var tx: float = o.x
 	var ty: float = o.y
 	for _i in 2:
-		var travel := travel_of(Sim.hypot(tx - m.x, ty - m.y), ulting, h, g)
+		var travel: float = travel_of(Sim.hypot(tx - m.x, ty - m.y), ulting, h, g) * brain.get("lead", 1.0)
 		tx = o.x + o.vx * travel
 		ty = o.y + o.vy * travel
 	var err: float = (Sim.rng(brain) - 0.5) * 2 * brain.get("aimError", BOT.aimError) * (4 if veiled else 1)
@@ -378,7 +393,7 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 	if m.cd.hook == 0 and not inp.dash and wants_e(Sim.e_skill(m), m, o, d, sight, threat, g, shooter, melees):
 		inp.hook = true
 	var facing: bool = o.act != null and o.act.k == "shield" and o.act.ph == "up" and cos(o.act.angle - atan2(-dy, -dx)) > cos(Sim.SHIELD.arc)
-	var heat_ok: bool = m.heat < BOT.heatCap or o.armor.head <= (g.get("dmg", 0) if g != null else 0)
+	var heat_ok: bool = m.heat < brain.get("heatCap", BOT.heatCap) or o.armor.head <= (g.get("dmg", 0) if g != null else 0)
 	var lob: bool = g != null and g.kind == "lob"
 	if m.surge >= Sim.SURGE.max and wants_ult(h.kind, d, sight, open, health(m) < 0.55, threat, h, m.heat):
 		inp.ult = true
@@ -389,5 +404,5 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 		inp.ay = o.y + o.vy * travel
 	elif g != null and m.cd[shooter] == 0 and (sight or lob or m.buffs.xray > 0) and heat_ok and (not facing or lob) and d > 2 and d < g.range and tick >= brain.nextShot[shooter]:
 		inp[shooter] = true
-		brain.nextShot[shooter] = tick + g.cd + floor(Sim.rng(brain) * minf(BOT.rhythm, g.cd))
+		brain.nextShot[shooter] = tick + g.cd + floor(Sim.rng(brain) * minf(brain.get("rhythm", BOT.rhythm), g.cd)) + brain.get("pause", 0)
 	return inp
