@@ -4,6 +4,7 @@ const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
 const PartView = preload("res://src/part_view.gd")
 const Garage = preload("res://src/garage.gd")
+const Decor = preload("res://src/decor.gd")
 
 var failed := 0
 
@@ -14,6 +15,7 @@ func _initialize() -> void:
 	await run("match_flow_comes_back_to_the_garage", test_match_flow_comes_back_to_the_garage)
 	await run("pad_moves_aims_acts_and_pauses", test_pad_moves_aims_acts_and_pauses)
 	await run("garage_works_with_a_pad", test_garage_works_with_a_pad)
+	await run("decor_keeps_off_pads_spawns_and_traps", test_decor_keeps_off_pads_spawns_and_traps)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -260,3 +262,33 @@ func ensure(cond: bool, what: String) -> int:
 	if not cond:
 		print("  condition false: " + what)
 	return int(not cond)
+
+
+## Visual plan M4: no decor within 1.5 m of a pad (band edge 1.4), spawn (chevrons reach 4.7),
+## crusher (band 2.0), tesla reach, EMP vent strip or oil slick.
+func test_decor_keeps_off_pads_spawns_and_traps() -> int:
+	var all := Decor.spots()
+	var bad := 0
+	for kind in ["scorch", "grime", "grate", "scrap"]:
+		bad += ensure(all.any(func(s): return s.kind == kind), "some %s is placed" % kind)
+	for s in all:
+		var p: Vector2 = s.p
+		var k: float = 1.5 + s.r
+		var near := []
+		for o in Sim.PADS + [Sim.HEAL]:
+			near.append(p.distance_to(Vector2(o.x, o.y)) < 1.4 + k)
+		for o in Sim.SPAWNS:
+			near.append(p.distance_to(Vector2(o.x, o.y)) < 4.7 + k)
+		for o in Sim.TRAPS.crush.at:
+			var q := (p - Vector2(o.x, o.y)).abs()
+			near.append(maxf(q.x, q.y) < 2.0 + k)
+		for o in Sim.TRAPS.tesla.at:
+			near.append(p.distance_to(Vector2(o.x, o.y)) < Sim.TRAPS.tesla.reach + k)
+		for o in Sim.TRAPS.oil.at:
+			near.append(p.distance_to(Vector2(o.x, o.y)) < Sim.TRAPS.oil.r + k)
+		for g in Sim.vents(0.0):
+			var q := p - Vector2(g.x, g.y)
+			var along := q.dot(Vector2(g.dx, g.dy))
+			near.append(along > -k and along < Sim.HAZARDS.reach + k and absf(q.cross(Vector2(g.dx, g.dy))) < Sim.HAZARDS.half + k)
+		bad += ensure(not near.has(true), "%s at %s is too close to a pad, spawn or trap" % [s.kind, p])
+	return int(bad > 0)

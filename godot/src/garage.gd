@@ -6,6 +6,7 @@ signal ui(kind: String)
 const Sim = preload("res://src/sim.gd")
 const PartView = preload("res://src/part_view.gd")
 const I18n = preload("res://src/i18n.gd")
+const Look = preload("res://src/look.gd")
 
 const SIZE := Vector2(1280, 720)
 const PAD := 20.0
@@ -58,9 +59,7 @@ var about_skill: Label
 
 
 func _init() -> void:
-	bold = FontVariation.new()
-	bold.base_font = ThemeDB.fallback_font
-	bold.variation_embolden = 0.7
+	bold = Look.font(Look.FONT.bold)
 	var bg := TextureRect.new()
 	var g := GradientTexture2D.new()
 	g.gradient = Gradient.new()

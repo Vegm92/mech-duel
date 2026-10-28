@@ -3,6 +3,8 @@ extends Node3D
 const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
 const Fx = preload("res://src/fx.gd")
+const Look = preload("res://src/look.gd")
+const Decor = preload("res://src/decor.gd")
 const TRACER := 0.028
 const DASHES := [0.4, 0.25, 0.15]
 const BLEND := 4.0
@@ -40,49 +42,108 @@ void fragment() {
 const FLOOR_SHADER := """
 shader_type spatial;
 render_mode cull_disabled;
-uniform vec3 base : source_color = vec3(0.34, 0.36, 0.42);
-uniform vec3 line : source_color = vec3(0.42, 0.5, 0.64);
+""" + Look.NOISE + """
+uniform vec3 base : source_color;
+uniform vec3 paint : source_color;
+uniform vec3 black : source_color;
+uniform vec3 mark : source_color;
+uniform float metal;
+uniform vec2 rough;
+uniform float plate = 4.0;
+uniform float split;
+uniform float tint;
+uniform float dirt;
+uniform vec2 seam;
+uniform float tilt;
+uniform float polish;
+uniform float stripe;
+uniform float wear;
+uniform vec2 ring;
+uniform vec2 box;
+uniform vec2 edge;
+uniform vec2 rings[10];
+uniform vec2 boxes[4];
+uniform vec3 walls[8];
+uniform vec3 spawns[2];
+uniform vec3 oils[2];
+uniform vec3 oil : source_color;
+uniform vec2 slick;
+uniform float film;
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
-uniform float plate = 4.0;
-uniform float tint = 0.18;
-uniform float dirt = 0.45;
-uniform float bump = 0.3;
-float grid(vec2 p, float s) {
-	vec2 q = p / s;
-	vec2 g = abs(fract(q - 0.5) - 0.5) / fwidth(q);
-	return 1.0 - min(min(g.x, g.y), 1.0);
+float band(float x, vec2 r) {
+	float w = fwidth(x);
+	return smoothstep(r.x - w, r.x + w, x) * (1.0 - smoothstep(r.y - w, r.y + w, x));
 }
-float hash(vec2 p) {
-	vec3 q = fract(vec3(p.xyx) * 0.1031);
-	q += dot(q, q.yzx + 33.33);
-	return fract((q.x + q.y) * q.z);
-}
-float noise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	f = f * f * (3.0 - 2.0 * f);
-	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
-float fbm(vec2 p) { return noise(p) * 0.5 + noise(p * 2.03) * 0.25 + noise(p * 4.1) * 0.125; }
 void fragment() {
 	vec2 p = wp.xz;
-	float seam = grid(p, plate);
-	float l = max(grid(p, 2.0) * 0.25, grid(p, 10.0));
-	float r = length(p - vec2(38.0, 30.0));
-	float grime = smoothstep(0.3, 0.75, fbm(p * 0.18));
-	float scuff = noise(p * vec2(6.0, 0.6) + hash(floor(p / plate)) * 40.0);
-	vec3 c = mix(base, line, l) * (1.0 + (hash(floor(p / plate)) - 0.5) * tint);
+	vec2 id = floor(p / plate);
+	float h = hash(id);
+	float s = hash(id + 17.0) < split ? plate * 0.5 : plate;
+	vec2 f = fract(p / s) - 0.5;
+	vec2 e = (0.5 - abs(f)) * s;
+	float d = min(e.x, e.y);
+	float gap = 1.0 - band(d, vec2(seam.x, 1e6));
+	vec2 b = 1.0 - smoothstep(vec2(seam.x), vec2(seam.y), e);
+	float grime = smoothstep(0.35, 0.8, fbm(p * 0.3)) * 0.7 + (1.0 - smoothstep(0.0, 0.5, d)) * 0.3;
+	float scuff = noise(p * vec2(6.0, 0.6) + h * 40.0);
+	vec3 c = base * (1.0 + (h - 0.5) * tint);
 	c *= 1.0 - dirt * grime;
-	c *= 1.0 - 0.5 * seam;
 	c *= 0.92 + 0.12 * scuff;
-	ALBEDO = c * (1.15 - 0.35 * smoothstep(0.0, 40.0, r));
-	ROUGHNESS = mix(0.55, 0.95, grime);
-	METALLIC = 0.2;
-	float e = 0.08;
-	vec2 q = p * 1.2;
-	float h = fbm(q);
-	vec3 n = normalize(vec3(-(fbm(q + vec2(e, 0.0)) - h) / e * bump * 0.1, 1.0, -(fbm(q + vec2(0.0, e)) - h) / e * bump * 0.1));
+	float haz = 0.0;
+	for (int i = 0; i < 10; i++) {
+		haz = max(haz, band(length(p - rings[i]), ring));
+	}
+	for (int i = 0; i < 4; i++) {
+		vec2 q = abs(p - boxes[i]);
+		haz = max(haz, band(max(q.x, q.y), box));
+	}
+	float wall = 1e6;
+	vec2 along = vec2(1.0, 0.0);
+	for (int i = 0; i < 8; i++) {
+		float k = walls[i].z - dot(walls[i].xy, p);
+		if (k < wall) {
+			wall = k;
+			along = vec2(-walls[i].y, walls[i].x);
+		}
+	}
+	float lane = band(wall, edge) * band(abs(fract(dot(p, along) / 2.0) - 0.5), vec2(0.15, 1.0));
+	float mk = 0.0;
+	for (int i = 0; i < 2; i++) {
+		vec2 dir = vec2(cos(spawns[i].z), sin(spawns[i].z));
+		vec2 q = p - spawns[i].xy;
+		float u = dot(q, dir) - 2.0;
+		float v = abs(dot(q, vec2(-dir.y, dir.x)));
+		mk = max(mk, band(abs(fract((u + v * 0.8) / 0.9) - 0.5), vec2(-1.0, 0.13)) * band(u, vec2(0.0, 2.7)) * band(v, vec2(-1.0, 0.9)));
+	}
+	float chip = smoothstep(wear - 0.08, wear + 0.08, noise(p * 5.0 + 3.0));
+	float st = band(abs(fract((p.x + p.y) / (2.0 * stripe)) - 0.5), vec2(0.25, 1.0));
+	float painted = max(haz * st, lane) * chip;
+	c = mix(c, black, haz * (1.0 - st) * 0.9);
+	c = mix(c, paint, painted);
+	c = mix(c, mark, mk * chip * 0.6);
+	c *= 1.0 - 0.75 * gap;
+	float wet = 0.0;
+	float depth = 0.0;
+	for (int i = 0; i < 2; i++) {
+		vec2 q = p - oils[i].xy;
+		if (dot(q, q) < oils[i].z * oils[i].z * 1.21) {
+			float in_oil = oils[i].z * (0.92 + 0.16 * fbm(q * 0.8 + float(i) * 7.0)) - length(q);
+			wet = max(wet, smoothstep(-0.02, 0.02, in_oil));
+			depth = max(depth, clamp(in_oil / 0.4, 0.0, 1.0));
+		}
+	}
+	if (wet > 0.0) {
+		vec3 sheen = 0.5 + 0.5 * cos(6.2831 * (depth * 1.5 + fbm(p * 2.0) + vec3(0.0, 0.33, 0.67)));
+		c = mix(c, oil + sheen * film * (1.0 - depth), wet);
+	}
+	ALBEDO = c * (1.15 - 0.35 * smoothstep(0.0, 40.0, length(p - vec2(38.0, 30.0))));
+	float gloss = hash(id + 41.0) < polish ? 0.55 : 1.0;
+	float coat = max(painted, mk);
+	ROUGHNESS = mix(mix(mix(rough.x * gloss, rough.y, grime), 0.65, coat), slick.y, wet);
+	METALLIC = mix(mix(metal, 0.15, max(coat, haz)), slick.x, wet);
+	vec2 slope = sign(f) * b * tilt * (1.0 - wet);
+	vec3 n = normalize(vec3(slope.x, 1.0, slope.y));
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 }
 """
@@ -108,16 +169,10 @@ void fragment() {
 }
 """
 
-const ITEM := {"size": 2.4, "lift": 2.2, "tilt": -0.9, "ring": [0.6, 0.8], "shock": 2.4}
+const ITEM := {"size": 1.5, "lift": 1.6, "tilt": -0.9, "ring": [0.6, 0.8], "shock": 2.4}
+const MARK := {"ring": [0.9, 1.12], "y": 0.1, "dim": 0.3, "alpha": 0.9, "arrow": Vector3(0.75, 0.6, 0.05), "lift": 2.9}
+const BLOCK_GAP := 20
 const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "aisle": 0.6}
-const OUTSIDE := Color(0.02, 0.025, 0.045)
-const STAGE := {"ambient": 0.2, "sun": 0.6, "sun_beam": 0.0, "air": 0.0, "haze": 0.04, "haze_height": 5.0, "falloff": 0.6, "haze_color": Color(0.75, 0.8, 0.9), "scatter": 0.5, "fog_length": 70.0, "tower_energy": 45.0, "tower_angle": 5.0, "tower_color": Color(0.85, 0.9, 1.0), "beam": 3.0, "tower_out": 14.0, "tower_height": 14.0, "follow": 3.5, "damp": 0.4, "aim_y": 1.0}
-
-static var ARENA := {"steel": Mech.mat(Color8(62, 70, 88), 0.0, 0.6, 0.4), "dark": Mech.mat(Color8(30, 34, 44), 0.0, 0.5, 0.6), "trim": Mech.mat(Color8(120, 128, 145), 0.0, 0.7, 0.4), "hazard": Mech.mat(Color8(214, 168, 44), 0.0, 0.2, 0.5), "amber": Mech.glow(Color8(255, 176, 60), 2.0), "zap": Mech.glow(Color8(170, 210, 255), 2.0), "pad": Mech.glow(Color8(95, 180, 255), 1.5), "heal": Mech.glow(Color8(90, 255, 150), 2.0), "vent": Mech.glow(Color8(120, 190, 255), 1.5),
-	"concrete": Mech.mat(Color8(48, 54, 70), 0.0, 0.0, 0.85), "tread": Mech.mat(Color8(32, 36, 48), 0.0, 0.1, 0.8), "aisle": Mech.mat(Color8(72, 78, 94), 0.0, 0.2, 0.7), "roof": Mech.mat(Color8(13, 15, 21), 0.0, 0.3, 0.8),
-	"flood": Mech.glow(Color8(235, 240, 255), 2.5), "screen": Mech.glow(Color8(40, 90, 170), 0.8),
-	"seat_a": Mech.mat(Mech.TEAM[0].darkened(0.45), 0.0, 0.0, 0.7), "seat_b": Mech.mat(Mech.TEAM[1].darkened(0.45), 0.0, 0.0, 0.7), "seat_n": Mech.mat(Color8(70, 76, 92), 0.0, 0.0, 0.7),
-	"led_a": Mech.glow(Mech.TEAM[0], 1.5), "led_b": Mech.glow(Mech.TEAM[1], 1.5), "led_n": Mech.glow(Color8(200, 200, 210), 1.2)}
 
 var crowd: MultiMeshInstance3D
 var crowd_mat := ShaderMaterial.new()
@@ -145,7 +200,7 @@ var shocks := []
 var emp_mats := [ShaderMaterial.new(), ShaderMaterial.new()]
 var cones := {}
 var muzzle_off := {}
-var labels := []
+var pops := []
 var kick := Vector3.ZERO
 var reticle: MeshInstance3D
 var danger: MeshInstance3D
@@ -154,102 +209,73 @@ var last_shrink := -1.0
 
 
 func build() -> void:
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = OUTSIDE
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.45, 0.5, 0.7)
-	env.tonemap_mode = Environment.TONE_MAPPER_AGX
-	env.tonemap_exposure = 1.0
-	env.glow_enabled = true
-	env.glow_intensity = 0.5
-	env.glow_hdr_threshold = 2.2
-	env.ssao_enabled = true
-	env.ambient_light_energy = STAGE.ambient
-	env.volumetric_fog_enabled = true
-	env.volumetric_fog_density = STAGE.air
-	env.volumetric_fog_albedo = STAGE.haze_color
-	env.volumetric_fog_anisotropy = STAGE.scatter
-	env.volumetric_fog_length = STAGE.fog_length
-	var haze := FogVolume.new()
-	haze.size = Vector3(Sim.AW + 30, STAGE.haze_height * 2.0, Sim.AH + 30)
-	haze.position = Vector3(Sim.CX, 0, Sim.CY)
-	var fog := FogMaterial.new()
-	fog.density = STAGE.haze
-	fog.albedo = STAGE.haze_color
-	fog.height_falloff = STAGE.falloff
-	haze.material = fog
-	add_child(haze)
+	var S: Dictionary = Look.STAGE
 	var we := WorldEnvironment.new()
-	we.environment = env
+	we.environment = Look.env()
 	add_child(we)
 	marks = Node3D.new()
 	add_child(marks)
 	var sun := DirectionalLight3D.new()
-	sun.light_energy = STAGE.sun
-	sun.light_volumetric_fog_energy = STAGE.sun_beam
-	sun.light_color = Color(1.0, 0.95, 0.88)
+	sun.light_energy = S.key
+	sun.light_color = S.key_color
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 110.0
 	add_child(sun)
-	sun.look_at_from_position(Vector3(-1.0, 2.2, -1.2), Vector3.ZERO)
+	sun.look_at_from_position(S.key_from, Vector3.ZERO)
 	var corners := Sim.arena_corners()
+	var mid := Vector3(Sim.CX, 0, Sim.CY)
 	for i in [1, 3, 5, 7]:
 		var c = corners[i]
 		var out := Vector3(c.x - Sim.CX, 0, c.y - Sim.CY).normalized()
 		var spot := SpotLight3D.new()
-		spot.light_energy = STAGE.tower_energy
+		spot.light_energy = S.spot
 		spot.spot_attenuation = 0.6
 		spot.spot_range = 120.0
-		spot.spot_angle = STAGE.tower_angle
-		spot.light_color = STAGE.tower_color
-		spot.shadow_enabled = true
-		spot.light_volumetric_fog_energy = STAGE.beam
+		spot.spot_angle = S.spot_angle
+		spot.light_color = S.spot_color
 		add_child(spot)
-		var mid := Vector3(Sim.CX, 0, Sim.CY)
-		spot.look_at_from_position(Vector3(c.x, 0, c.y) + out * STAGE.tower_out + Vector3(0, STAGE.tower_height, 0), mid)
+		spot.look_at_from_position(Vector3(c.x, 0, c.y) + out * S.tower_out + Vector3(0, S.tower_height, 0), mid)
 		towers.append({"spot": spot, "at": mid, "v": Vector3.ZERO})
+	for i in corners.size():
+		accent(Vector3(corners[i].x, S.accent_y, corners[i].y).move_toward(mid, S.accent_in), Look.PAL.cyan if i % 2 == 0 else Look.PAL.orange)
+	for p in Sim.PILLARS:
+		accent(Vector3(p.x, S.accent_y, p.y), Look.PAL.cyan)
+	accent(Vector3(Sim.HEAL.x, S.accent_y, Sim.HEAL.y), Look.PAL.cyan)
+	for p in Sim.TRAPS.oil.at:
+		accent(Vector3(p.x, S.accent_y, p.y), Look.PAL.cyan)
 	build_floor(corners)
+	Decor.build(self)
 	build_walls(corners)
 	build_stands(corners)
 	for p in Sim.PILLARS:
-		var pillar := Mech.add_part(self, "pillar", ARENA, "arena")
+		var pillar := Mech.add_part(self, "pillar", Look.ARENA, "arena")
 		pillar.position = Vector3(p.x, 0, p.y)
 		pillar.scale = Vector3(p.r, 1, p.r)
 	for p in Sim.TRAPS.tesla.at:
-		Mech.add_part(self, "tesla", ARENA, "arena").position = Vector3(p.x, 0, p.y)
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color8(170, 210, 255)
-		m.emission_enabled = true
-		m.emission = Color8(170, 210, 255)
-		var top := Mech.add_part(self, "tesla_orb", ARENA.merged({"zap": m}, true), "arena")
+		Mech.add_part(self, "tesla", Look.ARENA, "arena").position = Vector3(p.x, 0, p.y)
+		var m: StandardMaterial3D = Look.ARENA.zap.duplicate()
+		var top := Mech.add_part(self, "tesla_orb", Look.ARENA.merged({"zap": m}, true), "arena")
 		top.position = Vector3(p.x, 2.0, p.y)
 		top.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		pylons.append(m)
 	for p in Sim.TRAPS.crush.at:
-		var warn := StandardMaterial3D.new()
-		warn.albedo_color = Color8(214, 168, 44)
-		warn.emission_enabled = true
-		warn.emission = Color8(255, 60, 40)
-		warn.emission_energy_multiplier = 0.0
-		var hm := ARENA.merged({"hazard": warn}, true)
+		var warn: ShaderMaterial = Look.ARENA.hazard.duplicate()
+		var hm := Look.ARENA.merged({"hazard": warn}, true)
 		Mech.add_part(self, "crush_plate", hm, "arena").position = Vector3(p.x, 0, p.y)
 		var piston := Node3D.new()
 		add_child(piston)
 		Mech.add_part(piston, "crush_head", hm, "arena")
 		piston.position = Vector3(p.x, 3.0, p.y)
 		crushers.append([piston, warn])
-	for p in Sim.TRAPS.oil.at:
-		Mech.add(self, Mech.cyl(Sim.TRAPS.oil.r, Sim.TRAPS.oil.r, 0.02, 24), Mech.mat(Color8(30, 24, 44), 0.0, 0.3, 0.3), Vector3(p.x, 0.012, p.y))
-	Mech.add_part(self, "heal_pad", ARENA, "arena").position = Vector3(Sim.HEAL.x, 0, Sim.HEAL.y)
-	heal_ring = Mech.add(self, Mech.ring(0.7, 0.95), Mech.glow(Color8(90, 255, 150), 3.0), Vector3(Sim.HEAL.x, 0.16, Sim.HEAL.y))
+	Mech.add_part(self, "heal_pad", Look.ARENA, "arena").position = Vector3(Sim.HEAL.x, 0, Sim.HEAL.y)
+	heal_ring = Mech.add(self, Mech.ring(0.7, 0.95), Mech.glow(Look.PAL.heal, 3.0), Vector3(Sim.HEAL.x, 0.16, Sim.HEAL.y))
 	heal_cross = Node3D.new()
 	heal_cross.position = Vector3(Sim.HEAL.x, 1.0, Sim.HEAL.y)
 	add_child(heal_cross)
-	Mech.add(heal_cross, Mech.box(Vector3(0.18, 0.6, 0.18)), Mech.glow(Color8(90, 255, 150), 4.0))
-	Mech.add(heal_cross, Mech.box(Vector3(0.6, 0.18, 0.18)), Mech.glow(Color8(90, 255, 150), 4.0))
+	Mech.add(heal_cross, Mech.box(Vector3(0.18, 0.6, 0.18)), Mech.glow(Look.PAL.heal, 4.0))
+	Mech.add(heal_cross, Mech.box(Vector3(0.6, 0.18, 0.18)), Mech.glow(Look.PAL.heal, 4.0))
 	for p in Sim.PADS:
-		Mech.add_part(self, "pad", ARENA, "arena").position = Vector3(p.x, 0, p.y)
+		Mech.add_part(self, "pad", Look.ARENA, "arena").position = Vector3(p.x, 0, p.y)
 		var holder := Node3D.new()
 		holder.position = Vector3(p.x, 0, p.y)
 		holder.visible = false
@@ -261,7 +287,7 @@ func build() -> void:
 		var ring := Mech.add(holder, Mech.ring(ITEM.ring[0], ITEM.ring[1]), null, Vector3(0, 0.16, 0))
 		items.append({"node": holder, "icon": icon, "ring": ring, "kind": ""})
 	for g in Sim.vents(0.0):
-		var vent := Mech.add_part(self, "vent", ARENA, "arena")
+		var vent := Mech.add_part(self, "vent", Look.ARENA, "arena")
 		vent.position = Vector3(g.x, 0, g.y)
 		vent.rotation.y = -atan2(g.dy, g.dx)
 		var jet := Mech.add(self, Mech.plane(), emp_mats[0])
@@ -277,7 +303,7 @@ func build() -> void:
 	danger.mesh = danger_mesh
 	danger.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(danger)
-	reticle = Mech.add(self, Mech.ring(0.35, 0.45), Mech.glow(Mech.TEAM_LIGHT[0], 3.0, 0.8))
+	reticle = Mech.add(self, Mech.ring(0.35, 0.45), Mech.flat(Color(Mech.TEAM_LIGHT[0], 0.8)))
 
 
 func build_floor(corners: Array) -> void:
@@ -291,18 +317,29 @@ func build_floor(corners: Array) -> void:
 		st.add_vertex(Vector3(Sim.CX, 0, Sim.CY))
 		st.add_vertex(Vector3(b.x, 0, b.y))
 		st.add_vertex(Vector3(a.x, 0, a.y))
-	var sm := ShaderMaterial.new()
-	var sh := Shader.new()
-	sh.code = FLOOR_SHADER
-	sm.shader = sh
+	var sm := Look.shader(FLOOR_SHADER, Look.FLOOR)
+	sm.set_shader_parameter("rings", PackedVector2Array((Sim.PADS + Sim.SPAWNS).map(func(o): return Vector2(o.x, o.y))))
+	sm.set_shader_parameter("boxes", PackedVector2Array(Sim.TRAPS.crush.at.map(func(o): return Vector2(o.x, o.y))))
+	sm.set_shader_parameter("walls", PackedVector3Array(Sim.WALLS.map(func(w): return Vector3(w.nx, w.ny, w.d))))
+	sm.set_shader_parameter("spawns", PackedVector3Array(Sim.SPAWNS.map(func(o): return Vector3(o.x, o.y, o.aim))))
+	sm.set_shader_parameter("oils", PackedVector3Array(Sim.TRAPS.oil.at.map(func(o): return Vector3(o.x, o.y, Sim.TRAPS.oil.r))))
 	var floor := MeshInstance3D.new()
 	floor.mesh = st.commit()
 	floor.material_override = sm
 	add_child(floor)
 	var night := StandardMaterial3D.new()
 	night.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	night.albedo_color = OUTSIDE
+	night.albedo_color = Look.PAL.void
 	Mech.add(self, Mech.box(Vector3(400, 0.1, 400)), night, Vector3(Sim.CX, -0.08, Sim.CY))
+
+
+func accent(at: Vector3, c: Color) -> void:
+	var l := OmniLight3D.new()
+	l.light_color = c
+	l.light_energy = Look.STAGE.accent
+	l.omni_range = Look.STAGE.accent_range
+	l.position = at
+	add_child(l)
 
 
 func edge(corners: Array, i: int) -> Array:
@@ -325,14 +362,14 @@ func build_walls(corners: Array) -> void:
 		var count := maxi(1, roundi(a.distance_to(b) / 4.0))
 		var step := a.distance_to(b) / count
 		for k in count:
-			var panel := Mech.add_part(self, "wall", ARENA, "arena")
+			var panel := Mech.add_part(self, "wall", Look.ARENA, "arena")
 			panel.transform = Transform3D(basis.scaled_local(Vector3(step / 4.0, 1, 1)), a.lerp(b, (k + 0.5) / count))
-		Mech.add_part(self, "wall_post", ARENA, "arena").position = b + nrm * 0.15
+		Mech.add_part(self, "wall_post", Look.ARENA, "arena").position = b + nrm * 0.15
 
 
 func build_stands(corners: Array) -> void:
-	Mech.add_part(self, "stadium", ARENA, "arena")
-	Mech.add_part(self, "tower", ARENA, "arena").cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	Mech.add_part(self, "stadium", Look.ARENA, "arena")
+	Mech.add_part(self, "tower", Look.ARENA, "arena").cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var mm := MultiMesh.new()
@@ -421,6 +458,7 @@ func react(state: Dictionary, fresh: Array) -> void:
 
 
 func reset(state: Dictionary) -> void:
+	pops.clear()
 	for m in mechs:
 		for g in m.get_meta("ghosts", []):
 			g.queue_free()
@@ -431,6 +469,7 @@ func reset(state: Dictionary) -> void:
 		add_child(node)
 		node.build(m.loadout, m.team)
 		node.smoke = Fx.wreck(node)
+		mark(node, m)
 		mechs.append(node)
 	for n in active:
 		n.visible = false
@@ -447,18 +486,43 @@ func reset(state: Dictionary) -> void:
 	cheer = [0.0, 0.0, 0.0, 0.0]
 	for i in towers.size():
 		var m = state.mechs[i % state.mechs.size()]
-		towers[i].at = Vector3(m.x, STAGE.aim_y, m.y)
+		towers[i].at = Vector3(m.x, Look.STAGE.aim_y, m.y)
 		towers[i].v = Vector3.ZERO
 	follow(state, 0.0)
 
 
+## Team markers: a ring on the floor, an arrow over the head and a rim on the edges, all in the team color.
+func mark(node: Node3D, m: Dictionary) -> void:
+	var c := Mech.flat(Color(Mech.TEAM[m.team].darkened(MARK.dim), MARK.alpha))
+	var tri := PrismMesh.new()
+	tri.size = MARK.arrow
+	var ring := Mech.add(node, Mech.ring(MARK.ring[0], MARK.ring[1]), c)
+	var arrow := Mech.add(node, tri, c, Vector3.ZERO, Vector3(-PI / 3.0, 0, PI))
+	for k in [ring, arrow]:
+		k.top_level = true
+	place_marks([ring, arrow], m)
+	ring.reset_physics_interpolation()
+	arrow.reset_physics_interpolation()
+	var rim := Look.shader(Look.RIM_SHADER, Look.RIM.merged({"color": Mech.TEAM[m.team]}))
+	if DisplayServer.get_name() != "headless":
+		for p in node.find_children("*", "MeshInstance3D", true, false):
+			if p.material_override == null:
+				p.material_overlay = rim
+	node.set_meta("marks", [ring, arrow, rim])
+
+
+func place_marks(marks_of: Array, m: Dictionary) -> void:
+	marks_of[0].position = Vector3(m.x, MARK.y, m.y)
+	marks_of[1].position = Vector3(m.x, Sim.height_of(m) + MARK.lift, m.y)
+
+
 func follow(state: Dictionary, dt: float) -> void:
-	var w: float = STAGE.follow
+	var w: float = Look.STAGE.follow
 	for i in towers.size():
 		var t: Dictionary = towers[i]
 		var m = state.mechs[i % state.mechs.size()]
-		var goal := Vector3(m.x, STAGE.aim_y, m.y)
-		t.v = t.v + (w * w * (goal - t.at) - 2.0 * STAGE.damp * w * t.v) * dt
+		var goal := Vector3(m.x, Look.STAGE.aim_y, m.y)
+		t.v = t.v + (w * w * (goal - t.at) - 2.0 * Look.STAGE.damp * w * t.v) * dt
 		t.at = t.at + t.v * dt
 		t.spot.look_at(t.at)
 
@@ -486,9 +550,17 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		var sm = state.mechs[i]
 		shocks[i].visible = sm.buffs.slow > 2 and not sm.ko
 		shocks[i].position = Vector3(sm.x, 0.06, sm.y)
+		var marks_of: Array = mechs[i].get_meta("marks")
+		var seen := not Sim.hidden(state, sm)
+		place_marks(marks_of, sm)
+		marks_of[0].visible = seen
+		marks_of[1].visible = seen and not sm.ko
+		marks_of[2].set_shader_parameter("strength", Look.RIM.strength if seen else 0.0)
 		var act = state.mechs[i].act
-		if act != null and act.k == "dash" and act.get("ph") == "go" and tick % Fx.DASH.every == 0:
-			Fx.ghost(self, mechs[i], Mech.TEAM[state.mechs[i].team])
+		if act != null and act.k == "dash" and act.get("ph") == "go" and not sm.ko:
+			if tick % Fx.DASH.every == 0:
+				Fx.ghost(self, mechs[i], Mech.TEAM[sm.team])
+			Fx.lines(self, mechs[i].position, Vector2(act.dx, act.dy))
 		guard(state.mechs[i], mechs[i])
 		var pull = state.mechs[i].pull
 		if pull != null:
@@ -532,7 +604,13 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		var n := node_for(f, "field_" + f.kind)
 		n.position = Vector3(f.x, 0.04, f.y)
 		n.scale = Vector3(f.r, 1, f.r)
-		n.get_child(0).transparency = 1.0 - clampf(f.t / 30.0, 0.0, 1.0)
+		var k := fmod(tick * Fx.FIELD.pulse, 1.0)
+		var s := 1.0 - k if f.kind == "well" else k
+		var gone := 1.0 - clampf(f.t / 30.0, 0.0, 1.0)
+		n.get_child(0).transparency = gone
+		n.get_child(1).transparency = gone
+		n.get_child(2).scale = Vector3(s, 1, s)
+		n.get_child(2).transparency = maxf(gone, 1.0 - sin(PI * k))
 		settle(n)
 	for tr in state.trails:
 		trail(state, tr)
@@ -542,7 +620,7 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		n.position = Vector3((w.x1 + w.x2) / 2.0, 1.1, (w.y1 + w.y2) / 2.0)
 		n.rotation = Vector3(0, -d.angle(), 0)
 		n.scale = Vector3(d.length(), 1, 1)
-		n.material_override = Mech.glow(Mech.TEAM_LIGHT[team_of(state, w.owner)], 2.0, 0.55)
+		n.material_override = Mech.flat(Color(Mech.TEAM[team_of(state, w.owner)].darkened(MARK.dim), 0.6))
 		settle(n)
 	var keep := []
 	for n in active:
@@ -562,6 +640,9 @@ func guard(m: Dictionary, node) -> void:
 	var got: float = m.act.get("absorbed", 0.0) if Sim.shield_up(m) else 0.0
 	if got > was:
 		Fx.ripple(self, node.shield.global_transform, got - was, false)
+		if tick - node.get_meta("blocked", -BLOCK_GAP) >= BLOCK_GAP:
+			node.set_meta("blocked", tick)
+			number(Vector3(m.x, 2.3, m.y), tr("blocked"), "block")
 	elif was > 0.0 and m.act == null and m.cd.shield > Sim.SHIELD.cd:
 		Fx.ripple(self, node.shield.global_transform, was, true)
 	node.set_meta("soaked", got)
@@ -633,13 +714,14 @@ func make(kind: String) -> Node3D:
 			n = Node3D.new()
 			add_child(n)
 			Mech.add(n, Mech.cyl(0.3, 0.34, 0.12, 10), Mech.mat(Mech.DARK, 0.0, 0.6, 0.4))
-			Mech.add(n, Mech.ball(0.09, 8), Mech.glow(Color8(255, 60, 40), 6.0), Vector3(0, 0.1, 0))
+			Mech.add(n, Mech.ball(0.12, 8), Mech.flat(Color8(255, 60, 40), true), Vector3(0, 0.1, 0))
 		"field_stasis", "field_well":
-			var c := Color8(110, 235, 255) if kind == "field_stasis" else Color8(205, 125, 255)
+			var c: Color = Fx.FIELD[kind.substr(6)]
 			n = Node3D.new()
 			add_child(n)
-			Mech.add(n, Mech.cyl(1.0, 1.0, 0.03, 32), Mech.glow(c, 1.2, 0.3))
-			Mech.add(n, Mech.ring(0.94, 1.0), Mech.glow(c, 3.0))
+			Mech.add(n, Mech.cyl(1.0, 1.0, 0.02, 32), Mech.flat(Color(c, Fx.FIELD.fill), true))
+			Mech.add(n, Mech.ring(0.95, 1.0), Mech.flat(c, true))
+			Mech.add(n, Mech.ring(0.9, 1.0), Mech.flat(Color(1, 1, 1, Fx.FIELD.inner), true))
 		"ribbon":
 			var mi := MeshInstance3D.new()
 			mi.mesh = ImmediateMesh.new()
@@ -654,6 +736,7 @@ func make(kind: String) -> Node3D:
 			add_child(n)
 		"wall":
 			n = Mech.add(self, Mech.box(Vector3(1, 2.2, 0.35)), null)
+			Mech.add(n, Mech.box(Vector3(1, 0.08, 0.4)), Mech.flat(Color(1, 1, 1, 0.85), true), Vector3(0, 1.1, 0))
 		_:
 			n = Mech.add(self, Mech.box(Vector3(1, 1, 1)), null)
 	return n
@@ -774,7 +857,7 @@ func arena(state: Dictionary) -> void:
 	var Z = Sim.TRAPS.tesla
 	for i in pylons.size():
 		var u := Sim.until_zap(state, i)
-		pylons[i].emission_energy_multiplier = (2.0 + 4.0 * absf(sin(tick * 0.5))) if u <= Z.warn else 0.35
+		pylons[i].emission_energy_multiplier = (2.0 + 4.0 * absf(sin(tick * 0.5))) if u <= Z.warn else Look.NEON.cyan
 	var C = Sim.TRAPS.crush
 	for i in crushers.size():
 		var u := Sim.until_slam(state, i)
@@ -788,7 +871,7 @@ func arena(state: Dictionary) -> void:
 		if warn:
 			y += 0.05 * sin(tick * 1.7)
 		crushers[i][0].position.y = y
-		crushers[i][1].emission_energy_multiplier = (2.0 + 2.0 * sin(tick * 0.6)) if warn else 0.0
+		crushers[i][1].set_shader_parameter("warn", (2.0 + 2.0 * sin(tick * 0.6)) if warn else 0.0)
 	heal_ring.transparency = 0.0 if state.heal.ready else 0.75
 	heal_cross.visible = state.heal.ready
 	heal_cross.rotation.y += 0.03
@@ -804,7 +887,7 @@ func arena(state: Dictionary) -> void:
 			it.icon.mesh = Mech.models("arena")["item_" + kind][0]
 			for k in it.icon.mesh.get_surface_count():
 				var mn: String = it.icon.mesh.surface_get_material(k).resource_name
-				it.icon.set_surface_override_material(k, Mech.glow(c, 1.6) if mn == "icon" else ARENA[mn])
+				it.icon.set_surface_override_material(k, Mech.glow(c, 1.6) if mn == "icon" else Look.ARENA[mn])
 			it.ring.material_override = Mech.glow(c, 2.0)
 		it.icon.position.y = ITEM.lift + 0.12 * sin(tick * 0.06 + i)
 		it.icon.rotation = Vector3(ITEM.tilt, 0.3 * sin(tick * 0.03 + i), 0)
@@ -861,26 +944,8 @@ func item_color(kind: String) -> Color:
 
 
 
-func number(p: Vector3, text: String, c: Color, size: int) -> void:
-	var l := Fx.take(labels) as Label3D
-	if l == null:
-		l = Label3D.new()
-		l.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-		l.outline_size = 14
-		l.outline_modulate = Color(0, 0, 0, 0.85)
-		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		l.no_depth_test = true
-		l.pixel_size = 0.012
-	Fx.place(l, self)
-	l.text = text
-	l.font_size = size
-	l.modulate = c
-	l.transparency = 0.0
-	l.position = p
-	var tw := l.create_tween().set_parallel()
-	tw.tween_property(l, "position:y", p.y + 1.6, 0.75).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	tw.tween_property(l, "transparency", 1.0, 0.45).set_delay(0.3)
-	tw.chain().tween_callback(Fx.park.bind(l, labels))
+func number(p: Vector3, text: String, kind: String) -> void:
+	pops.append({"p": p, "text": text, "k": kind, "at": tick})
 
 
 
@@ -893,7 +958,7 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 		"hit":
 			var head: bool = f.get("head", false)
 			Fx.hit(self, f, shooter_color(state, f))
-			number(p + Vector3(0, 1.3, 0), str(int(f.n)), Color8(255, 230, 120) if head else Color.WHITE, 80 if head else 60)
+			number(p + Vector3(0, 1.3, 0), str(int(f.n)), "head" if head else "hit")
 			var push := Fx.kick_of(f)
 			if push == Vector3.ZERO:
 				shake = maxf(shake, Fx.shake_of(f))
@@ -960,7 +1025,7 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 		"heal", "pickup":
 			Fx.heal(self, f)
 			if f.k == "heal":
-				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), Color8(120, 255, 170), 60)
+				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), "heal")
 		"hooked":
 			Fx.hooked(self, f, Mech.TEAM[team_of(state, f.by)])
 		"soak":
@@ -974,3 +1039,6 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			Fx.ping(self, f)
 		"charge":
 			Fx.charge(self, f, Mech.TEAM[team_of(state, f.id)])
+		"ult":
+			Fx.ult(self, f, Mech.TEAM[team_of(state, f.id)])
+			shake = maxf(shake, Fx.ULT.shake)

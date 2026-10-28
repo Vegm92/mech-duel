@@ -10,6 +10,7 @@ const PartView = preload("res://src/part_view.gd")
 const Garage = preload("res://src/garage.gd")
 const CrowdSound = preload("res://src/crowd_sound.gd")
 const Sfx = preload("res://src/sfx.gd")
+const Look = preload("res://src/look.gd")
 
 const PITCH := deg_to_rad(60.0)
 const SAVE := "user://loadout.cfg"
@@ -52,6 +53,7 @@ var block := false
 var auto_hook := false
 var refill := true
 var auto_dash := false
+var auto_ult := false
 var frozen := false
 var cam_mode := 0
 var hands_arg := PackedStringArray()
@@ -77,6 +79,7 @@ var recent: Array[Vector2] = []
 
 func _ready() -> void:
 	I18n.setup()
+	Look.ui()
 	var accept := InputEventJoypadButton.new()
 	accept.device = -1
 	accept.button_index = JOY_BUTTON_A
@@ -122,6 +125,12 @@ func _ready() -> void:
 			refill = false
 		elif a == "--dash":
 			auto_dash = true
+		elif a == "--ult":
+			auto_ult = true
+		elif a.begins_with("--lang="):
+			TranslationServer.set_locale(a.substr(7))
+		elif a == "--pad":
+			on_pad = true
 		elif a == "--sandbox" or a.begins_with("--sandbox="):
 			sandbox = true
 			gun = Sim.WEAPONS.keys().find(a.substr(10)) if a.contains("=") else -1
@@ -140,6 +149,7 @@ func _ready() -> void:
 	add_child(sfx)
 	view.build()
 	hud = Hud.new()
+	hud.view = view
 	add_child(hud)
 	loadout = flag_loadout()
 	garage = Garage.new()
@@ -404,6 +414,9 @@ func _physics_process(delta: float) -> void:
 				me.my = -1.0
 			if auto_hook:
 				me.hook = state.tick % 2 == 0
+			if auto_ult:
+				state.mechs[0].surge = Sim.SURGE.max
+				me.ult = true
 			foe = Sim.IDLE.duplicate()
 			foe.ax = state.mechs[0].x
 			foe.ay = state.mechs[0].y
