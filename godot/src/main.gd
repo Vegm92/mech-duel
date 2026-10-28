@@ -16,6 +16,8 @@ const Killcam = preload("res://src/killcam.gd")
 const Look = preload("res://src/look.gd")
 const Siege = preload("res://src/siege.gd")
 const SiegeView = preload("res://src/siege_view.gd")
+const SiegeBots = preload("res://src/siege_bots.gd")
+const SIEGE_CAM := {"dist": 48.0, "edge": 62.0, "near": 36.0, "far": 64.0, "top": 205.0}
 
 const PITCH := deg_to_rad(60.0)
 const FOV := 40.0
@@ -99,6 +101,9 @@ var team_n := 2
 var wave_arg := 1
 var spawn_arg := ""
 var modules_arg := false
+var top_arg := false
+var core_arg_pct := -1.0
+var shot_on := ""
 var allies := []
 var siege_view: Node3D
 var siege_bots: Node3D
@@ -165,6 +170,12 @@ func _ready() -> void:
 			auto_ult = true
 		elif a == "--siege":
 			siege = true
+		elif a == "--top":
+			top_arg = true
+		elif a.begins_with("--core=") and a.substr(7).is_valid_float():
+			core_arg_pct = a.substr(7).to_float()
+		elif a.begins_with("--shot-on="):
+			shot_on = a.substr(10)
 		elif a == "--modules":
 			modules_arg = true
 		elif a.begins_with("--spawn="):
@@ -239,7 +250,9 @@ func make_view() -> void:
 		siege_view = SiegeView.new()
 		add_child(siege_view)
 		siege_view.build()
-		siege_bots = load("res://src/siege_bots.gd").new()
+		view.crowd_mat = siege_view.crowd_mat
+		view.towers.append_array(siege_view.towers)
+		siege_bots = SiegeBots.new()
 		add_child(siege_bots)
 	hud.view = view
 	view.visible = not garage.visible if garage != null else true
@@ -344,8 +357,11 @@ func new_match() -> void:
 			allies.append(Bot.create_brain(s + 10 + i))
 		state = Siege.create(los, s)
 		state.siege.wave.n = wave_arg - 1
+		if core_arg_pct >= 0.0:
+			state.siege.core.hp = state.siege.core.max * core_arg_pct / 100.0
+			Siege.rings(state, state.siege)
 		if modules_arg:
-			for b in [[0, "wall"], [1, "mines"], [2, "laser"], [3, "post"]]:
+			for b in [[0, "wall"], [1, "mine"], [2, "laser"], [3, "post"]]:
 				Siege.build(state, state.siege.pads[b[0]], b[1])
 		if Siege.BOTS.has(spawn_arg):
 			Siege.look(state, spawn_arg)
@@ -579,6 +595,9 @@ func _physics_process(delta: float) -> void:
 	track()
 	crowd_sound.update(view.fresh_fx, 0.0 if siege else view.hype, state.phase == "fight" and not paused and not siege, not paused)
 	sfx.update(state, view.fresh_fx, paused)
+	if shot_on != "" and not shooting and view.fresh_fx.any(func(f): return f.k == shot_on):
+		shooting = true
+		take_shot()
 	view.fresh_fx = []
 	shake = maxf(shake, view.shake)
 	view.shake = 0.0
@@ -685,14 +704,16 @@ func pin() -> void:
 func follow(delta: float) -> void:
 	var me = state.mechs[0]
 	var foe = state.mechs[0 if siege else 1]
-	if siege:
-		for t in Sim.foes(state, 0):
-			if Sim.hypot(t.x - me.x, t.y - me.y) < minf(Siege.RUN.frame, Sim.hypot(foe.x - me.x, foe.y - me.y) if foe != me else Siege.RUN.frame):
-				foe = t
 	var a := Vector3(me.x, 0, me.y)
 	var b := Vector3(foe.x, 0, foe.y)
 	var target := (a + b) / 2.0
-	var want := clampf(maxf(absf(a.x - b.x) * 0.9 + 8.0, absf(a.z - b.z) * 2.0 + 12.0), 30.0 if siege else 28.0, 64.0)
+	var want := clampf(maxf(absf(a.x - b.x) * 0.9 + 8.0, absf(a.z - b.z) * 2.0 + 12.0), 28.0, 64.0)
+	if siege:
+		want = clampf(SIEGE_CAM.dist * zoom, SIEGE_CAM.near, SIEGE_CAM.far)
+		target = Vector3(clampf(a.x, -SIEGE_CAM.edge, SIEGE_CAM.edge), 0, clampf(a.z, -SIEGE_CAM.edge, SIEGE_CAM.edge))
+		if top_arg:
+			want = SIEGE_CAM.top
+			target = Vector3.ZERO
 	if sandbox:
 		want = maxf(absf(a.x - b.x) * SANDBOX.cam + 8.0, 10.0) * zoom
 	var dead := 1.5

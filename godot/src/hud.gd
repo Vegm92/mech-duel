@@ -36,8 +36,8 @@ const READOUT := {
 	"rarm": [Vector2(158, 71), 52.0, Vector2(150, 66), HORIZONTAL_ALIGNMENT_RIGHT],
 	"legs": [Vector2(85, 99), 50.0, Vector2(80, 120), HORIZONTAL_ALIGNMENT_CENTER],
 }
-const SHOP := ["gate", "rebuild", "ring", "repair", "wall", "mines", "laser", "post"]
-const SHOP_COST := {"gate": 40, "rebuild": 120, "ring": 200, "repair": 30, "wall": 60, "mines": 80, "laser": 150, "post": 120}
+const SHOP := ["gate", "rebuild", "ring", "repair", "wall", "mine", "laser", "post"]
+const SHOP_COST := {"gate": 40, "rebuild": 120, "ring": 200, "repair": 30, "wall": 60, "mine": 80, "laser": 150, "post": 120}
 const SLOTS := [["left", "capLmb", "capLt"], ["right", "capRmb", "capRt"], ["shield", "capQ", "capRb"], ["hook", "capE", "capL3"], ["dash", "capSpace", "capLb"], ["ult", "capR", "capR3"]]
 
 signal resume
@@ -177,10 +177,11 @@ func paint() -> void:
 			slots(size)
 			if not state.siege.wave.live and state.phase != "over":
 				siege_shop(size)
-		siege_calls(size)
+		if state.phase != "over":
+			siege_calls(size)
 		if state.phase == "over":
 			var cy := size.y * 0.38
-			label(tr("siegeLost"), Vector2(0, cy + 30), 110, Mech.TEAM_LIGHT[1], HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, heavy, 32)
+			label(tr("siegeLost"), Vector2(0, cy + 30), 110, HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, heavy, 32)
 			label(tr("siegeHeld").format({"n": maxi(0, state.siege.wave.n - 1)}) + ("   ·   " + tr("siegeBest").format({"n": best}) if best > 0 else ""), Vector2(0, cy + 80), 30, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, bold, 14)
 			label(tr("rematch"), Vector2(0, cy + 118), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
 	else:
@@ -349,7 +350,7 @@ func siege_marks(size: Vector2) -> void:
 	for f in state.fx:
 		if f.k == "warn":
 			var g: Dictionary = sg.gates[f.lane]
-			marker(cam, size, Vector3(g.x, 4.0, g.y), HEAT_C if f.boss else ACCENT, "%s ×%d" % [tr("bot_" + f.kind), f.n], int(f.t / 15) % 2 == 0)
+			marker(cam, size, Vector3(g.x, 4.0, g.y), HEAT_C if f.boss else ACCENT, tr("siegeIncoming").format({"bot": tr("bot_" + f.kind), "n": f.n}), int(f.t / 15) % 2 == 0)
 
 
 func marker(cam: Camera3D, size: Vector2, at: Vector3, c: Color, text: String, lit: bool) -> void:
@@ -383,6 +384,7 @@ func marker(cam: Camera3D, size: Vector2, at: Vector3, c: Color, text: String, l
 
 func siege_calls(size: Vector2) -> void:
 	var cy := size.y * 0.3
+	var shown := {}
 	for f in state.fx:
 		var text := ""
 		var sub := ""
@@ -406,7 +408,8 @@ func siege_calls(size: Vector2) -> void:
 				if f.boss:
 					text = tr("siegeBoss")
 					c = HEAT_C
-		if text != "":
+		if text != "" and not shown.has(text):
+			shown[text] = true
 			label(text, Vector2(0, cy), 54, c, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, heavy, 20)
 			if sub != "":
 				label(sub, Vector2(0, cy + 36), 24, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)

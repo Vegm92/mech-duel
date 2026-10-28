@@ -513,11 +513,11 @@ func test_barricade_stops_bots_until_they_break_it() -> int:
 func test_mine_field_blows_up_a_scout() -> int:
 	var s := shop()
 	var pd := on_pad(s, 0, 2)
-	Siege.buy(s, s.siege, "mines", s.mechs[0])
+	Siege.buy(s, s.siege, "mine", s.mechs[0])
 	park(s, -15, 15)
 	var e := Siege.spawn(s, "scout", 0, 0.0)
 	var t := until(s, 60 * 10, func(): return e.act == "die")
-	return ensure(s.mines.size() < Siege.MODULE.mines.n, "a mine went off") or ensure(t > 0, "the scout died")
+	return ensure(s.mines.size() < Siege.MODULE.mine.n, "a mine went off") or ensure(t > 0, "the scout died")
 
 
 func test_lane_laser_warns_then_burns_what_stands_in_it() -> int:

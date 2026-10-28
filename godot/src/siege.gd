@@ -8,10 +8,10 @@ const RUN := {
 	"first": 10 * Sim.TICKS, "build": 25 * Sim.TICKS, "warn": 8 * Sim.TICKS, "cap": 90 * Sim.TICKS, "gap": 30,
 	"respawn": 8 * Sim.TICKS, "respawnWave": 30, "repairDelay": Sim.TICKS, "repair": 25.0 / Sim.TICKS,
 	"buildLate": 15 * Sim.TICKS, "late": 20, "ranged": 5 * Sim.TICKS, "call": 2, "clear": 0.2,
-	"scrap": 5, "aggro": 6.0, "post": 21.0, "leash": 14.0, "corpse": 90, "spawnRing": 7.0, "players": 0.4, "frame": 24.0,
+	"scrap": 5, "aggro": 6.0, "post": 21.0, "leash": 14.0, "corpse": 90, "spawnRing": 7.0, "players": 0.4,
 }
-const SHOP := {"gate": 40, "rebuild": 120, "ring": 200, "repair": 30, "wall": 60, "mines": 80, "laser": 150, "post": 120}
-const MODULE := {"pad": 2.5, "wall": {"hp": 800, "depth": 1.0}, "mines": {"n": 4, "spread": 2.5, "dmg": 60, "arm": 30},
+const SHOP := {"gate": 40, "rebuild": 120, "ring": 200, "repair": 30, "wall": 60, "mine": 80, "laser": 150, "post": 120}
+const MODULE := {"pad": 2.5, "wall": {"hp": 800, "depth": 1.0, "len": 6.0}, "mine": {"n": 4, "spread": 2.5, "dmg": 60, "arm": 30},
 	"laser": {"every": 180, "warn": 60, "dmg": 80, "half": 0.6}, "post": {"dmg": 120, "cd": 240, "reach": 2.0, "range": 40.0, "half": 0.5}}
 const SQUADS := {
 	"scoutPack": [["scout", 4]], "swarmCloud": [["swarm", 2]], "raiders": [["scout", 2], ["flyer", 1]], "ambush": [["spider", 3]],
@@ -730,7 +730,7 @@ static func direct(state, sg: Dictionary) -> void:
 			w.next_in = RUN.cap
 			sg.earned = 0
 			for pd in sg.pads:
-				if pd.module == "mines":
+				if pd.module == "mine":
 					arm(state, pd)
 	var queue := []
 	for q in sg.queue:
@@ -894,15 +894,15 @@ static func build(state, pd: Dictionary, item: String) -> void:
 		"wall":
 			var d := along(pd, pd.lane)
 			var half: float = MODULE.wall.depth / 2.0
-			var a := S.at(pd.lane, d - half, -S.LANE_W / 2.0)
-			var z := S.at(pd.lane, d + half, S.LANE_W / 2.0)
+			var a := S.at(pd.lane, d - half, -MODULE.wall.len / 2.0)
+			var z := S.at(pd.lane, d + half, MODULE.wall.len / 2.0)
 			pd.merge(box(a.x, a.y, z.x, z.y), true)
 			pd.only = 1
 			pd.hp = float(MODULE.wall.hp)
 			pd.max = MODULE.wall.hp
 			if not state.geo.boxes.has(pd):
 				state.geo.boxes.append(pd)
-		"mines":
+		"mine":
 			arm(state, pd)
 		"laser":
 			pd.t = 0
@@ -911,7 +911,7 @@ static func build(state, pd: Dictionary, item: String) -> void:
 
 
 static func arm(state, pd: Dictionary) -> void:
-	var M: Dictionary = MODULE.mines
+	var M: Dictionary = MODULE.mine
 	state.mines = state.mines.filter(func(mi): return mi.get("pad", -1) != pd.x * 1000 + pd.y)
 	for i in M.n:
 		var p := S.at(pd.lane, along(pd, pd.lane), (i - (M.n - 1) / 2.0) * M.spread)

@@ -4,7 +4,7 @@ Draft 2026-10-28 (UTC). Working title **CORE SIEGE**. A co-op wave-defense mode.
 this file is a v0 guess: **tune later**, all of them, even where a line does not say it again.
 
 Up to 4 mechs, one team, defend a **Reactor Core** in the middle of a big square map. Waves of
-orange robots spawn at the map border and walk 4 lanes to the core, LoL-minion style. A fortress
+grey robots spawn at the map border and walk 4 lanes to the core, LoL-minion style. A fortress
 ring with 4 gates guards the core. Survive as many waves as you can. Early waves teach, late waves
 are brutal.
 
@@ -20,9 +20,10 @@ Co-op is built first. The VS variant (§9) is design only, **not built until Vic
 
 - Same sim as the duel: 60 ticks/s, top-down 2D plane, pure and seeded (no time, no `randf`, no
   DOM). The mode lives in `godot/src/siege.gd` and drives the same mech code in `sim.gd`.
-- Enemies are **bots**: orange armor, dark joints, blue glow eyes, the cube-head-with-spike
-  language of the player mechs (sheet: `docs/reference/robot-gladiator-silhouettes.webp`). Every
-  bot name is original (no Medabots names).
+- Enemies are **bots**: grey armor, light-grey trim, dark joints, blue glow eyes, cube heads with
+  no spike (Victor 2026-10-28; Mk 2 gunmetal + plates, Mk 3 near-black + red eyes), the chibi
+  blocky language of the player mechs (sheet: `docs/reference/robot-gladiator-silhouettes.webp`).
+  Every bot name is original (no Medabots names).
 - Calm follow camera on your own mech, never rotating, W is up. The siege map is bigger than one
   screen, so off-screen threats get arrows on the screen edge (§7).
 - One human for now, plus AI teammates driven by `bot.gd`. See §8 for what local co-op and netcode

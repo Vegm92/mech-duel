@@ -185,8 +185,14 @@ $P = "$R\godot"
   claim screen for the first rival; look check). Not built: stakes, coop, PvP, the nemesis.
 - **Core Siege** (Victor 2026-10-28; spec `CORE_SIEGE_DESIGN.md`, who edits what
   `CORE_SIEGE_SPLIT.md`): co-op wave defense, up to 4 mechs (you + `bot.gd` allies) hold a Reactor
-  Core against orange bots on 4 lanes. The garage's CORE SIEGE button starts a run (`start(lo,
-  true)`; `make_view` rebuilds the view when the mode changes), `--siege` starts look checks in it,
+  Core against grey enemy bots on 4 lanes. The garage's CORE SIEGE button starts a run (`start(lo,
+  true)`; `make_view` rebuilds the view when the mode changes), `--siege` starts look checks in it.
+  View: `view.build(true)` keeps only marks and the reticle; `siege_view` (arena, core, gates,
+  pads, crowd on the blocks, 4 floodlight towers whose spots join `view.towers`, crowd material
+  shared as `view.crowd_mat` so `view.react` makes it cheer) and `siege_bots` are children of main.
+  Camera (`SIEGE_CAM`): follows only you, dist 48 (wheel 36-64), focus clamped to ±62, never
+  rotating. Look flags: `--top` (whole map, dist 205), `--core=<pct>` (start the core lower),
+  `--shot-on=<fx kind>` (save the still when that fx fires, e.g. `ring`, `coreDown`),
   `--team=1..4`, `--wave=<n>` (dev: start at wave n). Sim: `siege.gd` (`create`, `step`, wave
   director `direct`/`plan`, bot AI `drive`, core rings + repair + respawn in `settle`) on top of
   `sim.gd`; constants and the view contract in `siege_state.gd`; the views read only
