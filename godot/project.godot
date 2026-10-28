@@ -4,6 +4,7 @@ config_version=5
 
 config/name="Mech Duel"
 run/main_scene="res://main.tscn"
+config/icon="res://icon.svg"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [display]
