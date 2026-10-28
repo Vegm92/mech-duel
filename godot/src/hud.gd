@@ -14,6 +14,8 @@ const HEAT_C := Color(1.0, 0.36, 0.24)
 const WIRE := Color8(94, 240, 232)
 const ACCENT := Color8(255, 154, 60)
 const SEG_OFF := Color(0.24, 0.35, 0.5)
+const REC := Color8(255, 59, 48)
+const BARS := 0.08
 const PANEL_SIZE := Vector2(220, 142)
 const FIG := Transform2D(0, Vector2(0.6, 0.6), 0, Vector2(23, 5))
 const PARTS := ["head", "larm", "rarm", "legs"]
@@ -47,6 +49,7 @@ var bold: FontVariation
 var top := {}
 var last := {}
 var menu: VBoxContainer
+var replay := -1.0
 
 
 func _ready() -> void:
@@ -135,16 +138,30 @@ func paint() -> void:
 	if state.is_empty():
 		return
 	var size := canvas.size
-	mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
-	mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot"))
-	clock(size)
-	if not paused:
-		slots(size)
-	callouts(size)
+	if replay >= 0.0:
+		replay_bars(size)
+	else:
+		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
+		mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot"))
+		clock(size)
+		if not paused:
+			slots(size)
+		callouts(size)
 	if paused:
 		canvas.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.5))
 		label(tr("mPaused"), Vector2(0, size.y * 0.3), 72, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10)
 		label(tr("pauseHint"), Vector2(0, size.y * 0.3 + 46), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6)
+
+
+func replay_bars(size: Vector2) -> void:
+	var bar := roundf(size.y * BARS * minf(1.0, replay * 20.0))
+	canvas.draw_rect(Rect2(0, 0, size.x, bar), Color.BLACK)
+	canvas.draw_rect(Rect2(0, size.y - bar, size.x, bar), Color.BLACK)
+	canvas.draw_rect(Rect2(0, size.y - bar, size.x * replay, 2), Color(REC, 0.85))
+	if Time.get_ticks_msec() / 500 % 2 == 1:
+		canvas.draw_circle(Vector2(26, bar / 2.0), 6, REC)
+	canvas.draw_string(bold, Vector2(40, bar / 2.0 + 7), tr("kcReplay"), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, Color.WHITE)
+	label(tr("kcSkip"), Vector2(0, size.y - bar / 2.0 + 5), 13, Color(1, 1, 1, 0.5), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 24)
 
 
 func segs(at: Vector2, w: float, n: int, frac: float, c: Color) -> void:

@@ -151,6 +151,7 @@ var reticle: MeshInstance3D
 var danger: MeshInstance3D
 var danger_mesh := ImmediateMesh.new()
 var last_shrink := -1.0
+var fog: FogMaterial
 
 
 func build() -> void:
@@ -174,7 +175,7 @@ func build() -> void:
 	var haze := FogVolume.new()
 	haze.size = Vector3(Sim.AW + 30, STAGE.haze_height * 2.0, Sim.AH + 30)
 	haze.position = Vector3(Sim.CX, 0, Sim.CY)
-	var fog := FogMaterial.new()
+	fog = FogMaterial.new()
 	fog.density = STAGE.haze
 	fog.albedo = STAGE.haze_color
 	fog.height_falloff = STAGE.falloff

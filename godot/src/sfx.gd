@@ -122,6 +122,7 @@ const RECIPES := {
 	"ui_set": [{"bank": "launch", "vol": 0.25, "rate": 1.3, "dur": 0.35}, {"bank": "plate", "vol": 0.5, "at": 0.18}, {"bank": "clank", "vol": 0.3, "rate": 1.4, "at": 0.26}],
 	"ui_select": [{"bank": "ting", "vol": 0.35, "rate": 1.25}],
 	"ui_start": [{"bank": "punch", "vol": 0.7}, {"bank": "field", "vol": 0.3, "rate": 1.2, "dur": 0.7}],
+	"ui_rewind": [{"synth": {"wave": "noise", "a": 0.15, "dur": 0.45, "filter": ["bandpass", 3200.0, 300.0, 1.4]}, "vol": 0.25}],
 }
 
 static var save_path := SAVE
