@@ -39,7 +39,7 @@ It runs the 11 test suites (duel and siege), exports both builds to `build\MechD
 | 6 | No crashes in tests | done | 11 suites ALL PASSED, 2026-10-28 |
 | 6b | Core Siege from the full exe: garage button, help, waves 2 and 8 | done (autopilot), **not human-tested** | `v1-full-*-2026-10-28.png` |
 | 7 | UI at 16:9, 21:9, 4:3 | done | `v1-exe-ultrawide`, `v1-exe-4x3-*` |
-| 8 | Reproducible build + version | done | `tools/build_release.ps1`, v1.0.0, built from commit `c331893`, zip SHA-256 `7CBB72DC…7312ACF8` |
+| 8 | Reproducible build + version | done | `tools/build_release.ps1`, v1.0.0, built from commit `c90378f`: duel zip SHA-256 `E1D0CBFA…756463AE`, full zip `F9CC79D8…C708CD2C` |
 | 9 | Store page text + screenshots | done (draft) | `production/store/itch-page.md`, `production/store/screens/` |
 | 10 | Licences, secrets | done | `CREDITS.txt`; no keys in repo, no network code |
 | 11 | A human plays 2 full matches from the zip | **open (Victor)** | |
