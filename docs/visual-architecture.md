@@ -9,12 +9,13 @@ How the look is built, what depends on what, and the rules for changing it. Targ
 |---|---|
 | `godot/main.tscn` | one `Main` node; everything else is created in code |
 | `godot/src/main.gd` | game camera (follow, close-ups, shake, kick), hit-stop, slow-mo, look-check and sandbox flags, screenshots |
-| `godot/src/look.gd` | palette `PAL`, material families, light rig and tonemap knobs `STAGE`, floor values `FLOOR`, light level `NEON` and `neon()`, hazard stripes `HAZARD` + `HAZARD_SHADER`, mech rim `RIM` + `RIM_SHADER`, shader noise `NOISE`, `shader()`, arena slot materials `ARENA`, `env()` for the arena and the garage |
-| `godot/src/view.gd` | WorldEnvironment, light placement (key, follow spots, accents), floor shader v2 (plates, hazard bands, edge line, spawn chevrons, oil slicks), walls, stands and crowd, arena props, team markers (`MARK`, `mark()`: ring, ▼, rim), projectiles, traps, the effect dispatch `spawn`, danger zone, reticle |
+| `godot/src/look.gd` | palette `PAL`, material families, light rig and tonemap knobs `STAGE`, floor values `FLOOR`, light level `NEON` and `neon()`, hazard stripes `HAZARD` + `HAZARD_SHADER`, mech rim `RIM` + `RIM_SHADER`, shader noise `NOISE`, `shader()`, arena slot materials `ARENA`, `env()` for the arena and the garage, UI typeface `FONT` + `font()` + `ui()`, impact-number colors `POP` |
+| `godot/src/view.gd` | WorldEnvironment, light placement (key, follow spots, accents), floor shader v2 (plates, hazard bands, edge line, spawn chevrons, oil slicks), walls, stands and crowd, arena props, team markers (`MARK`, `mark()`: ring, ▼, rim), projectiles, traps, the effect dispatch `spawn`, impact numbers to draw (`pops`), danger zone, reticle |
 | `godot/src/decor.gd` | atmosphere (M4): scorch marks, wall-base grime, floor grates, metal scraps, floating dust; knobs `D`, keep-out test `clear()`, placements `spots()` |
 | `godot/src/mech.gd` | material helpers (`mat`, `glow`, `flat`), mech surface knobs `SKIN` and team paint `paints()`, mesh helpers, `.glb` loading (`models`, `add_part`), team colors (`TEAM`, `TEAM_LIGHT`, `TEAM_DARK`, `EYES`, `CORE_C`, `BOOST_C`), mech build and animation |
 | `godot/src/fx.gd` | effect recipes, one knob dict each, particle layers, smoke and fire shaders, node pools |
-| `godot/src/hud.gd`, `garage.gd` | HUD and garage UI; shared plate style `Garage.plate`; UI colors |
+| `godot/src/hud.gd`, `garage.gd` | HUD and garage UI; shared plate style `Garage.plate`; UI colors; impact numbers drawn in 2D (`NUMBER`) |
+| `godot/assets/fonts/<family>/` | a UI font (variable `.ttf` + italic) and its `OFL.txt`: `saira` (HUD, garage, menus), `exo2` (feedback in game) |
 | `godot/src/part_view.gd` | garage 3D previews: own world, camera-fixed light, `Look.env(true)` |
 | `art/<name>.blend` | text block `<name>_build.py` builds the export collection; the `Preview` collection is for fit checks only |
 | `godot/assets/models/<name>.glb` | generated meshes; their material slot names are the contract with the code |
@@ -68,6 +69,8 @@ flowchart LR
   sync --> spawn
   spawn --> fx
   spawn -->|"shake, kick, stop, slow"| cam
+  spawn -->|"pops: impact numbers"| hud
+  look -->|"FONT, POP"| hud
   sim --> hud
 ```
 
@@ -104,13 +107,17 @@ flowchart LR
   `view.spawn` maps `f.k` to an `Fx` recipe. A new fx kind also needs a `RECIPES` row in
   `sfx.gd`, or `sound_test` fails.
 - **Player-facing text** goes through `i18n.gd`, English and Spanish in the same edit.
+- **Text is 2D.** HUD text, callouts and impact numbers are drawn on the HUD's canvas, never as
+  `Label3D`: the 3D image goes through AgX, which turns white grey and saturated colors dull.
+  The one font is set by `Look.ui()` before the HUD and the garage exist; a script that builds
+  UI without `main.gd` (a test) gets Godot's built-in font.
 
 ## Effects library
 
 Each recipe has one knob dict at the top of `fx.gd`: `HIT`, `BOOM`, `RAY`, `ARC`, `MUZZLE`,
 `PARRY`, `BREAK`, `KO`, `LAND`, `DASH`, `RIPPLE`, `HOOKED`, `EMP`, `BLINK`, `HEAL`, `SOAK`,
 `MAGNET`, `CRUSH`, `PING`, `CHARGE`, `ULT`, `FIELD`, `KICK`, `RIBBON`, `SMOKE`, `CONE`. One-shot pieces are pooled
-(`Fx.take` / `Fx.park`: bars, spare emitters, damage numbers, dash ghosts); long-lived emitters
+(`Fx.take` / `Fx.park`: bars, spare emitters, dash ghosts); long-lived emitters
 (wreck smoke, missile trails, break smoke) are not. Particles are `CPUParticles3D`. Missing: a cap
 on live effects; add one only if profiling shows spikes.
 
@@ -232,11 +239,27 @@ the crowd and the effects, and moving them buys nothing.
 - **No reflections to tune:** M2 left out the probe and SSR, so M4's "reflection strength" has
   nothing to act on.
 
+## HUD (Milestone 5)
+
+- **Fonts:** `Look.FONT` (`family` Saira for the HUD, `impact` Exo 2 for the feedback in game,
+  width, three weights) → `Look.font(weight, italic, family)`, one cached `FontVariation` per
+  family, weight and slant, tabular digits. Variable axes are keyed `weight` and `width`
+  (`wght` / `wdth` are ignored; an axis the font lacks is skipped). `hud.gd` `heavy` = the
+  impact font at 900 italic: numbers and the big calls. Changing a family = one folder under
+  `godot/assets/fonts/` with the two `.ttf` and `OFL.txt`, plus its `FONT` key.
+- **Impact numbers:** `view.number(p, text, kind)` appends `{p, text, k, at}` to `view.pops`
+  from sim events (`hit`, `heal`) and from `view.guard` (BLOCKED). `hud.pops()` projects each
+  one with the camera every frame, ages it by `view.tick` (so hit-stop, pause and freeze hold
+  it), draws it with `heavy` and the kind's `Look.POP` color, and drops it after
+  `NUMBER.life` ticks. `view.reset` clears them.
+- **Plates and labels:** `plate()` and every callout use `Garage.plate`; `tag()` draws the
+  pointed team score tags; `label(…, f, glow)` draws halo → black outline → fill.
+
 ## Tools
 
 | Tool | Command (PowerShell, from `games/mech-duel`) |
 |---|---|
-| Look check | `& $G --path godot --resolution 1920x1080 -- --autopilot --seed=3 --shot=<abs>.png --at=700 [--cam=4]` |
+| Look check | `& $G --path godot --resolution 1920x1080 -- --autopilot --seed=3 --shot=<abs>.png --at=700 [--cam=4] [--lang=en\|es] [--pad]` (`--pad`: pad captions; `--garage=<tab> --hover=<id>` for the garage) |
 | Effects sandbox | `& $G --path godot -- --seed=3 --sandbox=<weapon> --shot=<abs>.png --at=<tick>` (M1 stills: `laser` at 55, `mortar` at 160, `mortar --norefill` at 602 for the K.O.; M3: `rivet --ult` at 30 for the lance wind-up) |
 | Perf probe | `& $G --path godot --resolution 1920x1080 -s "$PWD\tools\perf_probe.gd" -- --autopilot --seed=3` → one `PERF …` line after ~40 s |
 | Arena-only still | `& $G --path godot --resolution 1920x1080 -s "$PWD\tools\arena_shot.gd" -- --autopilot --seed=3 --tick=700 --out=<abs>.png [--top]` (effects and the wind-up bar hidden; bright is measured here; `--top` = the whole arena, no HUD) |

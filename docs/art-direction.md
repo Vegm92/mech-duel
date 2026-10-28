@@ -130,9 +130,19 @@ Pickup icons are smaller (`view.gd` `ITEM.size` 1.5, was 2.4): level 4 must not 
 - Dark see-through plates with cut corners and angled edges, thin cyan lines, orange highlights, a
   team-color strip per player (the existing `Garage.plate` style, pushed toward the reference).
 - One bold, condensed sans with clear digits, bundled, under an open licence (SIL OFL), with
-  Spanish glyphs. Numbers big, labels small and uppercase.
+  Spanish glyphs: Saira, semi-condensed, at three weights (`look.gd` `FONT`). Numbers big,
+  labels small and uppercase. Feedback in game (impact numbers, countdown, ¡A PELEAR!, K.O.,
+  VICTORIA) uses Exo 2 at 900 italic (`FONT.impact`; Victor, 2026-10-28): wider, chunkier
+  digits, closer to the sheet's.
 - Top center: clock and round pips on team-color plates. Top corners: the two mech panels.
   Bottom: a compact skill bar.
+- Impact numbers and big calls follow `docs/reference/impact-numbers.webp` (Victor,
+  2026-10-28): Exo 2 heavy italic, a black outline and a soft halo in their own color. Hit white
+  `#FFFFFF`, head hit orange `#FF8C28` and 20 % bigger, shield block blue `#2BA7FF` (BLOCKED),
+  heal green `#2DD66B` "+N" (`look.gd` `POP`). They are UI: drawn in 2D, so the tonemap never
+  dulls them, and they never bloom.
+- Callouts sit on a plate in their own color, never over the middle of the arena: a broken part
+  under its owner's panel, arena calls under the clock.
 - Every string goes through `i18n.gd`, in English and Spanish.
 
 ## Scale and silhouette

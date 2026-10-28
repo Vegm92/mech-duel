@@ -479,13 +479,95 @@ Scope: one bundled OFL font with Spanish glyphs; angled plates with cut corners;
 plates; a more compact skill bar; clear callout colors (no muddy see-through text); the garage
 uses the same plate style.
 
-Acceptance:
-- [ ] stills in English and Spanish, at 1280×720 and 1920×1080, with mouse and with pad
-      captions: nothing overlaps or clips
-- [ ] every HUD string still goes through `i18n.gd`
-- [ ] the font's licence file sits next to the font
-- [ ] GPU ≤ M4 + 0.1 ms
-- [ ] gates
+Victor's input (2026-10-28): the impact-numbers sheet `docs/reference/impact-numbers.webp` is
+M5's reference for type and number colors. Its font ("Techno Condensed Bold") is not a real
+font: Saira and Exo 2 (both SIL OFL, both with Spanish glyphs) were compared in the game,
+`visual-m5-fonts-2026-10-28.png` and `visual-m5-fonts-closeup-2026-10-28.png`. Victor's pick:
+Saira for the HUD, Exo 2 for the feedback in game (`Look.FONT.family` and `FONT.impact`). The
+big calls (countdown, ¡A PELEAR!, K.O., VICTORIA) count as feedback: they share the numbers'
+style. PAUSA is a menu, so it stays Saira. M5's own match (step 6) is still to come.
+
+Acceptance (2026-10-28, numbers in the table below):
+- [x] stills in English and Spanish, at 1280×720 and 1920×1080, with mouse and with pad
+      captions: nothing overlaps or clips. Match HUD, all 8 combinations:
+      `visual-m5-hud-2026-10-28.png`; countdown, fight, K.O., match over and pause in Spanish
+      at 1280×720 and English at 1920×1080: `visual-m5-screens-2026-10-28.png`; garage:
+      `visual-m5-garage-2026-10-28.png`. Seeds 4, 6 and 9 (M3: callouts over a mech): the
+      callout plate sits above both mechs on all three.
+- [x] every HUD string still goes through `i18n.gd`: one new key, `blocked` (BLOCKED /
+      BLOQUEADO); the clock and the numbers are digits only
+- [x] the font's licence file sits next to the font: `godot/assets/fonts/saira/OFL.txt` and
+      `godot/assets/fonts/exo2/OFL.txt`
+- [x] GPU ≤ M4 + 0.1 ms: 2.55 / 3.10 ms (median of 3 runs: 2.51, 2.55, 2.59; peaks 3.01,
+      3.10, 4.12), measured before the Exo 2 split. Draw calls 888 (M4 891). After the split
+      (it only changes the font of 2D text): 2.81 and 2.86 while other sessions' Godot runs
+      started and stopped, 3.92 with a game window open. Not a measurement; a quiet A/B
+      against the M4 commit is still to do.
+- [x] gates: the 4 suites pass, golden hash unchanged, the same log lines as M4 (garage_parts'
+      two headless "Parameter material is null", sound's exit leak at 14 / 10 on both the M4
+      commit and M5); see "Exit lines"
+
+| Still set | Luma p10 / p50 / p90 | Dark | Bright | Neon (cyan + blue / orange) | GPU ms avg / peak | Draw calls |
+|---|---|---|---|---|---|---|
+| seed 3, `--cam=0` | 26 / 45 / 60 | 35.6 % | 0.77 % | 2.72 % (1.91 / 0.80) | 2.55 / 3.10 | 888 |
+| seed 7, `--cam=0` | 26 / 42 / 72 | 43.8 % | 0.45 % | 2.32 % (2.08 / 0.24) | — | — |
+| seed 3, arena only | 26 / 45 / 59 | 35.9 % | 0.39 % | 2.33 % (1.92 / 0.41) | — | — |
+| seed 7, arena only | 26 / 42 / 63 | 44.4 % | 0.40 % | 1.85 % (1.70 / 0.16) | — | — |
+
+Also: render CPU 0.56 ms, 241 k primitives, 1706 objects, 398 MB VRAM (M4 364: the glyph
+caches of three weights at many sizes and outlines), 1038 nodes. Stills:
+`visual-m5-seed{3,7}-cam{0,4}-2026-10-28.png`, `visual-m5-seed{3,7}-cam0-arena-2026-10-28.png`;
+reference | M4 | M5: `visual-m5-side-by-side-2026-10-28.png`; the sheet next to the game's
+numbers: `visual-m5-numbers-2026-10-28.png`. The numbers and stills were taken with the M4
+session's uncommitted floor-marks change (`fx.gd`, `FX_DESIGN.md`) on disk; the look numbers
+match M4's within 0.05 points.
+
+What changed (fonts and pop colors in `look.gd`, the HUD in `hud.gd`):
+
+- **Fonts:** Saira (Omnibus-Type, variable weight 100–900 and width 50–125, plus its italic)
+  for the HUD, the garage and the menus; Exo 2 (Natanael Gama, variable weight, plus its italic)
+  for the feedback in game, at 900 italic. Each sits in `godot/assets/fonts/<family>/` with its
+  `OFL.txt`. `Look.FONT` holds both families, Saira's width (87.5, semi-condensed; Exo 2 has no
+  width axis) and three weights: text 600, bold 800, heavy 900. `Look.font(weight, italic,
+  family)` returns one cached `FontVariation` with tabular digits (`tnum`, so the clock never
+  jitters). `Look.ui()`, called first in `main.gd`, makes Saira's text weight the default of
+  every Control and Label3D; the garage's and the HUD's bold come from `Look.font` too.
+- **Impact numbers** follow the sheet: Exo 2 heavy italic, black outline and a two-step halo in their
+  own color, `Look.POP`: hit white `#FFFFFF`, head hit orange `#FF8C28` and 20 % bigger (the
+  game has no crits; head hits were already the special ones), heal green `#2DD66B` "+N", and a
+  new blue `#2BA7FF` BLOCKED when a shield takes a hit (`view.guard`, at most every 20 ticks per
+  mech, `BLOCK_GAP`). They pop in at 1.4×, rise 1.6 m, fade after 18 ticks and are gone at 45
+  (`hud.gd` `NUMBER`). The view only records them (`view.pops`); the HUD draws them in 2D.
+- **Plates:** every HUD plate is `Garage.plate` (cut corners), the same as the garage and the
+  pause menu.
+- **Score:** team-color tags on both sides of the clock with a pointed outer end and slanted
+  round pips (like the reference's score plates); the clock reads m:ss.
+- **Skill bar:** 6 slots of 84 × 58 (were 104 × 104), bold key caption, the name shrinks 11 → 8
+  px to fit.
+- **Callouts:** on a plate in their own color (sudden death orange, EMP blue, repair ready
+  green; a broken part keeps its team color). A broken part shows under its owner's panel, arena
+  calls under the clock. Countdown, ¡A PELEAR!, K.O. and VICTORIA are Exo 2 heavy italic with a
+  black outline and a halo; PAUSA is Saira bold.
+- **Aim reticle:** `Mech.flat`, so it no longer blooms (was `Mech.glow` at 3.0).
+- **Look-check flags:** `--lang=en|es` and `--pad` (pad captions) for stills.
+
+Process:
+
+- **Godot names variable-font axes `weight` and `width`** (or the number tags); the strings
+  `wght` and `wdth` are ignored without a warning. Saira's default instance is Thin (100), so a
+  missing weight shows hairline text.
+- **3D text goes through the tonemap.** The first numbers were `Label3D`s: AgX turned white
+  grey and the orange brown. Drawn in the 2D HUD, the sheet's colors come out exact and the
+  text is sharp at 1080p. `tools/arena_shot.gd` clears `view.pops` (it used to hide the
+  `Label3D`s).
+- **▲ and ▼** (garage stat arrows) are in neither Saira nor Exo 2; Godot draws them from a
+  system font, as it did with the old fallback font.
+- **Exit lines:** one 1280×720 Spanish garage shot printed "4 ObjectDB instances were leaked"
+  and "1 resources still in use" at exit; the same run again printed nothing.
+
+Three biggest gaps vs the reference after M5: the reference's corner panels are a portrait and
+one bar, ours keep the wireframe with four armor readouts (they carry the part-break rules);
+mechs carry a ▼ but no name tag; the minimap stays out (1v1).
 
 ## Done for the whole overhaul
 

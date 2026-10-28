@@ -69,7 +69,8 @@ $P = "$R\godot"
   `production/qa/evidence/godot-hit-fx-before-after-2026-10-26.png`,
   `godot-weapon-fx-before-after-2026-10-27.png`, `godot-moves-fx-before-after-2026-10-27.png`.
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
-  saves that tick's frame and quits. Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
+  saves that tick's frame and quits. `--lang=en|es` picks the language and `--pad` shows the pad
+  captions (HUD stills). Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
   to pick your two weapons (e.g. `--hands=mortar,rivet`; use `--at=200`, later ticks often show a
   broken, drooping arm). `--head=<id>` picks your head (e.g. `--head=demon`), `--core=<id>` your
   core (e.g. `--core=titan`; pair it with `--hands=rivet,rivet` so no blade hides the chest),
@@ -325,7 +326,7 @@ $P = "$R\godot"
   slot is a team-color light on a black base (0.9); every match mech gets a team ring on the
   floor, a ▼ over its head and a 2 px screen-space rim in its team color (`view.gd` `MARK` and
   `mark()`, `look.gd` `RIM`; not in the garage), all off while the mech hides in smoke
-  (`Sim.hidden`); the lance/rail wind-up bar is `Mech.flat`, so it no longer blooms. **Atmosphere** (M4): `godot/src/decor.gd` adds seeded scorch marks, metal scraps, floor grates, grime at the wall bases and floating dust, built once by `view.build`; `Decor.clear` keeps every piece 1.5 m off pads, spawns, trap warnings and oil (re-checked in `garage_parts_test`), and nothing on the floor moves. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
+  (`Sim.hidden`); the lance/rail wind-up bar is `Mech.flat`, so it no longer blooms. **Atmosphere** (M4): `godot/src/decor.gd` adds seeded scorch marks, metal scraps, floor grates, grime at the wall bases and floating dust, built once by `view.build`; `Decor.clear` keeps every piece 1.5 m off pads, spawns, trap warnings and oil (re-checked in `garage_parts_test`), and nothing on the floor moves. **HUD** (M5, reference `docs/reference/impact-numbers.webp`): two fonts, each with its `OFL.txt` in `godot/assets/fonts/<family>/`: Saira for the HUD, garage and menus, Exo 2 for the feedback in game (impact numbers and the big calls; Victor 2026-10-28) (`look.gd` `FONT`, `Look.font(weight, italic, family)`, Saira set as the default by `Look.ui()` first thing in main.gd); impact numbers are 2D text drawn by `hud.gd` from `view.pops` in the sheet's colors (`look.gd` `POP`: hit white, head orange, BLOCKED blue when a shield takes a hit, heal green), never `Label3D` (AgX dulls 3D text); every plate is `Garage.plate`, team score tags around an m:ss clock, a compact skill bar, callouts on plates (a broken part under its owner's panel, arena calls under the clock); the aim reticle is `Mech.flat`. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
   `--autopilot`), `tools/arena_shot.gd` (arena-only still with effects and the wind-up bar
   hidden, where bright is measured; `--top` = the whole arena; `-s <absolute path>`, `--tick=N
   --out=<abs png>`), `tools/look_stats.py` (look numbers vs the reference),
