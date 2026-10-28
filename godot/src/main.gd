@@ -100,6 +100,7 @@ var replay_at := -1
 var siege := false
 var team_n := 2
 var wave_arg := 1
+var director_on := true
 var spawn_arg := ""
 var modules_arg := false
 var top_arg := false
@@ -191,6 +192,8 @@ func _ready() -> void:
 			modules_arg = true
 		elif a.begins_with("--spawn="):
 			spawn_arg = a.substr(8)
+		elif a == "--director=off":
+			director_on = false
 		elif a.begins_with("--wave="):
 			wave_arg = maxi(1, a.substr(7).to_int())
 		elif a.begins_with("--team="):
@@ -387,6 +390,7 @@ func new_match() -> void:
 			los.append(Sim.SETS.values()[(s + i) % Sim.SETS.size()])
 			allies.append(Bot.create_brain(s + 10 + i))
 		state = Siege.create(los, s)
+		state.siege.director.on = director_on
 		if not progress.unlock_all:
 			var own := {}
 			for slot in Siege.S.PART_SLOTS:

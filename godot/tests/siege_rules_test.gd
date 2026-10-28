@@ -6,7 +6,7 @@ const Siege = preload("res://src/siege.gd")
 const S = preload("res://src/siege_state.gd")
 const Progress = preload("res://src/progress.gd")
 
-const GOLDEN := 2440534305
+const GOLDEN := 1312459456
 
 var failed := 0
 var filter := ""
@@ -84,6 +84,14 @@ func _init() -> void:
 	run("lane_kills_also_pay_every_wallet", test_lane_kills_also_pay_every_wallet)
 	run("ai_teammate_spends_its_wallet_in_the_plaza_between_waves", test_ai_teammate_spends_its_wallet_in_the_plaza_between_waves)
 	run("default_weapon_kills_scouts_swarms_and_spiders_in_three_hits", test_default_weapon_kills_scouts_swarms_and_spiders_in_three_hits)
+	run("pressure_is_zero_when_calm_and_rises_with_core_loss_and_downed_mechs", test_pressure_is_zero_when_calm_and_rises_with_core_loss_and_downed_mechs)
+	run("one_spike_barely_moves_strain_and_no_wave_moves_it_past_15", test_one_spike_barely_moves_strain_and_no_wave_moves_it_past_15)
+	run("breathers_plan_less_go_straight_and_rest_15_s_longer", test_breathers_plan_less_go_straight_and_rest_15_s_longer)
+	run("every_tactic_warns_each_group_and_spawns_only_at_mouths_vents_and_corners", test_every_tactic_warns_each_group_and_spawns_only_at_mouths_vents_and_corners)
+	run("spawns_wait_while_a_player_stands_on_the_spot", test_spawns_wait_while_a_player_stands_on_the_spot)
+	run("boss_waves_keep_their_must_list_and_mk_and_scrap_is_untouched", test_boss_waves_keep_their_must_list_and_mk_and_scrap_is_untouched)
+	run("waves_one_to_three_plan_the_same_with_the_director_on_and_off", test_waves_one_to_three_plan_the_same_with_the_director_on_and_off)
+	run("two_easy_waves_raise_the_tier_and_two_hard_waves_give_one_pity_wave", test_two_easy_waves_raise_the_tier_and_two_hard_waves_give_one_pity_wave)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -427,19 +435,21 @@ func test_juggernaut_hits_a_gate_three_times_as_hard() -> int:
 	return ensure(t > 0, "it hit the gate") or ensure(g.max - g.hp == Siege.BOTS.jugg.dmg * Siege.BOTS.jugg.gateK * Siege.RUN.gateSoak, "gate lost %d" % (g.max - g.hp))
 
 
-func planned(n: int, team := 1) -> Array:
+func planned(n: int, team := 1, on := false) -> Array:
 	var los := []
 	for i in team:
 		los.append({})
 	var s := Siege.create(los, 9 + n)
+	s.siege.director.on = on
 	Siege.plan(s, s.siege, n)
-	return s.siege.queue
+	return s.siege.queue.filter(func(q): return q.has("kind"))
 
 
 func kinds_of(q: Array) -> Dictionary:
 	var out := {}
 	for u in q:
-		out[u.kind] = out.get(u.kind, 0) + 1
+		if u.has("kind"):
+			out[u.kind] = out.get(u.kind, 0) + 1
 	return out
 
 
@@ -1037,3 +1047,191 @@ func test_default_weapon_kills_scouts_swarms_and_spiders_in_three_hits() -> int:
 	var d: String = Sim.DEFAULT_LOADOUT.left
 	print("  hits with %s: scout %d, swarm %d, spider %d, walker %d" % [d, hits("scout", d), hits("swarm", d), hits("spider", d), hits("walker", d)])
 	return ensure(hits("scout", d) <= 3 and hits("swarm", d) <= 3 and hits("spider", d) <= 3, "3 hits or fewer")
+
+
+func sample(s: Dictionary, k: int) -> float:
+	s.siege.tick = k * Siege.DIRECTOR.every
+	Siege.sense(s, s.siege)
+	return s.siege.director.pressure
+
+
+func test_pressure_is_zero_when_calm_and_rises_with_core_loss_and_downed_mechs() -> int:
+	var s := Siege.create([{}, {}], 3)
+	s.siege.wave.live = true
+	var calm := sample(s, 1)
+	for k in range(2, 7):
+		s.siege.core.hp -= s.siege.core.max * 0.01
+		sample(s, k)
+	var bleeding: float = s.siege.director.pressure
+	var t := Siege.create([{}, {}], 3)
+	t.siege.wave.live = true
+	for m in t.mechs.slice(0, 2):
+		m.ko = true
+	var down := sample(t, 1)
+	return ensure(calm == 0.0, "calm samples %f" % calm) or ensure(bleeding >= 30.0, "core -5%% in 5 s samples %f" % bleeding) or ensure(down >= 20.0, "all down samples %f" % down)
+
+
+func scored(s: Dictionary, n: int, samples: Array) -> float:
+	var dr: Dictionary = s.siege.director
+	dr.sum = 0.0
+	dr.samples = samples.size()
+	for p in samples:
+		dr.sum += p
+	Siege.score(s.siege, n, -1)
+	return dr.strain
+
+
+func test_one_spike_barely_moves_strain_and_no_wave_moves_it_past_15() -> int:
+	var s := lab()
+	var calm := []
+	calm.resize(30)
+	calm.fill(40.0)
+	scored(s, 1, calm)
+	var before := scored(s, 2, calm)
+	var spiked := calm.duplicate()
+	spiked[10] = 100.0
+	var after := scored(s, 3, spiked)
+	var hot := []
+	hot.resize(30)
+	hot.fill(100.0)
+	var jump := scored(s, 4, hot)
+	return ensure(absf(after - before) < 5.0, "one spike moved S by %f" % (after - before)) or ensure(jump - after <= 15.0 + 0.001, "a hot wave moved S by %f" % (jump - after))
+
+
+func test_breathers_plan_less_go_straight_and_rest_15_s_longer() -> int:
+	var fails := []
+	for n in [4, 9, 14]:
+		var s := Siege.create([{}], 9 + n)
+		Siege.plan(s, s.siege, n)
+		var row: Dictionary = s.siege.director.log[n]
+		if absf(row.budget - snappedf(Siege.budget(n, 1) * 0.7, 0.1)) > 0.11 or row.tactic != "straight":
+			fails.append("wave %d: %s" % [n, row])
+	for n in [3, 4]:
+		var s := Siege.create([{}], 1)
+		s.siege.wave.n = n
+		s.siege.wave.live = true
+		s.siege.wave.next_in = Siege.RUN.cap - 60
+		Siege.direct(s, s.siege)
+		var want: int = Siege.RUN.build + (Siege.DIRECTOR.rest if n == 4 else 0)
+		if s.siege.wave.next_in != want:
+			fails.append("after wave %d the build phase is %d, not %d" % [n, s.siege.wave.next_in, want])
+	for f in fails:
+		print("  " + f)
+	return ensure(fails.is_empty(), "breathers")
+
+
+func at_spawn_spot(e: Dictionary) -> bool:
+	var far: bool = maxf(absf(e.x), absf(e.y)) >= 70.0
+	var vent: bool = absf(Sim.hypot(e.x, e.y) - S.VENTS[0]) <= 3.0 and Siege.BOTS[e.kind].get("vent", false)
+	return far or vent
+
+
+func test_every_tactic_warns_each_group_and_spawns_only_at_mouths_vents_and_corners() -> int:
+	var fails := []
+	var waves := {"probe": 5, "ambush": 5, "pincer": 6, "airdrop": 7, "feint": 8, "siege": 12, "hammer": 21}
+	for id in waves:
+		var n: int = waves[id]
+		var s := Siege.create([{}, {}], 4)
+		s.siege.director.force = id
+		s.siege.wave.n = n - 1
+		s.siege.wave.next_in = Siege.RUN.warn + 1
+		var warns := {}
+		var seen := {}
+		var called := false
+		var queued := []
+		for k in 60 * 50:
+			Siege.step(s, [idle(), idle()])
+			if k == 0:
+				queued = s.siege.queue.filter(func(q): return q.has("kind") and not q.has("raid"))
+			for f in s.fx:
+				if f.k == "warn" and f.t == Siege.RUN.warn:
+					warns[s.tick] = true
+				if f.k == "tactic" and f.id == id:
+					called = true
+			for e in wave_bots(s):
+				if not seen.has(e.id):
+					seen[e.id] = true
+					if e.raid < 0 and not at_spawn_spot(e):
+						fails.append("%s: a %s spawned at (%d, %d)" % [id, e.kind, e.x, e.y])
+					for m in s.mechs.slice(0, 2):
+						if Sim.hypot(m.x - e.x, m.y - e.y) < Siege.DIRECTOR.near:
+							fails.append("%s: a %s spawned next to a player" % [id, e.kind])
+		var first := {}
+		for q in queued:
+			first[q.w] = mini(first.get(q.w, 1 << 30), q.at)
+		for w in first:
+			if not warns.has(w):
+				fails.append("%s: no warning at tick %d" % [id, w])
+			elif first[w] - w != Siege.RUN.warn:
+				fails.append("%s: warned %d ticks ahead" % [id, first[w] - w])
+		if not called:
+			fails.append("%s: never announced" % id)
+		if first.size() < 2 and id != "pincer":
+			fails.append("%s: only %d spawn group(s)" % [id, first.size()])
+	for f in fails:
+		print("  " + f)
+	return ensure(fails.is_empty(), "every tactic is fair")
+
+
+func test_spawns_wait_while_a_player_stands_on_the_spot() -> int:
+	var s := lab()
+	var p := S.at(0, S.SPAWN)
+	park(s, p.x, p.y)
+	s.siege.queue.append({"at": s.tick + 1, "kind": "scout", "lane": 0, "side": 0.0, "mk": 1})
+	steps(s, 30, idle(Vector2(p.x, p.y)))
+	var waited: bool = wave_bots(s).is_empty()
+	park(s, 0, 0)
+	steps(s, Siege.DIRECTOR.retry + 5)
+	return ensure(waited, "no scout spawns on top of the player") or ensure(wave_bots(s).size() == 1, "it spawns once the player leaves")
+
+
+func test_boss_waves_keep_their_must_list_and_mk_and_scrap_is_untouched() -> int:
+	var fails := []
+	for n in [10, 15, 20, 30]:
+		for dial in [-1.0, 1.0]:
+			var s := Siege.create([{}, {}], 9 + n)
+			s.siege.director.dial = dial
+			s.siege.director.top = dial > 0
+			s.siege.director.pity = dial < 0
+			s.siege.fund = 77
+			Siege.plan(s, s.siege, n)
+			var k := kinds_of(s.siege.queue)
+			var need := {}
+			for key in Siege.row(n).must:
+				for u in Siege.SQUADS[key]:
+					need[u[0]] = need.get(u[0], 0) + u[1]
+			for kind in need:
+				if k.get(kind, 0) < need[kind]:
+					fails.append("wave %d dial %d lost its %s" % [n, dial, kind])
+			for q in s.siege.queue:
+				if q.has("kind") and q.mk > Siege.row(n).get("mk", 1):
+					fails.append("wave %d dial %d has Mk %d" % [n, dial, q.mk])
+			if s.siege.fund != 77 or s.siege.wallets != [Siege.TIER.wallet, Siege.TIER.wallet]:
+				fails.append("wave %d dial %d touched scrap" % [n, dial])
+	for f in fails:
+		print("  " + f)
+	return ensure(fails.is_empty(), "boss waves stay boss waves")
+
+
+func test_waves_one_to_three_plan_the_same_with_the_director_on_and_off() -> int:
+	var same := true
+	for n in [1, 2, 3]:
+		same = same and str(planned(n, 1, true)) == str(planned(n, 1, false))
+	return ensure(same, "waves 1-3 are the same")
+
+
+func test_two_easy_waves_raise_the_tier_and_two_hard_waves_give_one_pity_wave() -> int:
+	var s := Siege.create([{}, {}], 8)
+	var dr: Dictionary = s.siege.director
+	for n in [4, 5]:
+		scored(s, n, [0.0])
+	var top: bool = dr.top
+	var raised: float = dr.dial
+	var t := Siege.create([{}, {}], 8)
+	for n in [6, 7]:
+		scored(t, n, [100.0])
+	var pity: bool = t.siege.director.pity
+	Siege.plan(t, t.siege, 8)
+	var row: Dictionary = t.siege.director.log[8]
+	var want := snappedf(Siege.budget(8, 2) * Siege.beat(8).mult * (1.0 - Siege.DIRECTOR.budget), 0.1)
+	return ensure(top and raised > 0.0, "easy waves raise the dial (%f) and the tier" % raised) or ensure(pity, "two hard waves ask for pity") or ensure(row.tactic == "straight" and absf(row.budget - want) < 0.11, "the pity wave is plain and 15%% smaller: %s" % [row]) or ensure(not t.siege.director.pity, "pity lasts one wave")

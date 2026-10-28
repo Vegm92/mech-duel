@@ -259,6 +259,18 @@ $P = "$R\godot"
   Balance tool: `tools/siege_balance.gd` (`-s <abs path> -- --from=<wave> --waves=<n> --team=<n>
   --tiers=<0..5> --guard=<0..5> --seeds=a,b`), one BALANCE line per seed. Look flags: `--shop`
   (opens the radial with scrap), `--farm` (your autopilot farms), `--guard=<tier>`.
+  **Director** (Victor 2026-10-28, spec `CORE_SIEGE_DIRECTOR.md`): `siege.gd` `sense` takes one
+  pressure sample (0-100) per second of a live wave into `siege.director`; `score` turns each wave
+  into W → strain → dial (from wave 4); `plan` applies the 5-wave `BEAT` (budget × mult × (1 ±
+  15% dial), breather waves 4/9/14… are plain and add `DIRECTOR.rest` to the build phase) and picks
+  a `TACTICS` row (probe, ambush, pincer, airdrop, feint, siege, hammer) that only reshapes the
+  spawn queue: delayed groups get their own queued `warn` (`{"at", "fx"}` queue entries; bot
+  entries carry `w` = their group's warn tick), and a `tactic` fx is the announcer call (`dir_*`
+  text, `|` splits headline and sub line). No spawn within `DIRECTOR.near` (8 m) of a player: a
+  vent flips side, else it waits `DIRECTOR.retry`. Waves 1-3 plan as if it were off.
+  `--director=off` turns it off; `director.force = <tactic>` is the test hook. `bot.gd` `SKILL`
+  (skilled / average / weak) merges into a brain; `tools/siege_balance.gd -- --director=both
+  --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
   Not built yet: a second local player, netcode, VS (design only).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab

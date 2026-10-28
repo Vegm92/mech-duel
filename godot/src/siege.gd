@@ -73,6 +73,25 @@ const GARRISON := {
 const MILESTONES := [10, 20, 30]
 const MUTATORS := ["overclock", "plated", "volatile", "airRaid", "hive", "ironRain"]
 const MUTATE := {"first": 31, "every": 5, "speed": 1.15, "hp": 1.3, "boom": {"dmg": 30, "r": 2.0}, "rain": 3}
+const DIRECTOR := {"every": Sim.TICKS, "window": 5, "core": 0.05, "gate": 0.1, "breach": 3.0, "w": [0.30, 0.25, 0.20, 0.15, 0.10],
+	"speed": 15.0, "weights": [0.5, 0.3, 0.2], "swing": 15.0, "dial": 50.0, "budget": 0.15, "streak": 20.0, "teach": 3,
+	"rise": 3, "riseCap": 10, "cap": 90, "rest": 15 * Sim.TICKS, "near": 8.0, "retry": 2 * Sim.TICKS, "call": 180}
+const BEAT := [
+	{"id": "warmup", "target": 40, "mult": 0.9, "tier": 0},
+	{"id": "build", "target": 55, "mult": 1.0, "tier": 1},
+	{"id": "peak", "target": 70, "mult": 1.1, "tier": 2},
+	{"id": "breather", "target": 30, "mult": 0.7, "tier": 0},
+	{"id": "push", "target": 85, "mult": 1.15, "tier": 2},
+]
+const TACTICS := {
+	"probe": {"tier": 1, "from": 4, "team": 1, "need": [["scoutPack", "raiders"]], "probe": 20 * Sim.TICKS, "call": 0},
+	"ambush": {"tier": 1, "from": 4, "team": 1, "need": [["ambush"]], "vent": 25 * Sim.TICKS, "call": 25 * Sim.TICKS},
+	"pincer": {"tier": 1, "from": 6, "team": 1, "need": [], "pincer": true, "call": 0},
+	"airdrop": {"tier": 2, "from": 7, "team": 1, "need": [["airWing", "raiders"]], "air": 20 * Sim.TICKS, "call": 20 * Sim.TICKS},
+	"feint": {"tier": 2, "from": 8, "team": 1, "need": [], "feint": 15 * Sim.TICKS, "call": 15 * Sim.TICKS},
+	"siege": {"tier": 2, "from": 12, "team": 1, "need": [["firebase", "sniperNest", "barrage", "shieldWall"]], "siege": 12 * Sim.TICKS, "call": 0},
+	"hammer": {"tier": 3, "from": 15, "team": 2, "need": [["ambush"], ["airWing", "raiders"]], "pincer": true, "vent": 25 * Sim.TICKS, "air": 20 * Sim.TICKS, "call": 0},
+}
 const TANKS := ["heavy", "jugg", "walker"]
 const RANGED := ["turret", "tripod", "quadheavy"]
 const MK := [{"hp": 1.0, "dmg": 1.0, "speed": 1.0}, {"hp": 1.5, "dmg": 1.25, "speed": 1.0}, {"hp": 2.2, "dmg": 1.5, "speed": 1.1}]
@@ -180,6 +199,8 @@ static func create(loadouts: Array, seed := 1) -> Dictionary:
 		"lost": false, "down": {}, "calm": {}, "was": {}, "team": loadouts.size(), "earned": 0, "mutators": [],
 		"yards": S.yards(), "wallets": [], "tokens": [], "boost": [], "opening": {}, "raid": -1,
 		"garrison": S.garrison(), "guard": loadouts.size(), "gbrain": Bot.create_brain(seed + 99), "buys": 0, "kills": 0,
+		"director": {"on": true, "dial": 0.0, "strain": 0.0, "scores": [], "pressure": 0.0, "sum": 0.0, "samples": 0, "hist": [],
+			"easy": 0, "hard": 0, "top": false, "pity": false, "tactic": "straight", "scored": 0, "log": {}},
 	}
 	state.siege.tiers = []
 	state.siege.recall = []
@@ -258,6 +279,7 @@ static func step(state, inputs: Array):
 		for j in range(i + 1, live.size()):
 			Sim.separate(live[i], live[j])
 	settle(state, sg)
+	sense(state, sg)
 	direct(state, sg)
 	return state
 
@@ -807,18 +829,29 @@ static func spawn(state, kind: String, lane: int, side: float, mk := 1, at := {}
 	return e
 
 
+static func spot(kind: String, lane: int, side: float, at := {}) -> Dictionary:
+	var k: Dictionary = BOTS[kind]
+	if not at.is_empty():
+		return at
+	if k.get("fly", false):
+		return {"x": S.AIR[lane][0] + side * 0.6, "y": S.AIR[lane][1] - side * 0.6}
+	if k.get("vent", false):
+		return S.at(lane, S.VENTS[0] + side * 0.6, (1.0 if side >= 0 else -1.0) * (S.LANE_W / 2.0 - k.r - 0.1))
+	return S.at(lane, S.SPAWN, side)
+
+
+static func crowded(state, sg: Dictionary, p: Dictionary) -> bool:
+	for i in sg.team:
+		var m = state.mechs[i]
+		if not m.ko and Sim.hypot(m.x - p.x, m.y - p.y) < DIRECTOR.near:
+			return true
+	return false
+
+
 static func body(state, kind: String, lane: int, side: float, mk: int, at := {}, team := 1) -> Dictionary:
 	var sg: Dictionary = state.siege
 	var k: Dictionary = BOTS[kind]
-	var p: Dictionary
-	if not at.is_empty():
-		p = at
-	elif k.get("fly", false):
-		p = {"x": S.AIR[lane][0] + side * 0.6, "y": S.AIR[lane][1] - side * 0.6}
-	elif k.get("vent", false):
-		p = S.at(lane, S.VENTS[0] + side * 0.6, (1.0 if side >= 0 else -1.0) * (S.LANE_W / 2.0 - k.r - 0.1))
-	else:
-		p = S.at(lane, S.SPAWN, side)
+	var p := spot(kind, lane, side, at)
 	var slot: int = state.mechs.size()
 	for i in range(sg.team, state.mechs.size()):
 		if state.mechs[i].get("gone", false):
@@ -962,27 +995,45 @@ static func direct(state, sg: Dictionary) -> void:
 			w.live = true
 			w.next_in = RUN.cap
 			sg.earned = 0
+			sg.director.sum = 0.0
+			sg.director.samples = 0
 			refill(state, sg, w.n)
 			for pd in sg.pads:
 				if pd.module == "mine":
 					arm(state, pd)
 	var queue := []
 	for q in sg.queue:
-		if q.at <= state.tick and q.get("raid", -1) >= 0:
-			var at := S.yard_at(q.raid, YARD.raidAt[0] + q.side, YARD.raidAt[1])
-			var e := spawn(state, q.kind, q.lane, q.side, q.get("mk", 1), at)
+		if q.at > state.tick:
+			queue.append(q)
+			continue
+		if q.has("fx"):
+			state.fx.append(q.fx.duplicate())
+			if q.fx.k == "warn":
+				w.lanes_open[q.fx.lane] = true
+			continue
+		var at := {} if q.get("raid", -1) < 0 else S.yard_at(q.raid, YARD.raidAt[0] + q.side, YARD.raidAt[1])
+		if BOTS[q.kind].get("vent", false) and crowded(state, sg, spot(q.kind, q.lane, q.side, at)):
+			q.side = -q.side if q.side != 0.0 else -0.01
+		if crowded(state, sg, spot(q.kind, q.lane, q.side, at)):
+			q.at = state.tick + DIRECTOR.retry
+			queue.append(q)
+			continue
+		var e := spawn(state, q.kind, q.lane, q.side, q.get("mk", 1), at)
+		if q.get("raid", -1) >= 0:
 			for r in sg.enemies:
 				if r.kind == q.kind and r.id > e.id - BOTS[q.kind].get("pack", 1):
 					r.raid = q.raid
-		elif q.at <= state.tick:
-			spawn(state, q.kind, q.lane, q.side, q.get("mk", 1))
-		else:
-			queue.append(q)
 	sg.queue = queue
 	if w.live and queue.is_empty() and sg.enemies.filter(func(e): return e.act != "die" and not e.neutral).is_empty() and w.next_in > RUN.warn:
 		w.live = false
 		w.lanes_open = [false, false, false, false]
-		w.next_in = mini(w.next_in, RUN.build if w.n < RUN.late else RUN.buildLate)
+		var rest := 0
+		if sg.director.on and w.n > DIRECTOR.teach and beat(w.n).id == "breather":
+			rest = DIRECTOR.rest
+			state.fx.append({"k": "tactic", "id": "breather", "lanes": [], "t": DIRECTOR.call})
+		if sg.director.scored < w.n:
+			score(sg, w.n, RUN.cap - w.next_in)
+		w.next_in = mini(w.next_in, (RUN.build if w.n < RUN.late else RUN.buildLate) + rest)
 		if w.n in MILESTONES:
 			state.fx.append({"k": "milestone", "n": w.n, "t": 60})
 		var c: Dictionary = sg.core
@@ -1007,18 +1058,138 @@ static func cost(squad: String) -> int:
 	return c
 
 
+static func beat(n: int) -> Dictionary:
+	return BEAT[(n - 1) % BEAT.size()]
+
+
+static func aim_for(n: int) -> float:
+	return minf(DIRECTOR.cap, beat(n).target + mini(DIRECTOR.riseCap, floori(n / float(DIRECTOR.rise))))
+
+
+static func sense(state, sg: Dictionary) -> void:
+	var dr: Dictionary = sg.director
+	if not sg.wave.live:
+		dr.hist = []
+		return
+	if sg.tick % DIRECTOR.every != 0:
+		return
+	var c: Dictionary = sg.core
+	var gates: Array = sg.gates.map(func(g): return g.hp)
+	dr.hist.append({"core": c.hp, "gates": gates})
+	if dr.hist.size() > DIRECTOR.window + 1:
+		dr.hist.pop_front()
+	var old: Dictionary = dr.hist[0]
+	var core := clampf((old.core - c.hp) / (DIRECTOR.core * c.max), 0.0, 1.0)
+	var gate := 0.0
+	for i in gates.size():
+		gate = maxf(gate, (old.gates[i] - gates[i]) / (DIRECTOR.gate * sg.gates[i].max))
+	var worn := 0.0
+	var up := 0
+	for i in sg.team:
+		var m = state.mechs[i]
+		if not m.ko:
+			var top := 0.0
+			for v in m.max.values():
+				top += v
+			worn += 1.0 - Sim.total_armor(m) / maxf(1.0, top)
+			up += 1
+	var breach := 0
+	for e in sg.enemies:
+		if not e.neutral and e.act != "die" and Sim.hypot(e.x, e.y) < S.RING_OUT:
+			breach += 1
+	var w: Array = DIRECTOR.w
+	var mix: float = w[0] * core + w[1] * (worn / up if up > 0 else 1.0) + w[2] * (sg.team - up) / float(sg.team) + w[3] * minf(1.0, breach / DIRECTOR.breach) + w[4] * minf(1.0, gate)
+	dr.pressure = 100.0 * clampf(mix, 0.0, 1.0)
+	dr.sum += dr.pressure
+	dr.samples += 1
+
+
+static func score(sg: Dictionary, n: int, clear: int) -> void:
+	var dr: Dictionary = sg.director
+	var W: float = dr.sum / maxf(1.0, dr.samples)
+	if clear >= 0:
+		W -= DIRECTOR.speed * (1.0 - clear / float(RUN.cap))
+	dr.scored = n
+	dr.scores.push_front(W)
+	dr.scores.resize(mini(dr.scores.size(), DIRECTOR.weights.size()))
+	var raw := 0.0
+	var wsum := 0.0
+	for i in dr.scores.size():
+		raw += DIRECTOR.weights[i] * dr.scores[i]
+		wsum += DIRECTOR.weights[i]
+	raw /= wsum
+	dr.strain = raw if dr.scores.size() == 1 else clampf(raw, dr.strain - DIRECTOR.swing, dr.strain + DIRECTOR.swing)
+	var gap: float = aim_for(n) - dr.strain
+	if n > DIRECTOR.teach:
+		dr.dial = clampf(dr.dial + gap / DIRECTOR.dial, -1.0, 1.0)
+		dr.easy = dr.easy + 1 if gap > DIRECTOR.streak else 0
+		dr.hard = dr.hard + 1 if gap < -DIRECTOR.streak else 0
+		if dr.easy >= 2:
+			dr.top = true
+			dr.easy = 0
+		if dr.hard >= 2:
+			dr.pity = true
+			dr.hard = 0
+	if not dr.log.has(n):
+		dr.log[n] = {"n": n}
+	dr.log[n].merge({"P": dr.sum / maxf(1.0, dr.samples), "W": W, "S": dr.strain, "D": dr.dial}, true)
+
+
+static func pick_tactic(state, sg: Dictionary, n: int, r: Dictionary, chosen: Array, pity: bool) -> String:
+	var b := beat(n)
+	var dr: Dictionary = sg.director
+	if dr.get("force", "") != "":
+		return dr.force
+	if b.id == "breather" or pity:
+		return "straight"
+	var tier: int = clampi(b.tier + (1 if dr.dial > 0.5 else 0) - (1 if dr.dial < -0.5 else 0), 0, 3)
+	if tier == 0:
+		return "straight"
+	var have: Array = r.pool + chosen
+	var ok := []
+	for id in TACTICS:
+		var tac: Dictionary = TACTICS[id]
+		if tac.tier <= tier and n >= tac.from and sg.team >= tac.team and tac.need.all(func(alt): return alt.any(func(q): return have.has(q))):
+			ok.append(id)
+	if ok.is_empty():
+		return "straight"
+	if dr.top:
+		dr.top = false
+		var hi: int = ok.map(func(id): return TACTICS[id].tier).max()
+		ok = ok.filter(func(id): return TACTICS[id].tier == hi)
+	return ok[int(floor(Sim.rng(state) * ok.size()))]
+
+
+static func quiet_lane(state, sg: Dictionary, lanes: Array) -> int:
+	var best: int = lanes[0]
+	var fewest := 1 << 30
+	for l in lanes:
+		var near := 0
+		for i in sg.team:
+			if not state.mechs[i].ko and lane_near(state.mechs[i]) == l:
+				near += 1
+		if near < fewest:
+			fewest = near
+			best = l
+	return best
+
+
 static func plan(state, sg: Dictionary, n: int) -> void:
 	var r := row(n)
-	var points := budget(n, sg.team)
+	var dr: Dictionary = sg.director
+	if sg.wave.live and dr.scored < sg.wave.n:
+		score(sg, sg.wave.n, -1)
+	var steer: bool = dr.on and n > DIRECTOR.teach
+	var pity: bool = steer and dr.pity
+	if steer:
+		dr.pity = false
+	var mult: float = beat(n).mult * (1.0 + DIRECTOR.budget * (-1.0 if pity else dr.dial)) if steer else 1.0
+	var points := budget(n, sg.team) * mult
+	var spend := points
 	var pick := [0, 1, 2, 3]
 	var lanes := []
 	while lanes.size() < r.lanes:
 		lanes.append(pick.pop_at(int(floor(Sim.rng(state) * pick.size()))))
-	var load := {}
-	var units := {}
-	for lane in lanes:
-		load[lane] = 0
-		units[lane] = []
 	if n >= MUTATE.first and (n - MUTATE.first) % MUTATE.every == 0 and sg.mutators.size() < MUTATORS.size():
 		var left: Array = MUTATORS.filter(func(x): return not sg.mutators.has(x))
 		var picked: String = left[int(floor(Sim.rng(state) * left.size()))]
@@ -1033,6 +1204,21 @@ static func plan(state, sg: Dictionary, n: int) -> void:
 		chosen.append_array(["swarmCloud", "swarmCloud"])
 	if sg.mutators.has("ironRain") and n % MUTATE.rain == 0:
 		chosen.append("barrage")
+	var id := pick_tactic(state, sg, n, r, chosen, pity) if steer else "straight"
+	var t: Dictionary = TACTICS.get(id, {})
+	for alt in t.get("need", []):
+		if not alt.any(func(q): return chosen.has(q)):
+			var opts: Array = alt.filter(func(q): return r.pool.has(q))
+			if not opts.is_empty():
+				chosen.append(opts[0])
+				points -= cost(opts[0])
+	if t.has("pincer"):
+		var pair := int(floor(Sim.rng(state) * 2))
+		lanes = [pair, pair + 2]
+	var feint := -1
+	if t.has("feint"):
+		feint = quiet_lane(state, sg, lanes)
+		lanes = [lanes.filter(func(l): return l != feint)[0], feint]
 	while true:
 		var can: Array = r.pool.filter(func(q): return cost(q) <= points)
 		if can.is_empty():
@@ -1040,15 +1226,61 @@ static func plan(state, sg: Dictionary, n: int) -> void:
 		var key: String = can[int(floor(Sim.rng(state) * can.size()))]
 		chosen.append(key)
 		points -= cost(key)
+	var load := {}
+	for lane in lanes:
+		load[lane] = 0
+	var total := 0
+	for key in chosen:
+		total += cost(key)
+	var lane_of := []
 	for key in chosen:
 		var lane = lanes[0]
-		for l in lanes:
-			if load[l] < load[lane]:
-				lane = l
+		if feint >= 0:
+			lane = lanes[0] if load[lanes[0]] < total / 4.0 else feint
+		else:
+			for l in lanes:
+				if load[l] < load[lane]:
+					lane = l
 		load[lane] += cost(key)
-		for u in SQUADS[key]:
-			for i in u[1]:
-				units[lane].append(u[0])
+		lane_of.append(lane)
+	var probe := -1
+	if t.has("probe"):
+		for i in chosen.size():
+			if t.need[0].has(chosen[i]):
+				probe = i
+				break
+	var busy: int = lanes[0]
+	for l in lanes:
+		if load[l] > load[busy]:
+			busy = l
+	var corner: int = (busy + 1) % 4 if load.get((busy + 1) % 4, 0) >= load.get((busy + 3) % 4, 0) else busy
+	var groups := []
+	for i in chosen.size():
+		var d := 0
+		if t.has("vent") and chosen[i] == "ambush":
+			d = t.vent
+		elif lane_of[i] == feint:
+			d = t.feint
+		elif probe >= 0 and i != probe and lane_of[i] == lane_of[probe]:
+			d = t.probe
+		for u in SQUADS[chosen[i]]:
+			for j in u[1]:
+				var kind: String = u[0]
+				var g := {"warn": lane_of[i], "lane": lane_of[i], "d": d}
+				if t.has("air") and BOTS[kind].get("fly", false):
+					g = {"warn": busy, "lane": corner, "d": t.air}
+				if t.has("siege"):
+					g.d = 0 if kind in RANGED else t.siege
+				var found = null
+				for h in groups:
+					if h.warn == g.warn and h.lane == g.lane and h.d == g.d:
+						found = h
+						break
+				if found == null:
+					g.list = []
+					groups.append(g)
+					found = g
+				found.list.append(kind)
 	var mk: int = r.get("mk", 1)
 	var start: int = state.tick + RUN.warn
 	if n >= YARD.raidFrom:
@@ -1061,26 +1293,39 @@ static func plan(state, sg: Dictionary, n: int) -> void:
 					at += RUN.gap
 		state.fx.append({"k": "raid", "q": q, "t": RUN.warn})
 	for lane in lanes:
-		if units[lane].is_empty():
-			continue
-		sg.wave.lanes_open[lane] = true
-		var list: Array = units[lane]
-		list.sort_custom(func(a, b): return (0 if a in TANKS else (2 if a in RANGED else 1)) < (0 if b in TANKS else (2 if b in RANGED else 1)))
-		var top: String = list[0]
-		for kind in list:
-			if BOTS[kind].cost > BOTS[top].cost:
-				top = kind
-		state.fx.append({"k": "warn", "lane": lane, "kind": top, "n": list.size(), "boss": r.get("boss", false), "t": RUN.warn})
-		var at := start
-		var late := start + RUN.ranged
-		for kind in list:
-			var side := (Sim.rng(state) - 0.5) * 6.0
-			if kind in RANGED:
-				sg.queue.append({"at": late, "kind": kind, "lane": lane, "side": side, "mk": mk})
-				late += RUN.gap
+		for g in groups:
+			if g.warn != lane:
+				continue
+			var list: Array = g.list
+			list.sort_custom(func(a, b): return (0 if a in TANKS else (2 if a in RANGED else 1)) < (0 if b in TANKS else (2 if b in RANGED else 1)))
+			var top: String = list[0]
+			for kind in list:
+				if BOTS[kind].cost > BOTS[top].cost:
+					top = kind
+			var warn := {"k": "warn", "lane": lane, "kind": top, "n": list.size(), "boss": r.get("boss", false), "t": RUN.warn}
+			if g.d == 0:
+				sg.wave.lanes_open[lane] = true
+				state.fx.append(warn)
 			else:
-				sg.queue.append({"at": at, "kind": kind, "lane": lane, "side": side, "mk": mk})
-				at += RUN.gap
+				sg.queue.append({"at": start + g.d - RUN.warn, "fx": warn})
+			var at: int = start + g.d
+			var w: int = at - RUN.warn
+			var late: int = at + (0 if t.has("siege") else RUN.ranged)
+			for kind in list:
+				var side := (Sim.rng(state) - 0.5) * 6.0
+				if kind in RANGED:
+					sg.queue.append({"at": late, "kind": kind, "lane": g.lane, "side": side, "mk": mk, "w": w})
+					late += RUN.gap
+				else:
+					sg.queue.append({"at": at, "kind": kind, "lane": g.lane, "side": side, "mk": mk, "w": w})
+					at += RUN.gap
+	if id != "straight":
+		var fx := {"k": "tactic", "id": id, "lanes": [feint] if feint >= 0 else lanes.duplicate(), "t": DIRECTOR.call}
+		if t.has("air"):
+			fx.corner = corner
+		sg.queue.append({"at": start + t.call, "fx": fx})
+	dr.tactic = id
+	dr.log[n] = {"n": n, "beat": beat(n).id, "target": aim_for(n), "tactic": id, "budget": snappedf(spend, 0.1)}
 
 
 static func call_wave(state, sg: Dictionary) -> void:

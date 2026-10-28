@@ -2,6 +2,7 @@ extends RefCounted
 
 const Sim = preload("res://src/sim.gd")
 
+const SKILL := {"skilled": {"aimError": 0.3, "reaction": 0.15, "dodge": 0.5}, "average": {"aimError": 0.9, "reaction": 0.3, "dodge": 0.25}, "weak": {"aimError": 1.6, "reaction": 0.5, "dodge": 0.1}}
 const BOT := {"aimError": 0.9, "guard": 0.35, "dodge": 0.25, "reaction": 0.3, "jukeMin": 18, "jukeMax": 70, "close": [1.6, 2.6], "heatCap": 82, "rhythm": 18, "healAt": 0.6, "grab": 14, "stick": 1.3}
 
 
@@ -70,13 +71,13 @@ static func pick(state, brain, m):
 	return m
 
 
-static func incoming(state, m):
+static func incoming(state, m, react: float = BOT.reaction):
 	var best = null
 	for s in state.shots:
 		if ally(state, m, s.owner):
 			continue
 		var t: float = ((m.x - s.x) * s.vx + (m.y - s.y) * s.vy) / float(s.vx * s.vx + s.vy * s.vy)
-		if t <= 0 or t > BOT.reaction:
+		if t <= 0 or t > react:
 			continue
 		var miss := Sim.hypot(s.x + s.vx * t - m.x, s.y + s.vy * t - m.y)
 		if miss < Sim.MECH_R + s.r + 0.35 and (best == null or t < best.t):
@@ -276,11 +277,11 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 	var uy := dy / d
 	var px := -uy
 	var py := ux
-	var threat = incoming(state, m)
+	var threat = incoming(state, m, brain.get("reaction", BOT.reaction))
 	if threat != null and threat.s.cast != brain.threat:
 		brain.threat = threat.s.cast
 		brain.guardRoll = Sim.rng(brain) < BOT.guard
-		brain.dodgeRoll = Sim.rng(brain) < BOT.dodge
+		brain.dodgeRoll = Sim.rng(brain) < brain.get("dodge", BOT.dodge)
 	var veiled := Sim.hidden(state, o)
 	var sight: bool = not veiled and clear_line(m.x, m.y, o.x, o.y, Sim.geo(state).pillars)
 	var open: bool = (o.dashes == 0 and o.cd.dash > 40) or o.stagger > 0 or o.overheat > 0
@@ -328,7 +329,7 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 		var travel := travel_of(Sim.hypot(tx - m.x, ty - m.y), ulting, h, g)
 		tx = o.x + o.vx * travel
 		ty = o.y + o.vy * travel
-	var err: float = (Sim.rng(brain) - 0.5) * 2 * BOT.aimError * (4 if veiled else 1)
+	var err: float = (Sim.rng(brain) - 0.5) * 2 * brain.get("aimError", BOT.aimError) * (4 if veiled else 1)
 	inp.ax = tx + px * err
 	inp.ay = ty + py * err
 

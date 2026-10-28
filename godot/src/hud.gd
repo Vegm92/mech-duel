@@ -298,7 +298,7 @@ func siege_top(size: Vector2) -> void:
 	var r := Rect2(size.x / 2.0 - 150, 12, 300, 76)
 	plate(r)
 	label(tr("siegeWave").format({"n": w.n if w.live else w.n + 1}), Vector2(r.position.x, r.position.y + 32), 28, TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
-	var left: int = sg.enemies.filter(func(e): return e.act != "die" and not e.get("neutral", false)).size() + sg.queue.size()
+	var left: int = sg.enemies.filter(func(e): return e.act != "die" and not e.get("neutral", false)).size() + sg.queue.filter(func(q): return q.has("kind")).size()
 	var sub: String = tr("siegeLeft").format({"n": left}) if w.live or w.next_in > 36000 else tr("siegeNext").format({"s": int(ceil(w.next_in / float(Sim.TICKS)))})
 	label(sub + "   " + tr("siegeFund").format({"n": sg.fund}) + "   " + tr("siegeWallet").format({"n": sg.wallets[0]}) + ("   " + tr("siegeTokens").format({"n": sg.tokens[0]}) if sg.tokens[0] > 0 else ""), Vector2(r.position.x, r.position.y + 50), 13, DIM, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 	var c: Dictionary = sg.core
@@ -474,6 +474,14 @@ func siege_calls(size: Vector2) -> void:
 				text = tr("siegeMutator").format({"name": tr("mut_" + f.id)})
 				sub = tr("mutd_" + f.id)
 				c = SURGE_C
+			"tactic":
+				var names: Array = f.lanes.map(func(l): return Siege.S.LANES[l].name)
+				var air: Array = Siege.S.AIR[f.get("corner", 0)]
+				var yard: Array = Siege.S.QUADS.filter(func(q): return q.sx == signi(int(air[0])) and q.sy == signi(int(air[1])))
+				var parts: PackedStringArray = tr("dir_" + f.id).format({"a": names[0] if names.size() > 0 else "", "b": names[1] if names.size() > 1 else "", "lane": names[0] if names.size() > 0 else "", "corner": yard[0].name}).split("|")
+				text = parts[0]
+				sub = parts[1] if parts.size() > 1 else ""
+				c = WIRE if f.id == "breather" else HEAT_C
 			"warn":
 				if f.boss:
 					text = tr("siegeBoss")
