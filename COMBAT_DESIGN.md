@@ -635,13 +635,13 @@ Heads do not pick the R skill (the core does). R charge multiplies every Surge g
 | Furnace Core | Standard | Lance | 36t | aimed laser lance at the head. Hotter = stronger. | heat damage bonus from 45 heat instead of 60 |
 | Coolant Core | Standard | Stasis | 12t | field at the cursor. Hurts, then slows and blocks dashes inside. | skills make 40% less heat, cools twice as fast |
 | Surge Reactor | Standard | Overdrive | 6t | 9 s of double-speed cooldowns and no heat. | R meter fills 80% faster, starts at 60 |
-| Leech Core | Standard | Repair | 18t | repairs every part and clears your heat. | 12% of damage dealt repairs your weakest part |
+| Leech Core | Standard | Repair | 18t | repairs every part and clears your heat. | 8% of damage dealt repairs your weakest part |
 | Titan Core | Heavy | Mines | 14t | drops a ring of 6 mines around you. | +18% armor, 8% slower |
 | Volt Core | Light | EMP | 24t | pulse around you. Hurts and locks their skills for 2 s. | dash recharges twice as fast, 30% farther, dumps heat |
 | Fury Core | Standard | Berserk | 6t | 6 s of harder, faster melee and more speed. | up to +50% damage as your head gets low |
 | Flywheel Core | Light | Swarm | 12t | 8 homing missiles in a fan. | up to +20% damage at full speed |
 | Aegis Core | Heavy | Bubble | 6t | bubble that soaks the next 180 damage for 4 s. | shield recharges twice as fast, holds 260, +5% armor |
-| Glass Core | Light | Orbital | 10t | huge strike at the cursor after a short delay. | +30% damage, -20% armor |
+| Glass Core | Light | Orbital | 10t | huge strike at the cursor after a short delay. | +15% damage, -20% armor |
 | Phantom Core | Light | Blink | 6t | teleport to the cursor (9 m); the afterimage explodes 0.6 s later (2.2 m, 70) | after-dash power move lasts twice as long |
 | Gravity Core | Standard | Gravity Well | 12t | field at the cursor (5 m, 4 s): 40 dmg, pulls 4 m/s toward the center | hook reaches 40% farther |
 | Bastion Core | Heavy | Bastion | 8t | 4 m wall 2.5 m ahead blocks every shot and beam for 4 s | shield holds 210, +8% armor |

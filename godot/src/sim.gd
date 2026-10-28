@@ -133,13 +133,13 @@ const CORES := {
 	"furnace": {"series": "standard", "ult": "lance", "hotAt": 45},
 	"coolant": {"series": "standard", "ult": "stasis", "vent": 2, "heatGain": 0.6},
 	"reactor": {"series": "standard", "ult": "overdrive", "surgeGain": 1.8, "surgeStart": 60},
-	"leech": {"series": "standard", "ult": "repair", "leech": 0.12},
+	"leech": {"series": "standard", "ult": "repair", "leech": 0.08},
 	"titan": {"series": "heavy", "ult": "mines", "armor": 1.18, "speed": 0.92},
 	"volt": {"series": "light", "ult": "emp", "dashCd": 0.45, "dashVentAll": true, "dashDist": 1.3},
 	"fury": {"series": "standard", "ult": "berserk", "fury": 0.5},
 	"flywheel": {"series": "light", "ult": "swarm", "momentum": 0.2},
 	"aegis": {"series": "heavy", "ult": "bubble", "shieldCd": 0.5, "absorb": 260, "armor": 1.05},
-	"glass": {"series": "light", "ult": "orbital", "dmg": 1.3, "armor": 0.8},
+	"glass": {"series": "light", "ult": "orbital", "dmg": 1.15, "armor": 0.8},
 	"phantom": {"series": "light", "ult": "blink", "afterburn": 2},
 	"gravity": {"series": "standard", "ult": "well", "hookRange": 1.4},
 	"bastion": {"series": "heavy", "ult": "wall", "absorb": 210, "armor": 1.08},
@@ -163,6 +163,12 @@ const SETS := {
 	"tank": {"head": "medic", "core": "aegis", "arms": "anvil", "legs": "stompers", "booster": "rocket", "left": "scatter", "right": "hammer"},
 	"speedster": {"head": "crest", "core": "volt", "arms": "wire", "legs": "wheels", "booster": "flicker", "left": "gatling", "right": "saw"},
 	"artillery": {"head": "antenna", "core": "coolant", "arms": "bulwark", "legs": "treads", "booster": "thruster", "left": "mortar", "right": "missiles"},
+	"assassin": {"head": "crest", "core": "phantom", "arms": "reed", "legs": "skates", "booster": "wisp", "left": "katana", "right": "whip"},
+	"pyro": {"head": "pincer", "core": "meltdown", "arms": "brace", "legs": "spider", "booster": "thruster", "left": "flamer", "right": "flail"},
+	"controller": {"head": "dish", "core": "gravity", "arms": "frame", "legs": "mono", "booster": "comet", "left": "tesla", "right": "ricochet"},
+	"vampire": {"head": "dispenser", "core": "leech", "arms": "reed", "legs": "hover", "booster": "twin", "left": "ricochet", "right": "claws"},
+	"reflector": {"head": "orb", "core": "mirror", "arms": "bulwark", "legs": "treads", "booster": "twin", "left": "bash", "right": "bunker"},
+	"glasscannon": {"head": "visor", "core": "glass", "arms": "wire", "legs": "jets", "booster": "flicker", "left": "rivet", "right": "mortar"},
 }
 const DASH := {"ticks": 10, "endLag": 6, "slide": 0.4, "vent": 25, "afterburn": 48, "feintRefund": 0.7}
 const TRAILS := {
