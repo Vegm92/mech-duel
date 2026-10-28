@@ -191,11 +191,14 @@ top of every wave), Hive (Swarm Clouds cost half), Iron Rain (a Quad Heavy on to
 
 ## 8. Players and progression (tune later)
 
-- Team: you + 0–3 AI teammates (garage picks the team size), all on team 0. AI teammates run
-  `bot.gd` against the nearest bot and come back to the core when it is hit.
+- Team: you + 0–3 AI teammates (`--team`, garage picker later; default 2), all on team 0. AI
+  teammates run `bot.gd`, hold the open lanes' posts, fall back to the core when a bot gets inside,
+  stand by the core to repair it between waves, and buy only core rings and gate fixes.
 - A K.O.'d mech respawns at the core after 8 s + 0.5 s per wave.
-- **Salvage hooks:** clearing wave 10, 20 and 30 opens the claim screen (`claim.gd`) with a part
-  pool drawn from the bot kinds of that boss wave. Best wave is saved in `user://progress.cfg`.
+- **Salvage hooks:** clearing wave 10, 20 and 30 opens the claim screen (`claim.gd`) with the parts
+  of one ready-made set (wave 10 Tank, 20 Artillery, 30 Reflector) you do not own at max level.
+  Best wave is saved in `user://progress.cfg`.
+- **Entry:** the garage has a CORE SIEGE button next to FIGHT.
 - **Endless** from wave 31: Mk 3 bots, mutators, the score is the wave number.
 - **Later, not built:** a second local player (second pad, split input in `main.gd`, a shared
   camera that frames both, a second HUD panel) and netcode (lockstep fits: the sim is already

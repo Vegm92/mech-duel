@@ -133,6 +133,8 @@ const RECIPES := {
 	"call": [{"bank": "launch", "vol": 0.35, "rate": 0.9, "dur": 0.6}, {"synth": {"wave": "square", "f": 440.0, "dur": 0.15, "filter": ["lowpass", 2000.0, 0.0, 1.0]}, "vol": 0.04}],
 	"build": [{"bank": "clank", "vol": 0.5}, {"bank": "plate", "vol": 0.35, "at": 0.1}],
 	"laserWarn": [{"bank": "whine", "vol": 0.12, "rate": 1.6, "dur": 0.9}],
+	"milestone": [{"bank": "launch", "vol": 0.3, "rate": 1.2, "dur": 0.5}, {"synth": {"wave": "sine", "f": 1047.0, "dur": 0.4}, "vol": 0.05, "at": 0.1}, {"synth": {"wave": "sine", "f": 1319.0, "dur": 0.5}, "vol": 0.05, "at": 0.25}],
+	"mutator": [{"bank": "whine", "vol": 0.2, "rate": 0.6, "dur": 1.2}, {"bank": "rumble", "vol": 0.4, "dur": 0.8}],
 	"laneLaser": [{"bank": "laser", "vol": 0.55, "rate": 0.7}, {"bank": "zap", "vol": 0.3, "rate": 0.6}],
 	"ui_hover": [{"synth": {"wave": "square", "f": 600.0, "to": 900.0, "a": 0.003, "dur": 0.035, "filter": ["bandpass", 1800.0, 0.0, 3.0]}, "vol": 0.03}],
 	"ui_tab": [{"synth": {"wave": "noise", "a": 0.028, "dur": 0.08, "filter": ["bandpass", 2500.0, 6000.0, 1.4]}, "vol": 0.05},

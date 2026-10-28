@@ -48,6 +48,9 @@ const WAVES := [
 const LATE := {"lanes": 4, "pool": ["raiders", "ambush", "firebase", "airWing", "lineBreakers", "ram", "sniperNest", "shieldWall", "barrage", "titanPush"], "mk": 2}
 const LAST := {"lanes": 4, "pool": [], "must": ["titanPush", "shieldWall", "shieldWall", "airWing", "barrage", "sniperNest", "ram", "lineBreakers", "ambush", "swarmCloud", "raiders"], "mk": 2, "boss": true}
 const ENDLESS := {"lanes": 4, "pool": ["raiders", "ambush", "firebase", "airWing", "lineBreakers", "ram", "sniperNest", "shieldWall", "barrage", "titanPush"], "mk": 3}
+const MILESTONES := [10, 20, 30]
+const MUTATORS := ["overclock", "plated", "volatile", "airRaid", "hive", "ironRain"]
+const MUTATE := {"first": 31, "every": 5, "speed": 1.15, "hp": 1.3, "boom": {"dmg": 30, "r": 2.0}, "rain": 3}
 const TANKS := ["heavy", "jugg", "walker"]
 const RANGED := ["turret", "tripod", "quadheavy"]
 const MK := [{"hp": 1.0, "dmg": 1.0, "speed": 1.0}, {"hp": 1.5, "dmg": 1.25, "speed": 1.0}, {"hp": 2.2, "dmg": 1.5, "speed": 1.1}]
@@ -131,7 +134,7 @@ static func create(loadouts: Array, seed := 1) -> Dictionary:
 	state.siege = {
 		"tick": 0, "wave": {"n": 0, "next_in": RUN.first, "lanes_open": [false, false, false, false], "live": false},
 		"core": core, "gates": gates, "pads": S.pads(), "enemies": [], "queue": [], "scrap": 0, "next": 0,
-		"lost": false, "down": {}, "calm": {}, "was": {}, "team": loadouts.size(), "earned": 0,
+		"lost": false, "down": {}, "calm": {}, "was": {}, "team": loadouts.size(), "earned": 0, "mutators": [],
 	}
 	state.geo = geo_of(state.siege)
 	return state
@@ -607,13 +610,14 @@ static func body(state, kind: String, lane: int, side: float, mk: int) -> Dictio
 	var rows := {}
 	for s in Sim.DEFAULT_LOADOUT:
 		rows[s] = Sim.CATALOG[s][Sim.DEFAULT_LOADOUT[s]]
-	rows.legs = rows.legs.merged({"top": k.speed * MK[mk - 1].speed / Sim.MOVE.jammed, "poise": k.poise}, true)
+	var fast: float = MUTATE.speed if sg.mutators.has("overclock") else 1.0
+	rows.legs = rows.legs.merged({"top": k.speed * MK[mk - 1].speed * fast / Sim.MOVE.jammed, "poise": k.poise}, true)
 	b.rows = rows
 	b.bot = kind
 	b.r = k.r
 	if k.get("fly", false):
 		b.fly = true
-	var hp: float = floor(k.hp * MK[mk - 1].hp)
+	var hp: float = floor(k.hp * MK[mk - 1].hp * (MUTATE.hp if sg.mutators.has("plated") else 1.0))
 	b.armor = {"head": hp, "rarm": 0, "larm": 0, "legs": 0}
 	b.max = b.armor.duplicate()
 	if slot == state.mechs.size():
@@ -637,6 +641,9 @@ static func settle(state, sg: Dictionary) -> void:
 			b.vx = 0.0
 			b.vy = 0.0
 			e.prey = -1
+			if sg.mutators.has("volatile") and not e.blown:
+				blow(state, sg, e, b, {"boom": MUTATE.boom})
+				e.blown = false
 			if not e.blown:
 				var gain := int(ceil(BOTS[e.kind].cost * RUN.scrap / float(BOTS[e.kind].get("pack", 1))))
 				sg.scrap += gain
@@ -736,6 +743,8 @@ static func direct(state, sg: Dictionary) -> void:
 		w.live = false
 		w.lanes_open = [false, false, false, false]
 		w.next_in = mini(w.next_in, RUN.build if w.n < RUN.late else RUN.buildLate)
+		if w.n in MILESTONES:
+			state.fx.append({"k": "milestone", "n": w.n, "t": 60})
 		var c: Dictionary = sg.core
 		if c.hp >= c.max * 0.75:
 			var bonus := int(floor(sg.earned * RUN.clear))
@@ -770,9 +779,20 @@ static func plan(state, sg: Dictionary, n: int) -> void:
 	for lane in lanes:
 		load[lane] = 0
 		units[lane] = []
+	if n >= MUTATE.first and (n - MUTATE.first) % MUTATE.every == 0 and sg.mutators.size() < MUTATORS.size():
+		var left: Array = MUTATORS.filter(func(x): return not sg.mutators.has(x))
+		var picked: String = left[int(floor(Sim.rng(state) * left.size()))]
+		sg.mutators.append(picked)
+		state.fx.append({"k": "mutator", "id": picked, "t": 150})
 	var chosen: Array = r.get("must", []).duplicate()
 	for key in chosen:
 		points -= cost(key)
+	if sg.mutators.has("airRaid"):
+		chosen.append("airWing")
+	if sg.mutators.has("hive"):
+		chosen.append_array(["swarmCloud", "swarmCloud"])
+	if sg.mutators.has("ironRain") and n % MUTATE.rain == 0:
+		chosen.append("barrage")
 	while true:
 		var can: Array = r.pool.filter(func(q): return cost(q) <= points)
 		if can.is_empty():

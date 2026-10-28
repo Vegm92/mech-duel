@@ -195,20 +195,11 @@ func _ready() -> void:
 	cam.far = 400.0
 	cam.rotation = Vector3(-PITCH, 0, 0)
 	add_child(cam)
-	view = View.new()
-	add_child(view)
 	add_child(crowd_sound)
 	add_child(sfx)
-	view.build(siege)
-	if siege:
-		siege_view = SiegeView.new()
-		add_child(siege_view)
-		siege_view.build()
-		siege_bots = load("res://src/siege_bots.gd").new()
-		add_child(siege_bots)
 	hud = Hud.new()
-	hud.view = view
 	add_child(hud)
+	make_view()
 	loadout = flag_loadout()
 	garage = Garage.new()
 	garage.progress = progress
@@ -218,6 +209,7 @@ func _ready() -> void:
 	claim.picked.connect(claimed)
 	claim.ui.connect(sfx.ui)
 	garage.fight.connect(start)
+	garage.siege.connect(start.bind(true))
 	hud.resume.connect(resume)
 	hud.restart.connect(new_match)
 	hud.quit.connect(to_garage)
@@ -232,6 +224,25 @@ func _ready() -> void:
 		new_match()
 		if claim_arg:
 			claim.open(progress.pool(["larm", "legs"], rival_lo, true), rival_key, progress.tier(rival_key), progress)
+
+
+func make_view() -> void:
+	for n in [view, siege_view, siege_bots]:
+		if n != null:
+			n.queue_free()
+	siege_view = null
+	siege_bots = null
+	view = View.new()
+	add_child(view)
+	view.build(siege)
+	if siege:
+		siege_view = SiegeView.new()
+		add_child(siege_view)
+		siege_view.build()
+		siege_bots = load("res://src/siege_bots.gd").new()
+		add_child(siege_bots)
+	hud.view = view
+	view.visible = not garage.visible if garage != null else true
 
 
 func flag_loadout() -> Dictionary:
@@ -288,7 +299,10 @@ func to_garage() -> void:
 		take_shot()
 
 
-func start(lo: Dictionary) -> void:
+func start(lo: Dictionary, mode := false) -> void:
+	if mode != siege:
+		siege = mode
+		make_view()
 	loadout = lo
 	if not autopilot and shot_path == "":
 		save_loadout()
@@ -508,7 +522,7 @@ func _notification(what: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if garage.visible:
+	if garage.visible or claim.visible:
 		return
 	aim = aim_point()
 	var held := stop > 0
@@ -595,6 +609,17 @@ func _physics_process(delta: float) -> void:
 
 func track() -> void:
 	if siege:
+		for f in view.fresh_fx:
+			if f.k == "milestone" and not progress.unlock_all:
+				var drops := progress.spoils(f.n)
+				if not drops.is_empty():
+					Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+					claim.open(drops, Progress.SIEGE_SPOILS[f.n], f.n / 10, progress)
+		if state.phase == "over" and not settled:
+			settled = true
+			if not progress.unlock_all and progress.held(maxi(0, state.siege.wave.n - 1)):
+				progress.save_file()
+		hud.best = progress.best
 		return
 	for f in view.fresh_fx:
 		if f.k == "break" and f.id == 1 and not broke.has(f.part):
@@ -619,6 +644,11 @@ func settle() -> void:
 
 
 func claimed(slot: String, key: String) -> void:
+	if siege:
+		progress.claim(slot, key)
+		progress.save_file()
+		Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+		return
 	progress.claim(slot, key)
 	progress.win(rival_key)
 	progress.save_file()

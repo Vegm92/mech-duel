@@ -185,7 +185,8 @@ $P = "$R\godot"
   claim screen for the first rival; look check). Not built: stakes, coop, PvP, the nemesis.
 - **Core Siege** (Victor 2026-10-28; spec `CORE_SIEGE_DESIGN.md`, who edits what
   `CORE_SIEGE_SPLIT.md`): co-op wave defense, up to 4 mechs (you + `bot.gd` allies) hold a Reactor
-  Core against orange bots on 4 lanes. `--siege` (garage FIGHT then starts a siege run),
+  Core against orange bots on 4 lanes. The garage's CORE SIEGE button starts a run (`start(lo,
+  true)`; `make_view` rebuilds the view when the mode changes), `--siege` starts look checks in it,
   `--team=1..4`, `--wave=<n>` (dev: start at wave n). Sim: `siege.gd` (`create`, `step`, wave
   director `direct`/`plan`, bot AI `drive`, core rings + repair + respawn in `settle`) on top of
   `sim.gd`; constants and the view contract in `siege_state.gd`; the views read only
@@ -211,8 +212,11 @@ $P = "$R\godot"
   AI allies hold lane posts, fall back to the core when a bot gets inside, repair it between
   waves and buy only rings and gate fixes. HUD: wave plate, shop, warning markers over gates
   (edge arrow off screen), red arrows to gates or the core under attack. `--modules` builds one
-  of each on the north lane. Not built yet: progression, endless mutators, gamepad shop, VS
-  (design only).
+  of each on the north lane. Progression: clearing wave 10, 20, 30 (`milestone` fx) opens the
+  claim screen with a full set (`Progress.SIEGE_SPOILS`: tank, artillery, reflector); the best
+  wave held is `progress.best` (`[siege] best` in `user://progress.cfg`). Endless from 31: `ENDLESS`
+  row (Mk 3) and one more `MUTATORS` pick every 5 waves (`MUTATE`). Not built yet: gamepad shop,
+  a second local player, netcode, VS (design only).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

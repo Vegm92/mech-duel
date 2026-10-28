@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 signal fight(lo: Dictionary)
+signal siege(lo: Dictionary)
 signal ui(kind: String)
 
 const Sim = preload("res://src/sim.gd")
@@ -255,9 +256,10 @@ func build_right() -> void:
 	about_title = text(ab, "", Vector2(14, 8), 15, HI, RW - 28, true)
 	about_desc = para(ab, "", Rect2(14, 34, RW - 28, 68), 12, DIM, 4)
 	about_skill = para(ab, "", Rect2(14, 106, RW - 28, 48), 12, SKILL, 3)
+	var sw := 132.0
 	var f := Button.new()
 	f.position = Vector2(RX, 646)
-	f.size = Vector2(RW, 54)
+	f.size = Vector2(RW - sw - 8, 54)
 	f.focus_mode = Control.FOCUS_NONE
 	f.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var glow := Color(1.0, 0.48, 0.18, 0.9)
@@ -267,7 +269,19 @@ func build_right() -> void:
 	f.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	f.pressed.connect(go)
 	root.add_child(f)
-	text(f, tr("fightBtn"), Vector2.ZERO, 20, Color("1a0d05"), RW, true, HORIZONTAL_ALIGNMENT_CENTER, 54)
+	text(f, tr("fightBtn"), Vector2.ZERO, 20, Color("1a0d05"), f.size.x, true, HORIZONTAL_ALIGNMENT_CENTER, 54)
+	var sb := Button.new()
+	sb.position = Vector2(RX + RW - sw, 646)
+	sb.size = Vector2(sw, 54)
+	sb.focus_mode = Control.FOCUS_NONE
+	sb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	sb.add_theme_stylebox_override("normal", plate(PANEL, Color("ffd2a8"), 2, 12))
+	for s in ["hover", "pressed", "hover_pressed"]:
+		sb.add_theme_stylebox_override(s, plate(Color(0.16, 0.12, 0.1), Color("ffd2a8"), 2, 12))
+	sb.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	sb.pressed.connect(go_siege)
+	root.add_child(sb)
+	text(sb, tr("siegeBtn"), Vector2.ZERO, 16, Color("ffd2a8"), sw, true, HORIZONTAL_ALIGNMENT_CENTER, 54)
 
 
 func refresh() -> void:
@@ -381,6 +395,11 @@ func select_tab(i: int) -> void:
 func go() -> void:
 	ui.emit("start")
 	fight.emit(loadout.duplicate())
+
+
+func go_siege() -> void:
+	ui.emit("start")
+	siege.emit(loadout.duplicate())
 
 
 func point() -> void:

@@ -4,8 +4,9 @@ const Sim = preload("res://src/sim.gd")
 const Bot = preload("res://src/bot.gd")
 const Siege = preload("res://src/siege.gd")
 const S = preload("res://src/siege_state.gd")
+const Progress = preload("res://src/progress.gd")
 
-const GOLDEN := 3746397881
+const GOLDEN := 1159210972
 
 var failed := 0
 var filter := ""
@@ -51,6 +52,10 @@ func _init() -> void:
 	run("rail_post_fires_where_the_player_aims", test_rail_post_fires_where_the_player_aims)
 	run("calling_the_wave_early_pays_scrap", test_calling_the_wave_early_pays_scrap)
 	run("clean_wave_pays_a_bonus", test_clean_wave_pays_a_bonus)
+	run("clearing_wave_ten_offers_salvage", test_clearing_wave_ten_offers_salvage)
+	run("best_wave_is_saved_and_loaded", test_best_wave_is_saved_and_loaded)
+	run("endless_waves_are_mk3_with_a_new_mutator_every_five", test_endless_waves_are_mk3_with_a_new_mutator_every_five)
+	run("plated_mutator_gives_bots_more_armor", test_plated_mutator_gives_bots_more_armor)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -577,3 +582,54 @@ func test_clean_wave_pays_a_bonus() -> int:
 	var before: int = s.siege.scrap
 	steps(s, 2)
 	return ensure(not s.siege.wave.live, "the wave is over") or ensure(s.siege.scrap >= before + 20, "bonus paid: %d" % (s.siege.scrap - before))
+
+
+func test_clearing_wave_ten_offers_salvage() -> int:
+	var s := lab()
+	var e := Siege.spawn(s, "scout", 0, 0.0)
+	s.siege.wave.n = 9
+	s.siege.wave.next_in = 2
+	steps(s, 2)
+	s.mechs[e.m].armor.head = 0
+	var seen := false
+	for i in 3:
+		Siege.step(s, [idle()])
+		for f in s.fx:
+			if f.k == "milestone" and f.n == 10:
+				seen = true
+	var p := Progress.new()
+	p.unlock_all = false
+	var drops := p.spoils(10)
+	return ensure(seen, "wave 10 cleared says milestone") or ensure(drops.size() >= 5, "a full set to pick from: %d" % drops.size()) or ensure(p.spoils(11).is_empty(), "only waves 10, 20 and 30 pay")
+
+
+func test_best_wave_is_saved_and_loaded() -> int:
+	var path := OS.get_user_data_dir() + "/siege_best_test.cfg"
+	var p := Progress.new()
+	p.unlock_all = false
+	p.path = path
+	var first := p.held(12)
+	var lower := p.held(7)
+	p.save_file()
+	var q := Progress.new()
+	q.path = path
+	q.load_file()
+	DirAccess.remove_absolute(path)
+	return ensure(first and not lower, "only a better run counts") or ensure(q.best == 12, "best wave read back: %d" % q.best)
+
+
+func test_endless_waves_are_mk3_with_a_new_mutator_every_five() -> int:
+	var s := lab()
+	var got := []
+	for n in range(31, 42):
+		Siege.plan(s, s.siege, n)
+		got.append(s.siege.mutators.size())
+	var mk: int = s.siege.queue[-1].mk
+	return ensure(got[0] == 1 and got[4] == 1 and got[5] == 2 and got[10] == 3, "mutators by wave: %s" % [got]) or ensure(mk == 3, "endless bots are Mk 3")
+
+
+func test_plated_mutator_gives_bots_more_armor() -> int:
+	var s := lab()
+	s.siege.mutators = ["plated"]
+	var e := Siege.spawn(s, "scout", 0, 0.0)
+	return ensure(e.max == floor(Siege.BOTS.scout.hp * Siege.MUTATE.hp), "plated scout has %d" % e.max)

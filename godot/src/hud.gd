@@ -58,6 +58,7 @@ var last := {}
 var menu: VBoxContainer
 var replay := -1.0
 var hp_was := {}
+var best := 0
 var hurt_at := {}
 
 
@@ -180,7 +181,7 @@ func paint() -> void:
 		if state.phase == "over":
 			var cy := size.y * 0.38
 			label(tr("siegeLost"), Vector2(0, cy + 30), 110, Mech.TEAM_LIGHT[1], HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, heavy, 32)
-			label(tr("siegeHeld").format({"n": maxi(0, state.siege.wave.n - 1)}), Vector2(0, cy + 80), 30, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, bold, 14)
+			label(tr("siegeHeld").format({"n": maxi(0, state.siege.wave.n - 1)}) + ("   ·   " + tr("siegeBest").format({"n": best}) if best > 0 else ""), Vector2(0, cy + 80), 30, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, bold, 14)
 			label(tr("rematch"), Vector2(0, cy + 118), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
 	else:
 		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
@@ -397,6 +398,10 @@ func siege_calls(size: Vector2) -> void:
 			"ring":
 				text = tr("siegeRing")
 				c = HEAT_C
+			"mutator":
+				text = tr("siegeMutator").format({"name": tr("mut_" + f.id)})
+				sub = tr("mutd_" + f.id)
+				c = SURGE_C
 			"warn":
 				if f.boss:
 					text = tr("siegeBoss")
