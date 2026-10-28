@@ -5,7 +5,7 @@ no auto-targeting. Mechs are built Exteel-style from five body parts (Head = R u
 passive, Arms, Legs = movement, Booster = Space dash) plus two hands that each hold any weapon
 (left click = left hand, right click = right hand). Inspired by Medabots and Exteel.
 
-Stage: playable prototype, you vs an AI rival (or training dummies), 62 parts in the garage. The spec is `COMBAT_DESIGN.md`.
+Stage: playable prototype, you vs an AI rival (or training dummies), 63 parts in the garage. The spec is `COMBAT_DESIGN.md`.
 
 ## Stack and run
 
@@ -384,7 +384,7 @@ $P = "$R\godot"
   full builds (garage SETS tab). Player text: `u_`/`ud_` (skills), `dm_` (dash moves), `tr_`
   (trails), `set_`/`sd_` (sets). Every body part has a `series` (light/standard/heavy) whose `SERIES` weight
   sets top speed (`speed_of`). Armor pools stay `head`/`rarm`/`larm`/`legs` (`ARM_OF` maps a hand
-  to its arm). Shield (Q) and hook (E) are the fixed kit. Catalogs: `HEADS`, `CORES`, `ARMS`,
+  to its arm). Shield (Q) is the fixed kit; the E skill comes from the head (`HEADS[id].e`, read through `e_skill(m)`; Victor 2026-10-28). The default head `rookie` (Rookie Helm, a plain cube head, `heads_build.py`) has none (`e` is `""`): the HUD E slot stays blank, `start` queues nothing and the bot never presses E. Every other head has one skill, in `E_SPEC` (brace, focus, pulse, xray, frost, arcwall, trap; each has `cd` and a `time`, a buff `m.buffs[skill]`, or a placed object) cast by `cast_e` from `start` (and its fx kind of the same name, with a `RECIPES` row in sfx.gd); `hook` (Stag Pincers) is the old claw, `cleanse` (Sun Crest) runs first in `start` so it works while stunned (`warded()` blocks new slow, jam, root, hook and landing stuns for 2 s) and `lunge` (Rhino Horn) is a dash act with `DASH_MOVES.lunge`. `e_active(m)` lights the HUD slot; `wants_e` in bot.gd is the bot's rule for each. Root is `buffs.root`; Electric Wall is a `state.walls` entry with `zap`; Trap is a `state.mines` entry with `root`; `wall_blocks()` decides what walls stop (X-Ray and the owner's own Electric Wall pass). Catalogs: `HEADS`, `CORES`, `ARMS`,
   `LEG_PARTS`, `BOOSTERS`, `WEAPONS` (all in `CATALOG`) in `godot/src/sim.gd`; a mech reads its parts
   through `weapon(m, hand)`, `arms(m)`, `feet(m)`, `booster(m)`, `head(m)`, `core(m)` and its max
   armor from `m.max`. Loadouts go through `normalize()` (unknown keys fall back to

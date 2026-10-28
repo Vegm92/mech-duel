@@ -285,6 +285,8 @@ func slots(size: Vector2) -> void:
 		var key: String = SLOTS[i][0]
 		var r := Rect2(x0 + i * (w + gap), y, w, SLOT.y)
 		plate(r)
+		if key == "hook" and Sim.e_skill(m) == "":
+			continue
 		var frac := 0.0
 		var lit := false
 		var accent := DIM
@@ -300,7 +302,8 @@ func slots(size: Vector2) -> void:
 				name = tr("slotShield")
 			"hook":
 				frac = cd_frac(key, m.cd.hook)
-				name = tr("slotHook")
+				lit = Sim.e_active(m)
+				name = tr("e_" + Sim.e_skill(m))
 			"dash":
 				frac = cd_frac(key, m.cd.dash) if m.dashes == 0 else 0.0
 				name = tr("slotDash")

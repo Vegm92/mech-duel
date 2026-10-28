@@ -188,8 +188,10 @@ func card(slot: String, key: String, r: Rect2) -> void:
 		extra = tr("dashMove").format({"name": tr("dm_" + p.move)})
 	elif p.has("trail"):
 		extra = tr("trailLine").format({"name": tr("tr_" + p.trail)})
+	elif p.has("e"):
+		extra = tr("eSkillLine").format({"name": tr("e_" + (p.e if p.e != "" else "none"))})
 	if extra != "":
-		text(b, extra, Vector2(x, 41), 11, SKILL if p.has("ult") else GUN, tw, true)
+		fit(text(b, extra, Vector2(x, 41), 11, SKILL if p.has("ult") else GUN, tw, true), 11, tw, 9)
 	var stats := card_stats(slot, p)
 	if stats.is_empty():
 		var top := 58.0 if extra != "" else 42.0
