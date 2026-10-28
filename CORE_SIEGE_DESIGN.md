@@ -75,7 +75,7 @@ is broken) and across the plaza to the core. No navmesh, no pathfinding, determi
 ## 4. Enemies (tune later)
 
 Toughness (T) and Difficulty (D) are 1–10. Cost = budget points (§6). HP ≈ 60 × T^1.5 (rounded).
-Speed in m/s. Damage per hit.
+Speed in m/s. Damage per hit. The HP column is the first draft; the live HP is the table in §8b2.
 
 | Bot | Role | T | D | Cost | HP | Speed | Attack | Behavior |
 |---|---|---|---|---|---|---|---|---|
@@ -121,8 +121,8 @@ Rules shared by every bot:
 
 ## 6. Waves (tune later)
 
-**Budget** for wave n: `B(n) = 3 + 2.5n + 0.18n²`, × `1 + 0.4` per extra mech on the team (AI
-teammates count). Wave 1 ≈ 6, wave 10 ≈ 46, wave 20 ≈ 125, wave 30 ≈ 240 points for one mech.
+**Budget** for wave n: `B(n) = 2.7 + 1.98n + 0.144n²` (×0.9 on 2026-10-28 after the duel balance pass), × `1 + 0.4` per extra mech on the team (AI
+teammates count). Wave 1 ≈ 5, wave 10 ≈ 37, wave 20 ≈ 100, wave 30 ≈ 190 points for one mech.
 
 **Squads** (cost):
 
@@ -303,6 +303,22 @@ plating, engine, core; they recall when armor is low or the wallet is over 300, 
 **Balance targets.** Waves 1-10 beatable by a base build plus one AI teammate; Light Scout, Swarm
 cube and Spider die in 3 or fewer default-weapon hits. A fully upgraded build clearly outlasts a
 base one at waves 10/20/30, and a full-tier build without players still falls by wave 30.
+
+**Bot HP and default Rivet hits** (2026-10-28 retune after the duel balance pass, Rivet 65 → 42
+dmg: every bot HP × 0.65, so the hit counts stay the same; Mk 1, no tiers):
+
+| Bot | HP | Rivet hits |
+|---|---|---|
+| Light Scout | 40 | 1 |
+| Swarm cube (each of 3) | 25 | 1 |
+| Spider | 84 | 2 |
+| Flyer | 80 | 2 |
+| Turret | 210 | 5 |
+| Walker | 275 | 7 |
+| Tripod | 155 | 4 |
+| Quad Heavy | 520 | 13 |
+| Heavy Mech | 750 | 18 |
+| Juggernaut | 650 | 16 |
 
 ## 8c. Garrison (Victor 2026-10-28, tune later)
 
