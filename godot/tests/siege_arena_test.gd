@@ -52,6 +52,9 @@ func _process(_dt: float) -> bool:
 	camp.alive = true
 	v.update(s)
 	check(is_equal_approx(v.camps[0].mat.emission_energy_multiplier, SiegeView.YARD.alive) and v.get_child_count() > lit, "a camp that respawns lights up with a pulse")
+	s.yards[0].raided = 0.5
+	v.update(s)
+	check(v.raids[0].node.visible and v.raids[0].crates.filter(func(m): return m.visible).size() == SiegeView.YARD.raid / 2 and not v.raids[1].node.visible, "a half-raided yard shows half its raid damage, an untouched yard none")
 	var crate: Dictionary = s.yards[0].crates[0]
 	crate.progress = 0.5
 	v.update(s)

@@ -28,10 +28,11 @@ const WALL := {"panel": 4.0, "post": 0.15, "vent": 0.7, "spawn": 8.4}
 const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "rows": [0.65, 1.95], "gap": 9.0,
 	"aisle": 40.0, "aisle_w": 0.4, "fan_gap": 0.6, "team": 1}
 const TOWER := {"out": 94.0, "head": Vector3(0.4, 17.8, 0), "angle": 5.0, "range": 240.0, "energy": 2.0, "aim": 30.0}
-const YARD := {"rust": 0.7, "warm": 0.12, "dirt": 0.95, "tint": 0.45, "polish": 0.1, "tiers": {"small": 1, "medium": 2, "big": 3, "elite": 4},
+const YARD := {"rust": 0.5, "warm": 0.15, "dirt": 0.95, "tint": 0.45, "polish": 0.1, "tiers": {"small": 1, "medium": 2, "big": 3, "elite": 4},
 	"size": {"small": 0.8, "medium": 1.0, "big": 1.2, "elite": 1.5}, "pip": 3.6, "pip_gap": 0.6, "alive": 0.75, "dead": 0.06,
-	"wake": 2.0, "ring": 1.6, "segs": 16, "lid": 1.17, "lift": 0.3, "lights": [[40.0, 6.5, 0.0, 1.0], [6.5, 40.0, 1.0, 0.0], [66.0, 6.5, 0.0, 1.0], [6.5, 66.0, 1.0, 0.0], [60.0, 80.0, 0.0, -1.0], [80.0, 60.0, -1.0, 0.0]],
-	"wall_top": 1.3, "crate_h": 1.24, "light": 3.0, "light_range": 14.0, "light_energy": 6.0,
+	"wake": 2.0, "ring": 1.6, "segs": 16, "lid": 1.17, "lift": 0.3, "lights": [[30.0, -1.0, 0.0, 1.0], [-1.0, 30.0, 1.0, 0.0], [52.0, -1.0, 0.0, 1.0], [-1.0, 54.0, 1.0, 0.0], [60.0, 80.0, 0.0, -1.0], [80.0, 60.0, -1.0, 0.0]],
+	"raid": 6,
+	"wall_top": 1.3, "crate_h": 1.24, "light": 3.0, "light_range": 16.0, "light_energy": 8.0,
 	"debris": 22, "sheet": Vector3(2.0, 0.05, 1.4), "pallet": Vector3(1.2, 0.14, 1.0), "elite": [67.0, 67.0], "crane": 85.0, "crane_y": 4.0,
 	"scorch": 8, "scorch_r": Vector2(1.0, 2.0), "grime": 1.2}
 const STEAM := {"amount": 40, "life": 3.0, "size": 2.4, "y": 0.4, "alpha": 0.45}
@@ -73,6 +74,7 @@ var towers := []
 var camps := []
 var crates := []
 var dock := {}
+var raids := []
 
 
 static func dir(lane: int) -> Vector3:
@@ -222,6 +224,12 @@ func build_walls() -> void:
 			lane_posts.append(Transform3D(Basis(), d * SiegeState.BLOCK + p * s * (W + SiegeState.LANE_WALL / 2.0)))
 		var holes := SiegeState.CHOKES.map(func(c): return [c - SiegeState.CHOKE_R, c + SiegeState.CHOKE_R])
 		holes += SiegeState.VENTS.map(func(v): return [v - WALL.vent, v + WALL.vent])
+		for door in (load("res://src/siege_state.gd") as Script).get_script_constant_map().get("DOORS", []).slice(i, i + 1):
+			holes.append(door)
+			for s in [-1.0, 1.0]:
+				for r in door:
+					lane_posts.append(Transform3D(Basis(), d * r + p * s * W))
+					posts.append(Transform3D(Basis(), d * r + p * s * (W + SiegeState.LANE_WALL)))
 		holes.sort_custom(func(x, y): return x[0] < y[0])
 		for s in [-1.0, 1.0]:
 			for seg in cuts(SiegeState.BLOCK, HALF, holes):
@@ -251,6 +259,7 @@ func build_walls() -> void:
 		var out := yard(q, 1.0, 1.0).normalized()
 		arch.position = out * (SiegeState.BLOCK + SiegeState.YARD_IN) / 2.0
 		arch.rotation.y = -atan2(out.z, out.x)
+		arch.scale.z = SiegeState.ARCH / 6.0
 	batch("arena", "wall", cyan, CYAN_LAMPS)
 	batch("arena", "wall", amber)
 	batch("arena", "wall_post", posts)
@@ -343,9 +352,10 @@ func build_towers() -> void:
 		var at := dir(q) * TOWER.aim + Vector3(0, Look.STAGE.aim_y, 0)
 		spot.look_at_from_position(t.transform * TOWER.head, at)
 		towers.append({"spot": spot, "at": at, "v": Vector3.ZERO})
-		var crane := Mech.add_part(self, "crane", MATS, "core_siege")
-		crane.position = yard(q, YARD.crane, YARD.crane, YARD.crane_y)
-		crane.rotation.y = t.rotation.y
+		if not SiegeState.HEAPS.any(func(h): return h.get("kind", "") == "crane"):
+			var crane := Mech.add_part(self, "crane", MATS, "core_siege")
+			crane.position = yard(q, YARD.crane, YARD.crane, YARD.crane_y)
+			crane.rotation.y = t.rotation.y
 
 
 func junk(parent: Node3D, file: String, part: String, mats: Dictionary, at: Transform3D) -> MeshInstance3D:
@@ -377,6 +387,9 @@ func build_yards() -> void:
 	var scraps := []
 	var sheets := []
 	var pallets := []
+	var yard_crates := []
+	var yard_pillars := []
+	var decor_mat := Look.shader(Decor.SHADER % Look.NOISE, {"soot": Look.PAL.void, "grime": Look.PAL.grime, "slot": Look.PAL.void, "metal": Look.PAL.steel, "alpha": Decor.D.alpha, "bar": Decor.D.bar})
 	var emp := ShaderMaterial.new()
 	emp.shader = Shader.new()
 	emp.shader.code = View.EMP_SHADER.replace(EMP_EDGE, "float edge = smoothstep(0.85, 1.0, length(UV * 2.0 - 1.0));\n\tif (length(UV * 2.0 - 1.0) > 1.0) { discard; }")
@@ -386,10 +399,23 @@ func build_yards() -> void:
 		for i in SiegeState.HEAPS.size():
 			var h: Dictionary = SiegeState.HEAPS[i]
 			var c := yard(q, h.a, h.b)
-			heaps.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(h.r, h.r * 1.2, h.r)), c))
-			pile(c, h.r, rng)
-			if i == 0:
-				junk(self, "light", "Chest_heavy", JUNK_MATS, Transform3D(Basis.from_euler(Vector3(PI / 2.0, rng.randf() * TAU, 0.3)).scaled(Vector3.ONE * 1.8), c + Vector3(0, h.r * 0.55, 0)))
+			var kind: String = h.get("kind", "heap")
+			if kind == "stack":
+				for k in rng.randi_range(4, 6):
+					var off := Vector3((k % 3 - 1) * 1.7, (k / 3) * YARD.crate_h, 0).rotated(Vector3.UP, h.a + h.b) * Vector3(h.r / 2.0, 1, h.r / 2.0)
+					yard_crates.append(Transform3D(Basis.from_euler(Vector3(0, h.a + h.b + rng.randf_range(-0.2, 0.2), 0)), c + off))
+			elif kind == "pillar":
+				yard_pillars.append(Transform3D(Basis().scaled(Vector3(h.r, 1, h.r)), c))
+			elif kind == "crane":
+				var crane := Mech.add_part(self, "crane", MATS, "core_siege")
+				crane.position = c
+				var to := (yard(q, 40.0, 40.0) - c).normalized()
+				crane.rotation.y = -atan2(to.z, to.x)
+			else:
+				heaps.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(h.r, h.r * 1.2, h.r)), c))
+				pile(c, h.r, rng)
+				if kind == "hulk":
+					junk(self, "light", "Chest_heavy", JUNK_MATS, Transform3D(Basis.from_euler(Vector3(PI / 2.0, rng.randf() * TAU, 0.3)).scaled(Vector3.ONE * 1.8), c + Vector3(0, h.r * 0.55, 0)))
 			keep.append([Vector2(c.x, c.z), h.r + 0.6])
 		var e := yard(q, YARD.elite[0], YARD.elite[1])
 		var elite := junk(self, "light", "Chest_heavy", JUNK_MATS, Transform3D(Basis.from_euler(Vector3(0.5, rng.randf() * TAU, 0.9)).scaled(Vector3.ONE * 3.5), e + Vector3(0, -0.6, 0)))
@@ -425,8 +451,11 @@ func build_yards() -> void:
 				o.omni_range = YARD.light_range
 				o.light_energy = YARD.light_energy
 		for l in YARD.lights:
-			var at := yard(q, l[0], l[1], YARD.wall_top)
-			var into := (yard(q, l[0] + l[2], l[1] + l[3]) - yard(q, l[0], l[1])).normalized()
+			var wall := W + SiegeState.LANE_WALL / 2.0
+			var la: float = wall if l[0] < 0 else l[0]
+			var lb: float = wall if l[1] < 0 else l[1]
+			var at := yard(q, la, lb, YARD.wall_top)
+			var into := (yard(q, la + l[2], lb + l[3]) - yard(q, la, lb)).normalized()
 			lights.append(Transform3D(facing(into), at))
 			var o := accent(at + into * 1.5 + Vector3(0, YARD.light - YARD.wall_top, 0), Look.PAL.orange)
 			o.omni_range = YARD.light_range
@@ -454,6 +483,30 @@ func build_yards() -> void:
 			var size: Vector3 = YARD.sheet if rng.randf() < 0.6 else YARD.pallet
 			var b := Basis.from_euler(Vector3(rng.randf_range(-0.05, 0.05), rng.randf() * TAU, rng.randf_range(-0.05, 0.05))).scaled(size * rng.randf_range(0.8, 1.3))
 			(sheets if size == YARD.sheet else pallets).append(Transform3D(b, Vector3(w.x, size.y * 0.5, w.y)))
+		var hold := Node3D.new()
+		hold.visible = false
+		add_child(hold)
+		var burnt := []
+		var tipped := []
+		n = 0
+		while n < YARD.raid:
+			var p := Vector2(rng.randf_range(12.0, 60.0), rng.randf_range(12.0, 60.0))
+			var w := Vector2(yard(q, p.x, p.y).x, yard(q, p.x, p.y).z)
+			if p.length() < SiegeState.YARD_IN + 3.0 or keep.any(func(k): return w.distance_to(k[0]) < k[1] + 1.5):
+				continue
+			n += 1
+			burnt.append(Decor.piece("scorch", w, 2.0, rng.randf() * TAU, Vector2(4.5, 4.5), Color(0, rng.randf(), 0, 0)))
+			var box := Mech.add_part(hold, "crate", MATS, "core_siege")
+			box.transform = Transform3D(Basis.from_euler(Vector3(rng.randf_range(1.2, 1.6), rng.randf() * TAU, 0)), Vector3(w.x, 0.6, w.y))
+			box.visible = false
+			tipped.append(box)
+		var bm := Decor.multimesh(PlaneMesh.new(), burnt.size())
+		(bm.mesh as PlaneMesh).size = Vector2.ONE
+		for i in burnt.size():
+			bm.set_instance_transform(i, burnt[i].at)
+			bm.set_instance_custom_data(i, burnt[i].data)
+		Decor.add(hold, bm, decor_mat)
+		raids.append({"node": hold, "crates": tipped})
 		var Q: Dictionary = SiegeState.QUADS[q]
 		var a := YARD.grime / 2.0 + W + SiegeState.LANE_WALL
 		while a < HALF:
@@ -462,6 +515,9 @@ func build_yards() -> void:
 					decor.append(Decor.piece("grime", g[0], 1.0, -g[1].angle() + PI / 2.0, Vector2(YARD.grime, 1.0), Color(1, rng.randf(), 0, 0)))
 			a += YARD.grime
 	batch("core_siege", "heap", heaps)
+	batch("core_siege", "crate", yard_crates)
+	batch("core_siege", "crate_lid", yard_crates.map(func(x): return x.translated(Vector3(0, YARD.lid, 0))))
+	batch("arena", "pillar", yard_pillars)
 	batch("core_siege", "steam_grate", grates)
 	batch("core_siege", "work_light", lights)
 	var warn: ShaderMaterial = MATS.hazard.duplicate()
@@ -472,7 +528,7 @@ func build_yards() -> void:
 	for i in decor.size():
 		mm.set_instance_transform(i, decor[i].at)
 		mm.set_instance_custom_data(i, decor[i].data)
-	Decor.add(self, mm, Look.shader(Decor.SHADER % Look.NOISE, {"soot": Look.PAL.void, "grime": Look.PAL.grime, "slot": Look.PAL.void, "metal": Look.PAL.steel, "alpha": Decor.D.alpha, "bar": Decor.D.bar}))
+	Decor.add(self, mm, decor_mat)
 	var sm := Decor.multimesh(Mech.box(Vector3.ONE), scraps.size())
 	for i in scraps.size():
 		sm.set_instance_transform(i, scraps[i])
@@ -549,9 +605,14 @@ func update(siege: Dictionary) -> void:
 		draw_pad(pads[i], siege.pads[i].module)
 	var all_camps := []
 	var all_crates := []
-	for y in siege.get("yards", []):
-		all_camps += y.camps
-		all_crates += y.crates
+	var yards: Array = siege.get("yards", [])
+	for q in yards.size():
+		all_camps += yards[q].camps
+		all_crates += yards[q].crates
+		var raid: float = yards[q].get("raided", 0.0)
+		raids[q].node.visible = raid > 0.0
+		for i in raids[q].crates.size():
+			raids[q].crates[i].visible = i < roundi(raid * raids[q].crates.size())
 	while camps.size() < all_camps.size():
 		camps.append(make_camp(all_camps[camps.size()]))
 	for i in all_camps.size():

@@ -190,17 +190,17 @@ for d in DIRS:
         l += 2.0
 
 part("yard_floor")
-e0 = math.sqrt(YARD_IN ** 2 - (W + LANE_WALL) ** 2)
+e0 = math.sqrt(BLOCK ** 2 - W ** 2)
 for sx, sz in QUADS:
     P = lambda a, b, y: (sx * a, y, sz * b)
     edge = []
-    t0, t1 = math.atan2(e0, W + LANE_WALL), math.atan2(W + LANE_WALL, e0)
+    t0, t1 = math.atan2(e0, W), math.atan2(W, e0)
     for k in range(17):
         t = t0 + (t1 - t0) * k / 16
-        edge.append((YARD_IN * math.cos(t), YARD_IN * math.sin(t)))
+        edge.append((BLOCK * math.cos(t), BLOCK * math.sin(t)))
     for (a0, b0), (a1, b1) in zip(edge, edge[1:]):
         hull([P(a, b, y) for a, b in ((a0, b0), (a1, b1), (a0, HALF), (a1, HALF)) for y in (0.0, 0.01)], "yard", 0)
-    hull([P(a, b, y) for a in (edge[-1][0], HALF) for b in (W + LANE_WALL, HALF) for y in (0.0, 0.01)], "yard", 0)
+    hull([P(a, b, y) for a in (edge[-1][0], HALF) for b in (W, HALF) for y in (0.0, 0.01)], "yard", 0)
 
 part("yard_arch")
 for s in (-1, 1):
@@ -372,7 +372,7 @@ ring(7.2, 7.5, 0.04, 0.06, "trim", 24)
 for k in range(8):
     a = k * math.pi / 4
     rbox((PLAZA - 8.4, 0.03, 0.08), ((7.5 + (PLAZA - 7.5 - 0.6) / 2) * math.cos(a), 0.055, (7.5 + (PLAZA - 7.5 - 0.6) / 2) * math.sin(a)), a, "dark", 0)
-for dx, dz in DIRS:
+for dx, dz in DIRS[:2] + DIRS[3:]:
     for j in range(3):
         r = 9.0 + j * 1.2
         for sd in (-1, 1):
