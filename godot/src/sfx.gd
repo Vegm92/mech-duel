@@ -347,6 +347,8 @@ func sound(o: Dictionary) -> void:
 
 func run_engines(state: Dictionary, live: bool, moved: bool) -> void:
 	for m in state.mechs:
+		if m.has("bot"):
+			continue
 		var kind: String = m.loadout.legs
 		var e: Dictionary = engines.get(m.id, {})
 		if e.get("kind", "") != kind:
@@ -396,6 +398,8 @@ func stop_engines() -> void:
 
 func alarms(state: Dictionary) -> void:
 	for m in state.mechs:
+		if m.has("bot"):
+			continue
 		var hot: bool = m.overheat > 0
 		var was: bool = heat.get(m.id, false)
 		var at := Vector3(m.x, 1.0, m.y)

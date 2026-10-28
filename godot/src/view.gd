@@ -209,13 +209,16 @@ var danger_mesh := ImmediateMesh.new()
 var last_shrink := -1.0
 
 
-func build() -> void:
+func build(siege := false) -> void:
+	marks = Node3D.new()
+	add_child(marks)
+	reticle = Mech.add(self, Mech.ring(0.35, 0.45), Mech.flat(Color(Mech.TEAM_LIGHT[0], 0.8)))
+	if siege:
+		return
 	var S: Dictionary = Look.STAGE
 	var we := WorldEnvironment.new()
 	we.environment = Look.env()
 	add_child(we)
-	marks = Node3D.new()
-	add_child(marks)
 	var sun := DirectionalLight3D.new()
 	sun.light_energy = S.key
 	sun.light_color = S.key_color
@@ -304,7 +307,6 @@ func build() -> void:
 	danger.mesh = danger_mesh
 	danger.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(danger)
-	reticle = Mech.add(self, Mech.ring(0.35, 0.45), Mech.flat(Color(Mech.TEAM_LIGHT[0], 0.8)))
 
 
 func build_floor(corners: Array) -> void:
@@ -481,7 +483,8 @@ func reset(state: Dictionary) -> void:
 	var teams := {}
 	for m in state.mechs:
 		teams[m.team] = true
-	seat_fans(teams.size())
+	if crowd != null:
+		seat_fans(teams.size())
 	hype = 0.0
 	hype_tick = state.tick
 	cheer = [0.0, 0.0, 0.0, 0.0]
@@ -633,7 +636,8 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 				n.get_child(2).emitting = false
 			pool[n.get_meta("kind")].append(n)
 	active = keep
-	arena(state)
+	if not state.has("siege"):
+		arena(state)
 
 
 func guard(m: Dictionary, node) -> void:

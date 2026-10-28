@@ -23,6 +23,8 @@ $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon
 $G --headless --path godot -s res://tests/hype_test.gd         # crowd hype and crowd sounds
 $G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-run lands on the same K.O., one smooth move, pillars, match flow, skip
 $G --headless --path godot -s res://tests/progress_test.gd     # Salvage: owned parts, claims, levels, rival ladder, save file
+$G --headless --path godot -s res://tests/siege_rules_test.gd  # Core Siege: own golden hash, waves, gates, core rings, repair, respawn
+$G --path godot -- --siege --team=2 --wave=6                    # Core Siege (co-op wave defense), from wave 6
 $G --path godot -- --replay=0 --seed=1                          # watch a kill cam right away (bots fight to the first K.O.)
 ```
 
@@ -181,6 +183,20 @@ $P = "$R\godot"
   (everything open, nothing saved, also on for `--autopilot`, `--shot` and `--sandbox`),
   `--progress=<abs path>` (use that file and lock parts even in look checks), `--claim` (open the
   claim screen for the first rival; look check). Not built: stakes, coop, PvP, the nemesis.
+- **Core Siege** (Victor 2026-10-28; spec `CORE_SIEGE_DESIGN.md`, who edits what
+  `CORE_SIEGE_SPLIT.md`): co-op wave defense, up to 4 mechs (you + `bot.gd` allies) hold a Reactor
+  Core against orange bots on 4 lanes. `--siege` (garage FIGHT then starts a siege run),
+  `--team=1..4`, `--wave=<n>` (dev: start at wave n). Sim: `siege.gd` (`create`, `step`, wave
+  director `direct`/`plan`, bot AI `drive`, core rings + repair + respawn in `settle`) on top of
+  `sim.gd`; constants and the view contract in `siege_state.gd`; the views read only
+  `state.siege` (`siege_view.gd` arena/core, `siege_bots.gd` bots; owned by the art sessions).
+  Every bot also has a body in `state.mechs` (team 1, key `bot`, armor all in `head`, legs top
+  ÷ `MOVE.jammed` because its leg pool is 0), so every player weapon, skill and dash hits it with no
+  special case; dead bodies are recycled (`gone`). Arena shape lives in `state.geo` (walls,
+  pillars, solids, `boxes` with optional `only` team + `hp` = gates, `rings` with lane `gaps`);
+  `Sim.geo(state)` falls back to the duel arena, so the duel and its `GOLDEN` are untouched.
+  Fortress has no auto-aim: only traps and player-aimed guns. Not built yet: the other 9 bots,
+  waves as data, scrap shop, full HUD, progression, VS (design only).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

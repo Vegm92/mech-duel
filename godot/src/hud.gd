@@ -164,6 +164,16 @@ func paint() -> void:
 		pops()
 	if replay >= 0.0:
 		replay_bars(size)
+	elif state.has("siege"):
+		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
+		siege_top(size)
+		if not paused:
+			slots(size)
+		if state.phase == "over":
+			var cy := size.y * 0.38
+			label(tr("siegeLost"), Vector2(0, cy + 30), 110, Mech.TEAM_LIGHT[1], HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, heavy, 32)
+			label(tr("siegeHeld").format({"n": maxi(0, state.siege.wave.n - 1)}), Vector2(0, cy + 80), 30, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, bold, 14)
+			label(tr("rematch"), Vector2(0, cy + 118), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
 	else:
 		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
 		mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot"))
@@ -266,6 +276,25 @@ func clock(size: Vector2) -> void:
 	var secs := int(ceil(maxf(0.0, state.clock) / Sim.TICKS))
 	label("%d:%02d" % [floori(secs / 60.0), secs % 60], Vector2(r.position.x, r.position.y + 33), 30, TEXT if secs > 10 else HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
 	label(tr("round").format({"n": state.round}), Vector2(r.position.x, r.position.y + 47), 11, DIM, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+
+
+func siege_top(size: Vector2) -> void:
+	var sg: Dictionary = state.siege
+	var w: Dictionary = sg.wave
+	var r := Rect2(size.x / 2.0 - 150, 12, 300, 76)
+	plate(r)
+	label(tr("siegeWave").format({"n": w.n}), Vector2(r.position.x, r.position.y + 32), 28, TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
+	var left: int = sg.enemies.filter(func(e): return e.act != "die").size() + sg.queue.size()
+	var sub: String = tr("siegeLeft").format({"n": left}) if w.live else tr("siegeNext").format({"s": int(ceil(w.next_in / float(Sim.TICKS)))})
+	label(sub + "   " + tr("siegeScrap").format({"n": sg.scrap}), Vector2(r.position.x, r.position.y + 50), 13, DIM, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+	var c: Dictionary = sg.core
+	var bar := Rect2(r.position.x + 16, r.position.y + 58, r.size.x - 32, 10)
+	canvas.draw_rect(bar, SEG_OFF)
+	canvas.draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(c.hp / c.max, 0, 1), bar.size.y)), hp_color(c.hp / c.max))
+	for i in 4:
+		var x := bar.position.x + bar.size.x * (3 - i) / 4.0
+		canvas.draw_rect(Rect2(x - 1, bar.position.y - 3, 2, bar.size.y + 6), WIRE if c.rings[i] > 0 else HEAT_C)
+	label(tr("siegeCore"), Vector2(bar.position.x, bar.position.y - 2), 10, DIM)
 
 
 func cd_frac(key: String, cur: float) -> float:

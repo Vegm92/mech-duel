@@ -24,8 +24,8 @@ static func random_loadout(brain) -> Dictionary:
 	return out
 
 
-static func clear_line(x0: float, y0: float, x1: float, y1: float) -> bool:
-	for p in Sim.PILLARS:
+static func clear_line(x0: float, y0: float, x1: float, y1: float, pillars: Array = Sim.PILLARS) -> bool:
+	for p in pillars:
 		if Sim.seg_dist(x0, y0, x1, y1, p.x, p.y) <= p.r + 0.3:
 			return false
 	return true
@@ -113,6 +113,8 @@ static func hazards(state, m) -> Dictionary:
 			den = 1
 		var k := clampf(((m.x - tr.x1) * dx + (m.y - tr.y1) * dy) / den, 0, 1)
 		away(acc, m, tr.x1 + dx * k, tr.y1 + dy * k, Sim.TRAILS[tr.kind].width + Sim.MECH_R + 0.4)
+	if state.has("geo"):
+		return {"x": acc[0], "y": acc[1]}
 	var C = Sim.TRAPS.crush
 	for i in C.at.size():
 		if Sim.until_slam(state, i) < C.warn + 20:
@@ -150,7 +152,7 @@ static func goal(state, m, o):
 		if kind == null or not wants_item(kind, m):
 			continue
 		var blocked := false
-		for w in Sim.WALLS:
+		for w in Sim.geo(state).walls:
 			if p.x * w.nx + p.y * w.ny > w.d - state.shrink - Sim.MECH_R:
 				blocked = true
 				break
@@ -278,7 +280,7 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 		brain.guardRoll = Sim.rng(brain) < BOT.guard
 		brain.dodgeRoll = Sim.rng(brain) < BOT.dodge
 	var veiled := Sim.hidden(state, o)
-	var sight: bool = not veiled and clear_line(m.x, m.y, o.x, o.y)
+	var sight: bool = not veiled and clear_line(m.x, m.y, o.x, o.y, Sim.geo(state).pillars)
 	var open: bool = (o.dashes == 0 and o.cd.dash > 40) or o.stagger > 0 or o.overheat > 0
 	var aggressive: bool = open or o.armor.head < m.armor.head * 0.6
 	var band = BOT.close if aggressive or g == null else g.band
@@ -294,7 +296,7 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 		flip(brain, tick)
 	var wx := 0.0
 	var wy := 0.0
-	for w in Sim.WALLS:
+	for w in Sim.geo(state).walls:
 		if w.d - state.shrink - (m.x * w.nx + m.y * w.ny) > 2.5:
 			continue
 		wx -= w.nx

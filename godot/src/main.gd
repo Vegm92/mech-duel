@@ -14,6 +14,8 @@ const CrowdSound = preload("res://src/crowd_sound.gd")
 const Sfx = preload("res://src/sfx.gd")
 const Killcam = preload("res://src/killcam.gd")
 const Look = preload("res://src/look.gd")
+const Siege = preload("res://src/siege.gd")
+const SiegeView = preload("res://src/siege_view.gd")
 
 const PITCH := deg_to_rad(60.0)
 const FOV := 40.0
@@ -92,6 +94,12 @@ var recent: Array[Vector2] = []
 var rec := Killcam.recorder()
 var replay := {}
 var replay_at := -1
+var siege := false
+var team_n := 2
+var wave_arg := 1
+var allies := []
+var siege_view: Node3D
+var siege_bots: Node3D
 
 
 func _ready() -> void:
@@ -153,6 +161,12 @@ func _ready() -> void:
 			auto_dash = true
 		elif a == "--ult":
 			auto_ult = true
+		elif a == "--siege":
+			siege = true
+		elif a.begins_with("--wave="):
+			wave_arg = maxi(1, a.substr(7).to_int())
+		elif a.begins_with("--team="):
+			team_n = clampi(a.substr(7).to_int(), 1, 4)
 		elif a.begins_with("--lang="):
 			TranslationServer.set_locale(a.substr(7))
 		elif a == "--pad":
@@ -179,7 +193,13 @@ func _ready() -> void:
 	add_child(view)
 	add_child(crowd_sound)
 	add_child(sfx)
-	view.build()
+	view.build(siege)
+	if siege:
+		siege_view = SiegeView.new()
+		add_child(siege_view)
+		siege_view.build()
+		siege_bots = load("res://src/siege_bots.gd").new()
+		add_child(siege_bots)
 	hud = Hud.new()
 	hud.view = view
 	add_child(hud)
@@ -296,7 +316,16 @@ func new_match() -> void:
 	if sandbox:
 		loadout.left = Sim.WEAPONS.keys()[gun]
 		loadout.right = loadout.left
-	state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
+	if siege:
+		var los := [progress.with_levels(loadout.duplicate())]
+		allies = [null]
+		for i in range(1, team_n):
+			los.append(Sim.SETS.values()[(s + i) % Sim.SETS.size()])
+			allies.append(Bot.create_brain(s + 10 + i))
+		state = Siege.create(los, s)
+		state.siege.wave.n = wave_arg - 1
+	else:
+		state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
 	if sandbox:
 		pin()
 	brain = Bot.create_brain(s + 1)
@@ -315,7 +344,7 @@ func new_match() -> void:
 
 func snap_camera() -> void:
 	var me = state.mechs[0]
-	var foe = state.mechs[1]
+	var foe = state.mechs[0 if siege else 1]
 	focus = Vector3((me.x + foe.x) / 2.0, 0, (me.y + foe.y) / 2.0)
 	place_camera()
 	cam.reset_physics_interpolation()
@@ -470,9 +499,14 @@ func _physics_process(delta: float) -> void:
 		if Killcam.done(replay):
 			back_to_live()
 	elif not paused and not frozen and not held:
-		var me = Bot.bot_input(state, pilot, 0) if autopilot and not sandbox else player_input()
-		var foe = Bot.bot_input(state, brain, 1)
-		if sandbox:
+		var me = (Siege.ally_input(state, pilot, 0) if siege else Bot.bot_input(state, pilot, 0)) if autopilot and not sandbox else player_input()
+		var foe = Bot.bot_input(state, brain, 1) if not siege else null
+		if siege:
+			var ins := [me]
+			for i in range(1, state.siege.team):
+				ins.append(Siege.ally_input(state, allies[i], i))
+			Siege.step(state, ins)
+		elif sandbox:
 			pin()
 			var t = state.mechs[1]
 			me.mx = 0.0
@@ -499,13 +533,17 @@ func _physics_process(delta: float) -> void:
 						foe.shield = true
 		else:
 			Killcam.record(rec, state, [me, foe])
-		Sim.step(state, [me, foe])
-		if Killcam.wants(state, rec):
+		if not siege:
+			Sim.step(state, [me, foe])
+		if not siege and Killcam.wants(state, rec):
 			start_replay()
 	if not frozen and not held:
 		view.sync(state, aim, delta)
+		if siege:
+			siege_view.update(state.siege)
+			siege_bots.sync(state.siege, delta)
 	track()
-	crowd_sound.update(view.fresh_fx, view.hype, state.phase == "fight" and not paused, not paused)
+	crowd_sound.update(view.fresh_fx, 0.0 if siege else view.hype, state.phase == "fight" and not paused and not siege, not paused)
 	sfx.update(state, view.fresh_fx, paused)
 	view.fresh_fx = []
 	shake = maxf(shake, view.shake)
@@ -536,6 +574,8 @@ func _physics_process(delta: float) -> void:
 
 
 func track() -> void:
+	if siege:
+		return
 	for f in view.fresh_fx:
 		if f.k == "break" and f.id == 1 and not broke.has(f.part):
 			broke.append(f.part)
@@ -594,11 +634,15 @@ func pin() -> void:
 
 func follow(delta: float) -> void:
 	var me = state.mechs[0]
-	var foe = state.mechs[1]
+	var foe = state.mechs[0 if siege else 1]
+	if siege:
+		for t in Sim.foes(state, 0):
+			if Sim.hypot(t.x - me.x, t.y - me.y) < minf(Siege.RUN.frame, Sim.hypot(foe.x - me.x, foe.y - me.y) if foe != me else Siege.RUN.frame):
+				foe = t
 	var a := Vector3(me.x, 0, me.y)
 	var b := Vector3(foe.x, 0, foe.y)
 	var target := (a + b) / 2.0
-	var want := clampf(maxf(absf(a.x - b.x) * 0.9 + 8.0, absf(a.z - b.z) * 2.0 + 12.0), 28.0, 64.0)
+	var want := clampf(maxf(absf(a.x - b.x) * 0.9 + 8.0, absf(a.z - b.z) * 2.0 + 12.0), 30.0 if siege else 28.0, 64.0)
 	if sandbox:
 		want = maxf(absf(a.x - b.x) * SANDBOX.cam + 8.0, 10.0) * zoom
 	var dead := 1.5
