@@ -74,7 +74,7 @@ and `--at` for screenshots of any weapon.
 | fx kind | Recipe |
 |---|---|
 | hit | flash + streaks (away from source) + 2–3 smoke puffs + chips when `w > 0.6` + damage number |
-| boom | 1-frame fireball, thin fast floor shockwave ring, orange blobs turning into dark smoke, chips, scorch mark |
+| boom | 1-frame fireball, thin fast floor shockwave ring, orange blobs turning into dark smoke, chips, scorch mark (floor marks: `Fx.mark` + `MARK_SHADER`, noise per mark, never a clean disc or ring; scorch = ragged soot + flecks, land/crush = dent + jagged cracks) |
 | muzzle | tiny team-color flash, 3 short forward streaks, small smoke puff |
 | zap / beam | thin white core line + colored edge, 2-frame flicker, sparks at the far end |
 | parry | cyan ring, bright "ting" streaks, hit-stop 4 — the best-feeling effect in the game |
