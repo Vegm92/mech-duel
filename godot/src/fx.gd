@@ -9,15 +9,17 @@ const HIT := {
 	"heavy": 1.0, "stop_head": 3, "stop_heavy": 2,
 	"shake": Vector2(0.05, 0.17), "shake_head": 0.15,
 }
-const BOOM := {"size": 1.4, "small": 0.45, "flash": 0.5, "flash_secs": 0.05, "star": 2.2, "wave": 1.8, "wave_secs": 0.22, "mark": 0.85, "marks": 40, "stop_big": 2}
+const BOOM := {"size": 1.4, "small": 0.45, "flash": 0.5, "flash_secs": 0.05, "star": 2.2, "wave": 1.8, "wave_secs": 0.22, "mark": 1.4, "marks": 40, "stop_big": 2}
 const RAY := {"core": 0.3, "thin": 0.12, "edge": 0.6}
 const ARC := {"segs": 7, "jitter": 0.45, "width": 0.13, "secs": 0.16}
 const MUZZLE := {"flash": 0.28, "secs": 0.05, "star": 0.8, "star_secs": 0.06}
 const PARRY := {"flash": 0.6, "star": 2.4, "secs": 0.13, "ring": 2.2, "ring_secs": 0.26, "stop": 4}
 const BREAK := {"flash": 0.6, "star": 2.0, "smoke_secs": 3.0, "stop": 4}
 const KO := {"r": 2.0, "ring": 1.8, "ring_secs": 0.45, "stop": 8, "slow": 0.3, "slow_secs": 0.6}
-const LAND := {"ring": 1.15, "ring_secs": 0.3, "spikes": 0.75, "dust": 0.55, "crack": 0.6}
-const DASH := {"every": 3, "ghost_secs": 0.22, "ghost_alpha": 0.4}
+const LAND := {"ring": 1.15, "ring_secs": 0.3, "spikes": 0.75, "dust": 0.55, "crack": 1.0}
+const DASH := {"every": 3, "ghost_secs": 0.25, "ghost_alpha": 0.4, "ghost_dim": 0.25, "ring": 1.3, "flash": 0.5, "lines": 3, "line": Vector2(1.6, 2.8), "line_w": 0.06, "line_secs": 0.16, "line_spread": 0.9}
+const ULT := {"flash": 0.7, "star": 2.4, "ring": 3.0, "secs": 0.32, "spikes": 0.5, "shake": 0.3}
+const FIELD := {"stasis": Color8(110, 235, 255), "well": Color8(205, 125, 255), "fill": 0.05, "inner": 0.6, "pulse": 0.02}
 const RIPPLE := {"panel": 1.25, "face": 1.33, "y": 1.05, "r": 0.75, "secs": 0.22, "card": 0.55, "card_secs": 0.07, "broke": 1.7}
 const HOOKED := {"flash": 0.4, "star": 1.4, "ring": 1.1, "secs": 0.18}
 const EMP := {"flash": 0.5, "star": 1.8, "secs": 0.35, "inner": 0.8, "band": 0.97, "zap": 0.9}
@@ -31,7 +33,7 @@ const CHARGE := {"ring": 1.8, "max_secs": 0.5, "spikes": 0.9}
 const VOID_C := Color8(205, 125, 255)
 const HEAL_C := Color8(90, 255, 150)
 const KICK := {"hit": 1.6, "decay": 14.0, "freq": 42.0}
-const RIBBON := {"steps": 12, "y": 0.07, "edge": 1.2, "tail": 1.2, "head": 0.4, "tip": 0.35, "fade": 0.35, "hot": 0.1, "gain": 1.0}
+const RIBBON := {"steps": 12, "y": 0.07, "edge": 1.2, "tail": 1.2, "head": 0.4, "tip": 0.35, "fade": 0.35, "hot": 0.1, "gain": 0.45}
 const SMOKE := {"step": 0.35, "per": 0.8, "spread": 0.75, "size": Vector2(0.4, 0.75), "grow": 18.0, "swell": 0.35, "rise": 0.7, "fade_in": 6.0, "fade_out": 0.35, "greys": [0.42, 0.34, 0.27], "alpha": 0.65, "gain": 1.3, "segs": 24}
 const SMOKE_SHADER := """
 shader_type spatial;
@@ -120,8 +122,66 @@ void fragment() {
 }
 """
 
+const MARK_SHADER := """
+shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_disabled, specular_disabled, shadows_disabled;
+uniform vec3 soot : source_color = vec3(0.025, 0.022, 0.022);
+uniform vec3 grime : source_color = vec3(0.2, 0.14, 0.12);
+uniform float alpha = 0.92;
+uniform int cracks = 7;
+instance uniform float seed = 0.0;
+instance uniform float kind = 0.0;
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise(vec2 x) {
+	vec2 i = floor(x);
+	vec2 f = fract(x);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+}
+float fbm(vec2 p) {
+	return noise(p) * 0.55 + noise(p * 2.1) * 0.3 + noise(p * 4.3) * 0.15;
+}
+float scorch(vec2 p, vec2 o, float r, vec2 dir) {
+	float reach = 0.42 + 0.3 * fbm(dir * 1.5 + o) + 0.25 * pow(noise(dir * 5.0 + o * 1.7), 3.0);
+	float body = 1.0 - smoothstep(reach * 0.5, reach, r + (fbm(p * 3.5 + o) - 0.5) * 0.35);
+	body *= 0.75 + 0.25 * fbm(p * 7.0 + o.yx);
+	body = max(body, 1.0 - smoothstep(0.0, reach * 0.65, r));
+	float flecks = step(0.9, noise(p * 16.0 + o)) * step(reach * 0.85, r) * step(r, reach * 1.35) * 0.6;
+	return max(body, flecks);
+}
+float crack(vec2 p, vec2 o, float r, vec2 dir) {
+	float a = atan(p.y, p.x);
+	float best = 0.0;
+	for (int i = 0; i < cracks; i++) {
+		float fi = float(i);
+		float ang = (fi + hash(o + fi) - 0.5) * TAU / float(cracks);
+		float len = 0.55 + 0.4 * hash(o + fi + 7.3);
+		float bend = (fbm(vec2(r * 9.0, fi * 5.0) + o) - 0.5) * 0.6;
+		float d = abs(mod(a - ang - bend + PI, TAU) - PI) * r;
+		float w = 0.035 * (1.0 - r / len) + 0.004;
+		best = max(best, (1.0 - smoothstep(w * 0.4, w, d)) * step(r, len));
+	}
+	float dent = 1.0 - smoothstep(0.12, 0.3 + 0.12 * fbm(dir * 2.0 + o), r + (fbm(p * 6.0 + o) - 0.5) * 0.15);
+	return max(best, dent * 0.75);
+}
+void fragment() {
+	vec2 p = UV * 2.0 - 1.0;
+	vec2 o = vec2(seed, seed * 1.618) * 13.0;
+	float r = length(p);
+	vec2 dir = p / max(r, 0.0001);
+	float c = kind < 0.5 ? scorch(p, o, r, dir) : crack(p, o, r, dir);
+	c *= 1.0 - smoothstep(0.9, 1.0, r);
+	ALBEDO = mix(grime, soot, clamp(c * 1.4, 0.0, 1.0)) * (0.8 + 0.4 * fbm(p * 9.0 + o));
+	ROUGHNESS = 1.0;
+	ALPHA = clamp(c * alpha, 0.0, 1.0);
+}
+"""
+
 static var _smoke_mat: ShaderMaterial
 static var _fire_mat: ShaderMaterial
+static var _mark_mat: ShaderMaterial
 
 
 static func smoke_mat() -> ShaderMaterial:
@@ -457,9 +517,7 @@ static func boom(parent: Node3D, marks: Node3D, f: Dictionary) -> int:
 	ring(parent, Vector3(f.x, 0.1, f.y), f.r * 0.3, f.r * BOOM.wave, BOOM.wave_secs, Color(1, 0.85, 0.6))
 	for name in ["boom_fire", "boom_smoke", "boom_sparks", "boom_chips"]:
 		burst(parent, p, Vector3.UP, LAYERS[name], t, k)
-	bar(marks, Vector3(f.x, 0.025, f.y), Mech.cyl(1.0, 1.0, 0.01, 20), Color(0.03, 0.03, 0.04, 0.6), Vector3(f.r, 1, f.r) * BOOM.mark, Vector3.ZERO, false)
-	if marks.get_child_count() > BOOM.marks:
-		marks.get_child(0).queue_free()
+	mark(marks, p, f.r * BOOM.mark, 0)
 	return BOOM.stop_big if big else 0
 
 
@@ -515,10 +573,24 @@ static func metal(c: Color) -> Gradient:
 	return _ramps[key]
 
 
-static func mark(marks: Node3D, p: Vector3, m: Mesh, scale_: Vector3) -> void:
-	bar(marks, Vector3(p.x, 0.025, p.z), m, Color(0.03, 0.03, 0.04, 0.6), scale_, Vector3.ZERO, false)
-	if marks.get_child_count() > BOOM.marks:
-		marks.get_child(0).queue_free()
+static func mark(marks: Node3D, p: Vector3, size: float, kind: int) -> void:
+	var mi: MeshInstance3D
+	if marks.get_child_count() >= BOOM.marks:
+		mi = marks.get_child(0)
+		marks.move_child(mi, -1)
+	else:
+		if _mark_mat == null:
+			_mark_mat = ShaderMaterial.new()
+			_mark_mat.shader = Shader.new()
+			_mark_mat.shader.code = MARK_SHADER
+		mi = Mech.add(marks, PlaneMesh.new(), _mark_mat)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	mi.position = Vector3(p.x, 0.025, p.z)
+	mi.rotation = Vector3(0, randf() * TAU, 0)
+	mi.scale = Vector3(size, 1, size)
+	mi.set_instance_shader_parameter("seed", randf() * 10.0)
+	mi.set_instance_shader_parameter("kind", float(kind))
 
 
 static func on_ring(s: CPUParticles3D, r: float) -> void:
@@ -608,15 +680,37 @@ static func land(parent: Node3D, marks: Node3D, f: Dictionary, c: Color) -> void
 	ring(parent, ground, f.r * 0.2, f.r * LAND.ring * 0.7, LAND.ring_secs * 0.8, Color.WHITE)
 	on_ring(burst(parent, ground, Vector3.UP, LAYERS.land_spikes, 1.0, 1.0, tint(c)), f.r * LAND.spikes)
 	on_ring(burst(parent, ground, Vector3.UP, LAYERS.land_dust), f.r * LAND.dust)
-	mark(marks, ground, Mech.ring(0.8, 1.0), Vector3(f.r * LAND.crack, 0.05, f.r * LAND.crack))
+	mark(marks, ground, f.r * LAND.crack, 1)
 
 
 static func dash(parent: Node3D, f: Dictionary, c: Color, dir: Vector2) -> void:
 	var p := Vector3(f.x, 0.35, f.y)
 	var back := Vector3(-dir.x, 0.05, -dir.y).normalized()
-	ring(parent, Vector3(f.x, 0.08, f.y), 0.2, 0.9, 0.2, c)
+	flash(parent, Vector3(f.x, 0.3, f.y), DASH.flash, 0.05)
+	ring(parent, Vector3(f.x, 0.08, f.y), 0.2, DASH.ring, 0.2, c)
 	burst(parent, p, back, LAYERS.dash_streaks, 1.0, 1.0, tint(c))
 	burst(parent, Vector3(f.x, 0.15, f.y), back, LAYERS.dash_dust)
+
+
+## Speed lines: thin white streaks trailing a dashing mech, along its direction.
+static func lines(parent: Node3D, p: Vector3, dir: Vector2) -> void:
+	var rot := Vector3(0, -dir.angle(), 0)
+	var side := Vector3(-dir.y, 0, dir.x)
+	for i in DASH.lines:
+		var ln := randf_range(DASH.line.x, DASH.line.y)
+		var at := p - Vector3(dir.x, 0, dir.y) * ln * 0.6 + side * randf_range(-DASH.line_spread, DASH.line_spread) + Vector3(0, randf_range(0.3, 1.7), 0)
+		fade(bar(parent, at, Mech.box(Vector3.ONE), Color(1, 1, 1, 0.9), Vector3(ln, DASH.line_w, DASH.line_w), rot), DASH.line_secs, Vector3(ln * 0.3, 0.01, 0.01), Tween.EASE_OUT)
+
+
+## The moment an R skill fires: flash, team star, a wide team ring and team spikes on the floor.
+static func ult(parent: Node3D, f: Dictionary, c: Color) -> void:
+	var p := Vector3(f.x, 1.05, f.y)
+	var ground := Vector3(f.x, 0.08, f.y)
+	flash(parent, p, ULT.flash, 0.06)
+	star(parent, p, ULT.star, ULT.secs * 0.5, c)
+	ring(parent, ground, 0.4, ULT.ring, ULT.secs, c)
+	ring(parent, ground, 0.3, ULT.ring * 0.65, ULT.secs * 0.8, Color.WHITE)
+	on_ring(burst(parent, ground, Vector3.UP, LAYERS.land_spikes, 1.0, 1.0, tint(c)), ULT.ring * ULT.spikes)
 
 
 static func emp(parent: Node3D, f: Dictionary, inside: Array) -> void:
@@ -687,19 +781,20 @@ static func ghost(parent: Node3D, mech: Node3D, c: Color) -> void:
 	var g := take(mech.get_meta("spare_ghosts")) as Node3D
 	if g == null:
 		g = mech.duplicate(0) as Node3D
-		var m := Mech.flat(Color(c, DASH.ghost_alpha), true).duplicate() as StandardMaterial3D
+		var m := Mech.flat(Color(c.darkened(DASH.ghost_dim), DASH.ghost_alpha)).duplicate() as StandardMaterial3D
 		var pairs := []
 		var src := mech.find_children("*", "Node3D", true, false)
 		var dst := g.find_children("*", "Node3D", true, false)
 		for i in dst.size():
 			var n: Node3D = dst[i]
-			if n is CPUParticles3D or n.top_level:
+			if n is CPUParticles3D or n.top_level or src[i].has_meta("aura"):
 				n.visible = false
 				if n is CPUParticles3D:
 					(n as CPUParticles3D).emitting = false
 				continue
 			if n is GeometryInstance3D:
 				n.material_override = m
+				n.material_overlay = null
 				n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			pairs.append([src[i], n])
 		g.set_meta("pairs", pairs)

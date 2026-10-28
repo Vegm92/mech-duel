@@ -6,7 +6,7 @@ extends RefCounted
 const Sim = preload("res://src/sim.gd")
 
 const KILLCAM := {"secs": 4.0, "live": 60, "end": 50, "grace": 30, "look_y": 1.1, "pad": 1.0, "clear": 0.5, "tall": 4.5,
-	"pylon": 0.6, "room": 2.5, "haze": 0.3, "margin": 2.5, "aspect": 1.6, "dolly": 2.0, "track": 5.0, "lift": 6.0}
+	"pylon": 0.6, "room": 2.5, "margin": 2.5, "aspect": 1.6, "dolly": 2.0, "track": 5.0, "lift": 6.0}
 ## One continuous move, keyed to ticks from the K.O.: wide on both mechs, glide in on the victim
 ## (`close`), ease into slow motion (`slow`), then pull back and rise (`after`) and speed up (`fast`).
 ## `dist`, `up` and `speed` are [wide, at the K.O., at the end].

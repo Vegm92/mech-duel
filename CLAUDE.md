@@ -20,8 +20,28 @@ $G --path godot                                                # play
 $G --headless --path godot -s res://tests/sim_rules_test.gd     # sim tests (golden hash, determinism, FFA)
 $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow; gamepad in match + garage
 $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon has a sound, banks load, synth + music bake, volume settings
+$G --headless --path godot -s res://tests/hype_test.gd         # crowd hype and crowd sounds
 $G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-run lands on the same K.O., one smooth move, pillars, match flow, skip
 $G --path godot -- --replay=0 --seed=1                          # watch a kill cam right away (bots fight to the first K.O.)
+```
+
+Same in PowerShell (Victor runs commands there; works from any folder):
+
+```powershell
+$G = "C:\Users\victo\Tools\Godot\Godot_v4.7.2-stable_win64_console.exe"
+$R = "C:\Users\victo\Proyectos\Claude-Code-Game-Studios\games\mech-duel"
+$P = "$R\godot"
+& $G --path $P                                                  # play
+& $G --path $P -- --sandbox=laser                               # effects sandbox (see FX_DESIGN.md)
+& $G --path $P -- --sandbox=rivet --ult                         # R skill on repeat: the lance wind-up bar
+& $G --headless --path $P -s res://tests/sim_rules_test.gd      # sim tests
+& $G --headless --path $P -s res://tests/garage_parts_test.gd   # garage, parts, flow, gamepad tests
+& $G --headless --path $P -s res://tests/sound_test.gd          # sound tests
+& $G --headless --path $P -s res://tests/hype_test.gd           # crowd tests
+& $G --headless --path $P -s res://tests/killcam_test.gd        # kill cam tests
+& $G --path $P -- --replay=0 --seed=1                           # watch a kill cam right away
+& $G --path $P --resolution 1920x1080 -s "$R\tools\perf_probe.gd" -- --autopilot --seed=3   # speed: one PERF line after ~40 s
+& $G --path $P --resolution 1920x1080 -s "$R\tools\arena_shot.gd" -- --autopilot --seed=3 --tick=700 "--out=$env:TEMP\arena.png"   # arena-only still (--top: whole arena)
 ```
 
 ## Godot (`godot/`)
@@ -47,9 +67,9 @@ $G --path godot -- --replay=0 --seed=1                          # watch a kill c
   `view.slow` → main.gd sets `Engine.time_scale`), land, dash (+ `Fx.ghost` afterimages), booster
   trails (`Fx.ribbon` for arc/flame/frost, `Fx.smoke` puffs for smoke), flamer cone
   (`view.cone`), shield ripple (`Fx.ripple`, from `view.guard` watching `act.absorbed`), hook
-  cable + catch (`view.tether`, `Fx.hooked`), directional camera kick (`view.kick` → main.gd), and emp, heal / pickup, crush, blink, soak, magnet, ping, R charge (`Fx.emp` … `Fx.charge`).
+  cable + catch (`view.tether`, `Fx.hooked`), directional camera kick (`view.kick` → main.gd), and emp, heal / pickup, crush, blink, soak, magnet, ping, R charge (`Fx.emp` … `Fx.charge`), R release (`Fx.ult`, from the sim's `ult` event, on every R skill). Lasting R skills show an aura instead of tinting the body (`mech.gd` `AURA`: Overdrive, Berserk, Deflect zone, Mirror arc; Victor 2026-10-27), and their fields, wall and mines are `Mech.flat` (`Fx.FIELD`). Dashes: team afterimages every 3 ticks plus white speed lines (`Fx.lines`).
   Effect nodes are pooled (`Fx.take`/`Fx.park`). Smoke and fire puffs use noise shaders (`SMOKE_SHADER`, `FIRE_SHADER` in fx.gd). **Sandbox:** `$G --path godot -- --sandbox=<weapon>` (two pinned mechs, auto-fire, ←/→
-  weapon, T auto-fire, G guard, K refill, J dash, `--block` held shield, `--hook` auto hook; see `FX_DESIGN.md`). Evidence:
+  weapon, T auto-fire, G guard, K refill, J dash, `--block` held shield, `--hook` auto hook, `--ult` R skill on repeat; see `FX_DESIGN.md`). Evidence:
   `production/qa/evidence/godot-hit-fx-before-after-2026-10-26.png`,
   `godot-weapon-fx-before-after-2026-10-27.png`, `godot-moves-fx-before-after-2026-10-27.png`.
 - **Kill cam** (Victor 2026-10-28: "new and different perspectives to the last kill, zooms and
@@ -72,7 +92,7 @@ $G --path godot -- --replay=0 --seed=1                          # watch a kill c
   loop stays at 60 Hz and the sim steps once per tick), so `direct` also sets
   `physics_ticks_per_second` to 60 × speed; physics interpolation keeps the mechs smooth and the
   camera moves in `_process` on real time (`get_global_transform_interpolated`, its interpolation
-  off). The haze is thinned to `haze` × during the replay (low cameras look through 30 m of it).
+  off).
   HUD: only black bars, a blinking ● REPLAY, a progress line and a skip hint (`kcReplay`, `kcSkip`);
   Enter, click or A skip after `grace` ticks (mashing doesn't); a rewind swoosh (`ui_rewind`) starts
   it. The end (or a skip) steps the live state through the rest of the K.O. phase, so the next round
@@ -80,7 +100,8 @@ $G --path godot -- --replay=0 --seed=1                          # watch a kill c
   plays the kill cam; add `--shot=<abs>.png` to save its n-th step. Evidence (one replay, 8 moments):
   `production/qa/evidence/godot-kill-cam-shots-2026-10-28.png`.
 - Look check without a player: `$G --path godot -- --autopilot --seed=3 --shot=<abs>.png --at=700`
-  saves that tick's frame and quits. Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
+  saves that tick's frame and quits. `--lang=en|es` picks the language and `--pad` shows the pad
+  captions (HUD stills). Add `--cam=1..4` for a close-up and `--hands=<left>,<right>`
   to pick your two weapons (e.g. `--hands=mortar,rivet`; use `--at=200`, later ticks often show a
   broken, drooping arm). `--head=<id>` picks your head (e.g. `--head=demon`), `--core=<id>` your
   core (e.g. `--core=titan`; pair it with `--hands=rivet,rivet` so no blade hides the chest),
@@ -222,11 +243,15 @@ $G --path godot -- --replay=0 --seed=1                          # watch a kill c
   `godot/assets/models/arena.glb` (`art/arena.blend`, build script = text block `arena_build.py`;
   built and exported headless so the open Blender file is never touched). Objects: `pillar`
   (radius 1, view scales x/z by the sim radius), `tesla` + `tesla_orb` (orb pulses via material
-  `zap`), `crush_plate` + `crush_head` (block centered on the origin; `hazard` stripes take the
-  per-crusher warn material), `heal_pad`, `pad`, `vent` (+X = into the arena), `wall` (a 4 m
-  panel, arena face at z 0; `build_walls` tiles and stretches it per edge) and `wall_post`.
-  `view.gd` `ARENA` maps the material names (steel, dark, trim, hazard, amber, zap, pad, heal,
-  vent). Evidence: `production/qa/evidence/godot-arena-{before,after,wide}-2026-10-27.png`.
+  `zap`), `crush_plate` + `crush_head` (block centered on the origin; their `hazard` surfaces
+  take the per-crusher warn copy of the hazard shader), `heal_pad`, `pad`, `vent` (+X = into the
+  arena), `wall` (a 4 m panel, arena face at z 0; `build_walls` tiles and stretches it per edge)
+  and `wall_post`. `look.gd` `ARENA` maps the material names (steel, dark, trim, hazard, amber,
+  zap, pad, heal, vent, strip). Restyled in visual overhaul M2: `hazard` is a shader (45° yellow
+  and black stripes in world space), so model plain bands, never stripe geometry; the lights
+  (`strip`, `pad`, `zap`, `vent`, `amber`) are `look.gd` `neon()`; the oil slicks have no mesh,
+  the floor shader draws them. Evidence: `production/qa/evidence/godot-arena-{before,after,wide}-2026-10-27.png`,
+  `visual-m2-*-2026-10-27.png`.
   **Stadium** (Victor 2026-10-27: "production ready", no gray box when the camera zooms out):
   `stadium` is the whole bowl in world space (added at the origin): a walkway, 3 tiers with seat
   rows, a riser LED board and a rail, one aisle with steps in the middle of each edge, a 7 m back
@@ -235,8 +260,17 @@ $G --path godot -- --replay=0 --seed=1                          # watch a kill c
   `tower` = 4 floodlight towers (no shadows). Side materials: `seat_a/b/n`, `led_a/b/n` (left =
   team 0, right = team 1, else neutral). The script copies the arena shape (`AW`, `AH`, `ACUT`,
   `WALLS`) from `sim.gd`, and `view.gd` `STAND` must match the script's `STAND` (fans stand on
-  the tiers and skip the aisles). Outside the stadium is unshaded `OUTSIDE` night color.
+  the tiers and skip the aisles). Outside the stadium is unshaded `Look.PAL.void`.
   Evidence: `godot-stadium-{left,bottom}-before-after-2026-10-27.png`, `godot-stadium-top-2026-10-27.png`.
+  **Stadium lighting** (491b057, reworked in visual overhaul M1): four corner SpotLights follow
+  the bots on an underdamped spring (`view.follow`; 2 per bot in 1v1, 1 each in FFA), soft and
+  unshadowed, no haze; the key light is the only shadow caster. The floor shader (v2, visual
+  overhaul M2) draws steel plates with soft bevels, grime, scuffs, hazard bands around pads,
+  spawns and crushers, a dashed line 1 m inside the walls, chevrons in front of the spawns and
+  the oil slicks; its arrays are sized to `sim.gd` (`docs/visual-architecture.md` Contracts).
+  Knobs: `look.gd` `STAGE` and `FLOOR`. Evidence:
+  `godot-stadium-lighting-before-after-2026-10-27.png`, `godot-stadium-follow-spots-2026-10-27.png`
+  (before M1), `visual-m1-*-2026-10-27.png` (M1), `visual-m2-*-2026-10-27.png` (M2).
   **EMP zones** (Victor 2026-10-27: the fire vents became EMP zones, same spots and timing;
   the sim names stay `vents`/`HAZARDS`): 12 Legs + `HAZARDS.slow` ticks of Slow instead of Heat.
   Drawn with `EMP_SHADER` (additive crackle on a floor plane, `power` 0 = warning outline, 1 =
@@ -244,7 +278,8 @@ $G --path godot -- --replay=0 --seed=1                          # watch a kill c
   **Pickups**: `item_<kind>` icons in `arena.glb` (repair wrench, shield, speed bolt, power
   burst, coolant snowflake, surge battery; material `icon` = item color, `dark` details), tilted
   to face the camera, and a colored ring on the pad. No name tags (Victor 2026-10-27: icons only).
-  Knobs: `ITEM` in view.gd. Evidence: `godot-emp-pickups-2026-10-27.png`.
+  Knobs: `ITEM` in view.gd (icons at 1.5, 1.6 m up since 2026-10-27: at 2.4 they outshone the
+  mechs). Evidence: `godot-emp-pickups-2026-10-27.png`, `visual-m3-pickups-before-after-2026-10-27.png`.
 - **Crowd** (Victor 2026-10-27: more people, "same interactivity as the js version"). One
   `fan` mesh in `arena.glb` (92 faces, one material; UV.x tags shirt / sleeve / skin / hand /
   pants) drawn ~2650 times by one `MultiMeshInstance3D` (`view.build_stands`, 2 rows per tier,
@@ -306,6 +341,31 @@ $G --path godot -- --replay=0 --seed=1                          # watch a kill c
   act with `follow`, the sim's 360° `spinDmg` hit): `spin_of` turns the torso one full turn in the
   swing's direction over the first half of recovery, linear (keeps each tick under 180° so
   physics interpolation can't spin it backwards); the trail follows, so it draws a full ring.
+- **Visual overhaul** (Victor 2026-10-27: industrial neon arena, target
+  `docs/reference/industrial-neon-arena.webp`, branch `feat/visual-overhaul`). The look:
+  `docs/art-direction.md`. How visuals are built: `docs/visual-architecture.md`. Starting
+  state and numbers: `docs/visual-audit.md`. Milestones, budgets and acceptance:
+  `docs/visual-plan.md`. **Look** (M1): `godot/src/look.gd` holds the palette `PAL`, material
+  families (`FAMILY`, `paint`), the light rig and tonemap knobs `STAGE`, the floor shader values
+  `FLOOR`, the arena slot materials `ARENA`, and `env()`, the one Environment for the arena and
+  the garage previews (`env(true)` = see-through background). No other file sets environment
+  colors. The glow threshold stays above stacked effects (`fx_peak`, asserted in `env()`): Godot
+  4.7 multiplies the glow input by exposure before the threshold. **Arena** (M2): arena lights
+  are `neon()`, a black surface that only emits at `NEON` 0.75, because AgX turns a brighter or
+  lit light near white; no reflections (a probe and SSR were tried, neither showed at the game
+  camera). **Robots** (M3): `mech.gd` `SKIN` sets metal and roughness per slot, and the `glow`
+  slot is a team-color light on a black base (0.9); every match mech gets a team ring on the
+  floor, a ▼ over its head and a 2 px screen-space rim in its team color (`view.gd` `MARK` and
+  `mark()`, `look.gd` `RIM`; not in the garage), all off while the mech hides in smoke
+  (`Sim.hidden`); the lance/rail wind-up bar is `Mech.flat`, so it no longer blooms. **Atmosphere** (M4): `godot/src/decor.gd` adds seeded scorch marks, metal scraps, floor grates, grime at the wall bases and floating dust, built once by `view.build`; `Decor.clear` keeps every piece 1.5 m off pads, spawns, trap warnings and oil (re-checked in `garage_parts_test`), and nothing on the floor moves. **HUD** (M5, reference `docs/reference/impact-numbers.webp`): two fonts, each with its `OFL.txt` in `godot/assets/fonts/<family>/`: Saira for the HUD, garage and menus, Exo 2 for the feedback in game (impact numbers and the big calls; Victor 2026-10-28) (`look.gd` `FONT`, `Look.font(weight, italic, family)`, Saira set as the default by `Look.ui()` first thing in main.gd); impact numbers are 2D text drawn by `hud.gd` from `view.pops` in the sheet's colors (`look.gd` `POP`: hit white, head orange, BLOCKED blue when a shield takes a hit, heal green), never `Label3D` (AgX dulls 3D text); every plate is `Garage.plate`, team score tags around an m:ss clock, a compact skill bar, callouts on plates (a broken part under its owner's panel, arena calls under the clock); the aim reticle is `Mech.flat`. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
+  `--autopilot`), `tools/arena_shot.gd` (arena-only still with effects and the wind-up bar
+  hidden, where bright is measured; `--top` = the whole arena; `-s <absolute path>`, `--tick=N
+  --out=<abs png>`), `tools/look_stats.py` (look numbers vs the reference),
+  `tools/side_by_side.py` (labeled rows of stills: `out.png
+  Label=img … + Label=img …`), `tools/blender_export.py` (headless build + export of one
+  `.blend`; every "export the X collection" step in this file is `blender -b art/<x>.blend
+  --python tools/blender_export.py -- --build --save`). Sandbox stills need `--seed` (the rival,
+  and so the K.O. tick, follows the seed). Run one Godot window at a time: two at once can hang.
 
 ## Hard rules
 
