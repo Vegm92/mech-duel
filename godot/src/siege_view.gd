@@ -5,17 +5,15 @@ const Mech = preload("res://src/mech.gd")
 const Fx = preload("res://src/fx.gd")
 const Look = preload("res://src/look.gd")
 const View = preload("res://src/view.gd")
+const SiegeState = preload("res://src/siege_state.gd")
 
-const HALF := 80.0
-const FORT := 16.0
-const LANES := [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0)]
-const PADS := [26.0, 45.0, 66.0]
-const STATIC := ["border", "lanes", "fortress", "plaza"]
-const PARTS := ["border", "lanes", "fortress", "plaza", "core_base", "core_crystal", "ring1", "ring2", "ring3", "ring4",
+const HALF := SiegeState.HALF
+const STATIC := ["border", "blocks", "fortress", "plaza"]
+const PARTS := ["border", "blocks", "fortress", "plaza", "core_base", "core_crystal", "ring1", "ring2", "ring3", "ring4",
 	"gate", "gate_light", "gate_door", "gate_broken", "spawn_gate", "spawn_light", "build_pad", "mod_wall", "mod_mine", "mod_laser"]
-const CORE := {"y": 2.8, "spin": 0.35, "bob": 0.12, "glow": 1.6, "flicker": 0.5, "smoke": 0.25, "smoke_size": 2.2,
-	"rings": [1.5, 2.2, 2.9, 3.6], "ring_spin": [0.25, -0.35, 0.45, -0.6], "light": 8.0, "light_range": 12.0,
-	"mend": [5.9, 6.3], "mend_y": 0.5}
+const CORE := {"y": 4.3, "spin": 0.35, "bob": 0.12, "glow": 1.6, "flicker": 0.5, "smoke": 0.25, "smoke_size": 2.2,
+	"rings": [3.3, 3.9, 4.5, 5.1], "ring_spin": [0.25, -0.35, 0.45, -0.6], "light": 8.0, "light_range": 12.0,
+	"mend": [4.8, 5.2], "mend_y": 0.5}
 const GATE := {"sink": 2.4, "ease": 0.12, "bar_y": 5.0, "bar": 0.22, "width": 10.0}
 const WARN := {"secs": 8, "on": 1.6, "steady": 0.6, "blink": 10}
 const VIGNETTE := "smoothstep(0.0, 40.0, length(p - vec2(38.0, 30.0)))"
@@ -41,24 +39,12 @@ var pads := []
 var tick := 0
 
 
-static func demo(n := 4) -> Dictionary:
-	var hp := maxf(0.25 * n - 0.1, 0.0) * 1000.0
-	var s := {
-		"tick": 0,
-		"wave": {"n": 3, "next_in": 0, "lanes_open": [true, true, true, true]},
-		"core": {"x": 0.0, "y": 0.0, "hp": hp, "max": 1000.0, "rings": range(4).map(func(k): return 100.0 if k >= 4 - n else 0.0), "repairing": false},
-		"gates": [], "pads": [], "enemies": [],
-	}
-	for i in 4:
-		var d: Vector2 = LANES[i]
-		s.gates.append({"lane": i, "x": d.x * FORT, "y": d.y * FORT, "hp": 600.0, "max": 600.0})
-		for k in PADS.size():
-			s.pads.append({"lane": i, "x": d.x * PADS[k], "y": d.y * PADS[k], "module": ["wall", "mine", "laser"][k] if i == 0 else ""})
-	return s
+static func dir(lane: int) -> Vector3:
+	return Vector3(SiegeState.LANES[lane].dx, 0, SiegeState.LANES[lane].dy)
 
 
 static func yaw(lane: int) -> float:
-	return -atan2(LANES[lane].y, LANES[lane].x)
+	return -atan2(SiegeState.LANES[lane].dy, SiegeState.LANES[lane].dx)
 
 
 func build(env := true) -> void:
@@ -96,16 +82,16 @@ func build(env := true) -> void:
 	mend.visible = false
 	for i in 4:
 		var n := Node3D.new()
-		n.position = Vector3(LANES[i].x * HALF, 0, LANES[i].y * HALF)
+		n.position = dir(i) * HALF
 		n.rotation.y = yaw(i)
 		add_child(n)
 		Mech.add_part(n, "spawn_gate", MATS, "core_siege")
 		var m: StandardMaterial3D = MATS.warn.duplicate()
 		Mech.add_part(n, "spawn_light", MATS.merged({"warn": m}, true), "core_siege").cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		spawns.append(m)
-		accent(Vector3(LANES[i].x * (FORT + 3.0), Look.STAGE.accent_y, LANES[i].y * (FORT + 3.0)), Look.PAL.cyan)
-	for c in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
-		accent(Vector3(c.x * (HALF - 8.0), Look.STAGE.accent_y, c.y * (HALF - 8.0)), Look.PAL.cyan)
+		accent(dir(i) * (SiegeState.RING_OUT + 3.0) + Vector3(0, Look.STAGE.accent_y, 0), Look.PAL.cyan)
+	for a in SiegeState.AIR:
+		accent(Vector3(a[0], 1.5 + Look.STAGE.accent_y, a[1]), Look.PAL.cyan)
 
 
 func build_floor() -> void:
@@ -114,7 +100,7 @@ func build_floor() -> void:
 	var far := Vector2(1e4, 1e4)
 	sm.set_shader_parameter("rings", PackedVector2Array(range(10).map(func(_i): return far)))
 	sm.set_shader_parameter("boxes", PackedVector2Array(range(4).map(func(_i): return far)))
-	sm.set_shader_parameter("walls", PackedVector3Array(range(8).map(func(i): return Vector3(LANES[i % 4].x, LANES[i % 4].y, HALF))))
+	sm.set_shader_parameter("walls", PackedVector3Array(range(8).map(func(i): return Vector3(SiegeState.LANES[i % 4].dx, SiegeState.LANES[i % 4].dy, HALF))))
 	sm.set_shader_parameter("spawns", PackedVector3Array([Vector3(1e4, 1e4, 0), Vector3(1e4, 1e4, 0)]))
 	sm.set_shader_parameter("oils", PackedVector3Array([Vector3(1e4, 1e4, 0), Vector3(1e4, 1e4, 0)]))
 	var floor := Mech.add(self, Mech.plane(), sm)

@@ -3,6 +3,7 @@ extends SceneTree
 const Mech = preload("res://src/mech.gd")
 const View = preload("res://src/view.gd")
 const SiegeView = preload("res://src/siege_view.gd")
+const SiegeState = preload("res://src/siege_state.gd")
 
 var failed := 0
 var done := false
@@ -28,21 +29,25 @@ func _process(_dt: float) -> bool:
 	var v := SiegeView.new()
 	root.add_child(v)
 	v.build()
-	var s := SiegeView.demo(4)
+	var s := SiegeState.stub(4)
+	for k in 3:
+		s.pads[k].module = ["wall", "mine", "laser"][k]
 	v.update(s)
 	check(v.gates.size() == 4 and v.pads.size() == 12, "4 gates and 12 build pads from the state")
 	for n in [4, 3, 2, 1, 0]:
-		s.core.rings = SiegeView.demo(n).core.rings
+		s.core.rings = SiegeState.ring_hp(n)
 		v.update(s)
 		check(v.rings.filter(func(r): return r.visible).size() == n, "%d rings up shows %d rings" % [n, n])
-	check(v.rings[3].visible == false and v.rings[0].visible == false, "outer ring breaks first, inner last")
-	s.core.hp = 100.0
+	s.core.rings = SiegeState.ring_hp(2)
+	v.update(s)
+	check(v.rings.map(func(r): return r.visible) == [false, false, true, true], "outer rings break first, inner last")
+	s.core.hp = s.core.max * 0.1
 	v.update(s)
 	check(v.smoke.emitting, "a core under 25 % smokes")
 	s.core.repairing = true
 	v.update(s)
 	check(v.mend.visible, "a repairing core shows the repair glow")
-	s.gates[0].hp = 300.0
+	s.gates[0].hp = s.gates[0].max / 2.0
 	v.update(s)
 	check(v.gates[0].bar.visible and is_equal_approx(v.gates[0].fill.scale.z, 5.0), "a hurt gate shows half an HP bar")
 	s.gates[0].hp = 0.0
