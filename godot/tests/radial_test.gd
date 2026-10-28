@@ -82,6 +82,29 @@ func menu() -> void:
 	up.pressed = false
 	r._input(up)
 	check(picks.size() == 3 and picks[2] == PackedStringArray(["ring"]), "releasing the hold key confirms when confirm_on_release is on")
+	r.confirm_on_release = false
+	r.open(entries())
+	r.point(Vector2(0.9, 0.1))
+	check(r.hover == 2, "a stick vector picks by direction")
+	r.point(Vector2(0.1, 0.05))
+	check(r.hover == 2, "a centered stick keeps the last pick")
+	check(r.confirm() == "ring", "confirm returns the picked id")
+	r.open(entries())
+	r.point(Radial.dir(3 * TAU / 6) * 150.0)
+	check(r.confirm() == "", "opening a second ring returns no id")
+	r.point(Radial.dir(TAU / 4) * 150.0)
+	var poor := entries()
+	poor[3].sub[1].enabled = false
+	poor[3].sub[1].cost = 999
+	r.refresh(poor)
+	check(r.stack.size() == 2 and r.hover == 1 and r.level()[1].cost == 999, "refresh keeps the open ring and the hover, with new costs")
+	check(r.confirm() == "", "refresh can disable the hovered wedge")
+	r.own_input = false
+	var lmb := InputEventMouseButton.new()
+	lmb.button_index = MOUSE_BUTTON_RIGHT
+	lmb.pressed = true
+	r._input(lmb)
+	check(r.stack.size() == 2, "with own_input off the widget ignores raw input")
 	r.free()
 
 

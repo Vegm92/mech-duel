@@ -14,6 +14,7 @@ const TEXT := Color(0.91, 0.95, 1.0)
 const DIM := Color(0.5, 0.56, 0.64)
 const TYPE := {"label": 16, "min": 11, "cost": 15, "name": 19, "note": 14, "pad": 14.0}
 
+var own_input := true
 var confirm_on_release := false
 var hold_action := &""
 var stack := []
@@ -59,21 +60,40 @@ func back() -> void:
 		close()
 
 
-func confirm() -> void:
+## Returns the picked leaf id, or "" (nothing hovered, disabled, or a second ring opened).
+func confirm() -> String:
 	if hover < 0:
-		return
+		return ""
 	var e: Dictionary = level()[hover]
 	if not e.get("enabled", true):
-		return
+		return ""
 	trail.append(e.id)
 	if not e.get("sub", []).is_empty():
 		stack.append(e.sub)
 		enter()
-		return
+		return ""
 	var path := trail
 	visible = false
 	stack.clear()
 	picked.emit(path)
+	return e.id
+
+
+## New costs and enabled flags while open; keeps the open ring and the hovered wedge.
+func refresh(entries: Array) -> void:
+	if stack.is_empty():
+		return
+	stack = [entries]
+	var kept := PackedStringArray()
+	for id in trail:
+		var hit = level().filter(func(e): return e.id == id)
+		if hit.is_empty() or hit[0].get("sub", []).is_empty():
+			break
+		stack.append(hit[0].sub)
+		kept.append(id)
+	trail = kept
+	hover = mini(hover, level().size() - 1)
+	queue_redraw()
 
 
 func level() -> Array:
@@ -87,8 +107,12 @@ func enter() -> void:
 	queue_redraw()
 
 
-## Pointer offset from the center, in this control's units; picks the wedge under it.
+## A pointer offset from the center in this control's units, or a stick vector (length <= 1; a centered stick keeps the last pick).
 func point(v: Vector2) -> void:
+	if v.length() <= 1.0:
+		if v.length() <= RING.stick:
+			return
+		v = v.normalized() * (RING.inner + RING.outer) / 2.0
 	aim = v
 	hover = wedge_at(v, level().size(), RING.dead)
 	queue_redraw()
@@ -103,7 +127,7 @@ static func wedge_at(v: Vector2, n: int, dead: float) -> int:
 
 
 func _input(ev: InputEvent) -> void:
-	if not visible:
+	if not visible or not own_input:
 		return
 	var used := true
 	if ev is InputEventMouseMotion:
@@ -135,12 +159,11 @@ func _process(dt: float) -> void:
 	if not visible:
 		return
 	age += dt
-	if pad_id >= 0:
+	if own_input and pad_id >= 0:
 		var l := Vector2(Input.get_joy_axis(pad_id, JOY_AXIS_LEFT_X), Input.get_joy_axis(pad_id, JOY_AXIS_LEFT_Y))
 		var r := Vector2(Input.get_joy_axis(pad_id, JOY_AXIS_RIGHT_X), Input.get_joy_axis(pad_id, JOY_AXIS_RIGHT_Y))
 		var s := l if l.length() >= r.length() else r
-		if s.length() > RING.stick:
-			point(s.normalized() * (RING.inner + RING.outer) / 2.0)
+		point(s)
 	queue_redraw()
 
 
