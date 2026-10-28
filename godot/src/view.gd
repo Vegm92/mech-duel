@@ -497,6 +497,26 @@ func reset(state: Dictionary) -> void:
 	follow(state, 0.0)
 
 
+func remake(i: int, m: Dictionary) -> void:
+	var old: Node3D = mechs[i]
+	for g in old.get_meta("ghosts", []):
+		g.queue_free()
+	for k in old.get_meta("marks", []):
+		if k is Node:
+			k.queue_free()
+	old.queue_free()
+	var node := Mech.new()
+	add_child(node)
+	node.build(m.loadout, m.team)
+	node.smoke = Fx.wreck(node)
+	mark(node, m)
+	node.set_meta("guard", m.guard)
+	var halo := Mech.add(node, Mech.ring(1.25, 1.45), Mech.flat(Color(Look.PAL.cyan, 0.85), true))
+	halo.top_level = true
+	node.set_meta("halo", halo)
+	mechs[i] = node
+
+
 ## Team markers: a ring on the floor, an arrow over the head and a rim on the edges, all in the team color.
 func mark(node: Node3D, m: Dictionary) -> void:
 	var c := Mech.flat(Color(Mech.TEAM[m.team].darkened(MARK.dim), MARK.alpha))
@@ -548,6 +568,10 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 	muzzle_off.clear()
 	follow(state, dt)
 	for i in mechs.size():
+		var sm0 = state.mechs[i]
+		if sm0.has("guard") and mechs[i].get_meta("guard", -1) != sm0.guard:
+			remake(i, sm0)
+		mechs[i].visible = not sm0.get("absent", false)
 		mechs[i].sync(state.mechs[i], tick, dt)
 		if shocks.size() <= i:
 			shocks.append(Mech.add(self, Mech.plane(), emp_mats[1]))
@@ -559,6 +583,9 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		var marks_of: Array = mechs[i].get_meta("marks")
 		var seen := not Sim.hidden(state, sm)
 		place_marks(marks_of, sm)
+		if mechs[i].has_meta("halo"):
+			mechs[i].get_meta("halo").position = Vector3(sm.x, MARK.y, sm.y)
+			mechs[i].get_meta("halo").visible = not sm.ko
 		marks_of[0].visible = seen and not replaying
 		marks_of[1].visible = seen and not sm.ko and not replaying
 		marks_of[2].set_shader_parameter("strength", Look.RIM.strength if seen else 0.0)

@@ -328,7 +328,7 @@ static func geo(state) -> Dictionary:
 
 static func in_gap(ring: Dictionary, x: float, y: float, pad: float) -> bool:
 	for gp in ring.gaps:
-		if x * gp.dx + y * gp.dy > 0 and absf(y * gp.dx - x * gp.dy) < ring.half - pad:
+		if x * gp.dx + y * gp.dy > 0 and absf(y * gp.dx - x * gp.dy) < gp.get("half", ring.half) - pad:
 			return true
 	return false
 
@@ -479,6 +479,10 @@ static func ak(m) -> String:
 
 
 static func hidden(state, m) -> bool:
+	if state.has("geo"):
+		for st in state.geo.get("steam", []):
+			if hypot(m.x - st.x, m.y - st.y) < st.r:
+				return true
 	for tr in state.trails:
 		if tr.kind == "smoke" and seg_dist(tr.x1, tr.y1, tr.x2, tr.y2, m.x, m.y) < tr.get("w", TRAILS.smoke.width):
 			return true

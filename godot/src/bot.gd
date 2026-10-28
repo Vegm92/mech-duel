@@ -48,6 +48,8 @@ static func dist(a, b) -> float:
 
 static func pick(state, brain, m):
 	var lst := Sim.foes(state, m.id)
+	if brain.get("lanes_only", false):
+		lst = lst.filter(func(t): return t.team != 2)
 	var near = null
 	for t in lst:
 		if near == null or dist(m, t) < dist(m, near):
@@ -63,7 +65,7 @@ static func pick(state, brain, m):
 		brain.target = near.id
 		return near
 	for t in state.mechs:
-		if t.team != m.team:
+		if t.team != m.team and not (brain.get("lanes_only", false) and t.team == 2):
 			return t
 	return m
 

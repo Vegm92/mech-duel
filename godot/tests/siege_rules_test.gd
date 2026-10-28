@@ -6,7 +6,7 @@ const Siege = preload("res://src/siege.gd")
 const S = preload("res://src/siege_state.gd")
 const Progress = preload("res://src/progress.gd")
 
-const GOLDEN := 1159210972
+const GOLDEN := 2974256445
 
 var failed := 0
 var filter := ""
@@ -56,6 +56,25 @@ func _init() -> void:
 	run("best_wave_is_saved_and_loaded", test_best_wave_is_saved_and_loaded)
 	run("endless_waves_are_mk3_with_a_new_mutator_every_five", test_endless_waves_are_mk3_with_a_new_mutator_every_five)
 	run("plated_mutator_gives_bots_more_armor", test_plated_mutator_gives_bots_more_armor)
+	run("yards_open_through_the_arch_not_the_lane_wall", test_yards_open_through_the_arch_not_the_lane_wall)
+	run("camp_sleeps_until_a_player_comes_close_then_all_of_it_wakes", test_camp_sleeps_until_a_player_comes_close_then_all_of_it_wakes)
+	run("camp_bot_goes_home_past_its_leash_and_heals", test_camp_bot_goes_home_past_its_leash_and_heals)
+	run("clearing_a_camp_pays_the_nearest_wallet_not_the_fund", test_clearing_a_camp_pays_the_nearest_wallet_not_the_fund)
+	run("elite_pays_a_reinforce_token", test_elite_pays_a_reinforce_token)
+	run("crate_takes_three_still_seconds_and_resets_if_you_move", test_crate_takes_three_still_seconds_and_resets_if_you_move)
+	run("camps_and_crates_refill_each_wave_the_elite_every_five", test_camps_and_crates_refill_each_wave_the_elite_every_five)
+	run("raids_from_wave_15_wipe_camps_and_pay_nothing", test_raids_from_wave_15_wipe_camps_and_pay_nothing)
+	run("wallet_upgrade_reinforce_and_revive", test_wallet_upgrade_reinforce_and_revive)
+	run("wallet_buys_only_in_the_plaza", test_wallet_buys_only_in_the_plaza)
+	run("holding_v_at_the_core_donates_to_the_fund", test_holding_v_at_the_core_donates_to_the_fund)
+	run("steam_hides_a_mech", test_steam_hides_a_mech)
+	run("crush_plate_hits_bots_too", test_crush_plate_hits_bots_too)
+	run("garrison_costs_the_fund_and_stands_at_its_dock", test_garrison_costs_the_fund_and_stands_at_its_dock)
+	run("each_garrison_tier_swaps_parts_up", test_each_garrison_tier_swaps_parts_up)
+	run("garrison_holds_its_leash_and_shoots_what_comes_in", test_garrison_holds_its_leash_and_shoots_what_comes_in)
+	run("garrison_rebuilds_for_free_after_its_timer", test_garrison_rebuilds_for_free_after_its_timer)
+	run("a_full_garrison_alone_still_loses_wave_15", test_a_full_garrison_alone_still_loses_wave_15)
+	run("a_full_garrison_alone_still_loses_wave_25", test_a_full_garrison_alone_still_loses_wave_25)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -78,6 +97,10 @@ func ensure(cond: bool, what: String) -> int:
 		print("  condition false: " + what)
 		return 1
 	return 0
+
+
+func wave_bots(s: Dictionary) -> Array:
+	return s.siege.enemies.filter(func(e): return not e.neutral)
 
 
 func idle(at := Vector2.ZERO) -> Dictionary:
@@ -113,8 +136,8 @@ func test_siege_run_matches_golden_hash() -> int:
 	var r := bot_run(11, 3600)
 	var h: int = r.hash
 	if h != GOLDEN:
-		print("  golden hash is %d (wave %d, core %d, scrap %d)" % [h, r.state.siege.wave.n, r.state.siege.core.hp, r.state.siege.scrap])
-	return ensure(h == GOLDEN, "hash == GOLDEN") or ensure(r.state.siege.scrap > 0, "the bots killed something")
+		print("  golden hash is %d (wave %d, core %d, scrap %d)" % [h, r.state.siege.wave.n, r.state.siege.core.hp, r.state.siege.fund])
+	return ensure(h == GOLDEN, "hash == GOLDEN") or ensure(r.state.siege.fund > 0, "the bots killed something")
 
 
 func test_same_seed_gives_same_siege_hash() -> int:
@@ -130,9 +153,9 @@ func test_first_wave_warns_eight_seconds_ahead_then_spawns_scouts() -> int:
 		for f in s.fx:
 			if f.k == "warn" and warned < 0:
 				warned = s.tick
-	var n: int = s.siege.enemies.size()
+	var n: int = wave_bots(s).size()
 	steps(s, 1)
-	return ensure(warned == Siege.RUN.first - Siege.RUN.warn, "warning at tick %d" % warned) or ensure(n == 0, "nobody before the wave") or ensure(s.siege.enemies.size() > 0 and s.siege.enemies[0].kind == "scout", "a scout spawns") or ensure(s.siege.wave.n == 1, "wave 1")
+	return ensure(warned == Siege.RUN.first - Siege.RUN.warn, "warning at tick %d" % warned) or ensure(n == 0, "nobody before the wave") or ensure(wave_bots(s).size() > 0 and wave_bots(s)[0].kind == "scout", "a scout spawns") or ensure(s.siege.wave.n == 1, "wave 1")
 
 
 func test_scout_walks_its_lane_and_shoots_the_gate() -> int:
@@ -191,7 +214,7 @@ func test_player_shot_kills_a_scout_and_drops_scrap() -> int:
 		b.y = -40.0
 		Siege.step(s, [inp])
 		inp.left = not inp.left
-	return ensure(e.act == "die", "the scout died, act %s hp %d" % [e.act, e.hp]) or ensure(s.siege.scrap == Siege.BOTS.scout.cost * Siege.RUN.scrap, "scrap %d" % s.siege.scrap)
+	return ensure(e.act == "die", "the scout died, act %s hp %d" % [e.act, e.hp]) or ensure(s.siege.fund == Siege.BOTS.scout.cost * Siege.RUN.scrap, "scrap %d" % s.siege.fund)
 
 
 func test_player_shots_pass_over_the_core() -> int:
@@ -258,10 +281,10 @@ func until(s: Dictionary, most: int, done: Callable) -> int:
 func test_swarm_cube_blows_up_on_the_gate_without_scrap() -> int:
 	var s := lab()
 	Siege.spawn(s, "swarm", 0, 0.0)
-	var cubes: int = s.siege.enemies.size()
+	var cubes: int = wave_bots(s).size()
 	var g: Dictionary = s.siege.gates[0]
 	var t := until(s, 60 * 20, func(): return g.hp < g.max)
-	return ensure(cubes == 3, "a swarm is 3 cubes") or ensure(t > 0, "a cube reached the gate") or ensure(g.max - g.hp >= Siege.BOTS.swarm.boom.dmg, "the gate lost %d" % (g.max - g.hp)) or ensure(s.siege.scrap == 0, "blowing up gives no scrap")
+	return ensure(cubes == 3, "a swarm is 3 cubes") or ensure(t > 0, "a cube reached the gate") or ensure(g.max - g.hp >= Siege.BOTS.swarm.boom.dmg, "the gate lost %d" % (g.max - g.hp)) or ensure(s.siege.fund == 0, "blowing up gives no scrap")
 
 
 func test_spider_pops_out_of_a_vent_and_bites_a_player() -> int:
@@ -458,7 +481,7 @@ func test_tanks_come_first_and_ranged_bots_five_seconds_later() -> int:
 
 func shop(scrap := 1000) -> Dictionary:
 	var s := lab()
-	s.siege.scrap = scrap
+	s.siege.fund = scrap
 	return s
 
 
@@ -470,7 +493,7 @@ func test_gate_repair_and_rebuild_cost_scrap() -> int:
 	h.hp = 0.0
 	var a := Siege.buy(s, s.siege, "gate", s.mechs[0])
 	var b := Siege.buy(s, s.siege, "rebuild", s.mechs[0])
-	return ensure(a and g.hp == 600.0, "gate repair adds 20%%, got %d" % g.hp) or ensure(b and h.hp == h.max * 0.5, "rebuilt at 50%%") or ensure(s.siege.scrap == 1000 - Siege.SHOP.gate - Siege.SHOP.rebuild, "paid %d" % (1000 - s.siege.scrap))
+	return ensure(a and g.hp == 600.0, "gate repair adds 20%%, got %d" % g.hp) or ensure(b and h.hp == h.max * 0.5, "rebuilt at 50%%") or ensure(s.siege.fund == 1000 - Siege.SHOP.gate - Siege.SHOP.rebuild, "paid %d" % (1000 - s.siege.fund))
 
 
 func test_core_ring_rebuild_restores_its_line() -> int:
@@ -487,7 +510,7 @@ func test_nothing_can_be_bought_during_a_wave_or_without_scrap() -> int:
 	var s := shop(10)
 	s.siege.gates[0].hp = 100.0
 	var poor := Siege.buy(s, s.siege, "gate", s.mechs[0])
-	s.siege.scrap = 1000
+	s.siege.fund = 1000
 	s.siege.wave.live = true
 	var busy := Siege.buy(s, s.siege, "gate", s.mechs[0])
 	return ensure(not poor, "too poor") or ensure(not busy, "not during a wave")
@@ -567,7 +590,7 @@ func test_calling_the_wave_early_pays_scrap() -> int:
 	var inp := idle()
 	inp.call = true
 	steps(s, 1, inp)
-	var paid: int = s.siege.scrap
+	var paid: int = s.siege.fund
 	steps(s, 2)
 	return ensure(paid == Siege.RUN.call * int(ceil((left - 1 - Siege.RUN.warn) / 60.0)), "paid %d scrap" % paid) or ensure(not s.siege.queue.is_empty(), "the wave is planned")
 
@@ -579,9 +602,9 @@ func test_clean_wave_pays_a_bonus() -> int:
 	steps(s, 2)
 	s.siege.earned = 100
 	s.mechs[e.m].armor.head = 0
-	var before: int = s.siege.scrap
+	var before: int = s.siege.fund
 	steps(s, 2)
-	return ensure(not s.siege.wave.live, "the wave is over") or ensure(s.siege.scrap >= before + 20, "bonus paid: %d" % (s.siege.scrap - before))
+	return ensure(not s.siege.wave.live, "the wave is over") or ensure(s.siege.fund >= before + 20, "bonus paid: %d" % (s.siege.fund - before))
 
 
 func test_clearing_wave_ten_offers_salvage() -> int:
@@ -633,3 +656,266 @@ func test_plated_mutator_gives_bots_more_armor() -> int:
 	s.siege.mutators = ["plated"]
 	var e := Siege.spawn(s, "scout", 0, 0.0)
 	return ensure(e.max == floor(Siege.BOTS.scout.hp * Siege.MUTATE.hp), "plated scout has %d" % e.max)
+
+
+func camp_bots(s: Dictionary, q: int, i: int) -> Array:
+	var id: int = q * S.CAMPS.size() + i
+	return s.siege.enemies.filter(func(e): return e.camp == id and e.act != "die")
+
+
+func test_yards_open_through_the_arch_not_the_lane_wall() -> int:
+	var s := lab()
+	park(s, 2, -52)
+	var east := idle()
+	east.mx = 1.0
+	steps(s, 90, east)
+	var walled: float = s.mechs[0].x
+	park(s, 14, -14)
+	var out := idle()
+	out.mx = Sim.Q
+	out.my = -Sim.Q
+	steps(s, 150, out)
+	var me: Dictionary = s.mechs[0]
+	return ensure(walled < S.LANE_W / 2.0, "the lane wall stops you at x %.1f" % walled) or ensure(Sim.hypot(me.x, me.y) > S.YARD_IN + 2.0, "the arch lets you into the yard (r %.1f)" % Sim.hypot(me.x, me.y))
+
+
+func test_camp_sleeps_until_a_player_comes_close_then_all_of_it_wakes() -> int:
+	var s := lab()
+	var c: Dictionary = s.siege.yards[0].camps[1]
+	park(s, c.x - 20.0, c.y)
+	steps(s, 60)
+	var asleep := camp_bots(s, 0, 1).all(func(e): return e.act == "dormant")
+	park(s, c.x - 6.0, c.y)
+	steps(s, 5)
+	var woke := camp_bots(s, 0, 1).all(func(e): return e.act != "dormant")
+	return ensure(camp_bots(s, 0, 1).size() == 3, "turret + 2 spiders") or ensure(asleep, "asleep while you are far") or ensure(woke, "the whole camp wakes")
+
+
+func test_camp_bot_goes_home_past_its_leash_and_heals() -> int:
+	var s := lab()
+	var c: Dictionary = s.siege.yards[0].camps[2]
+	var e: Dictionary = camp_bots(s, 0, 2)[0]
+	var b: Dictionary = s.mechs[e.m]
+	park(s, c.x - 5.0, c.y)
+	steps(s, 60)
+	b.armor.head = b.max.head * 0.5
+	park(s, 0, 6)
+	var t := until(s, 60 * 20, func(): return e.act == "dormant")
+	return ensure(t > 0, "it went back to sleep") or ensure(b.armor.head == b.max.head, "healed at home") or ensure(Sim.hypot(b.x - e.home.x, b.y - e.home.y) < 1.0, "at home")
+
+
+func test_clearing_a_camp_pays_the_nearest_wallet_not_the_fund() -> int:
+	var s := lab()
+	var c: Dictionary = s.siege.yards[1].camps[0]
+	park(s, c.x - 4.0, c.y)
+	for e in camp_bots(s, 1, 0):
+		s.mechs[e.m].armor.head = 0
+	steps(s, 2)
+	return ensure(s.siege.wallets[0] == S.CAMP_TIERS.small.scrap, "wallet %d" % s.siege.wallets[0]) or ensure(s.siege.fund == 0, "fund untouched") or ensure(not c.alive, "camp cleared")
+
+
+func test_elite_pays_a_reinforce_token() -> int:
+	var s := lab()
+	var c: Dictionary = s.siege.yards[2].camps[3]
+	park(s, c.x - 4.0, c.y)
+	for e in camp_bots(s, 2, 3):
+		s.mechs[e.m].armor.head = 0
+	steps(s, 2)
+	return ensure(s.siege.wallets[0] == S.CAMP_TIERS.elite.scrap and s.siege.tokens[0] == 1, "120 scrap and a token")
+
+
+func test_crate_takes_three_still_seconds_and_resets_if_you_move() -> int:
+	var s := lab()
+	var cr: Dictionary = s.siege.yards[0].crates[0]
+	park(s, cr.x + 1.0, cr.y)
+	var hold := idle()
+	hold.use = true
+	steps(s, 60, hold)
+	var half: float = cr.progress
+	steps(s, 1)
+	var dropped: float = cr.progress
+	steps(s, S.CRATE.secs * 60 + 2, hold)
+	return ensure(half > 0.3 and dropped == 0.0, "letting go resets (%.2f, %.2f)" % [half, dropped]) or ensure(cr.taken and s.siege.wallets[0] == S.CRATE.scrap, "opened: wallet %d" % s.siege.wallets[0])
+
+
+func test_camps_and_crates_refill_each_wave_the_elite_every_five() -> int:
+	var s := lab()
+	var y: Dictionary = s.siege.yards[0]
+	for e in camp_bots(s, 0, 0) + camp_bots(s, 0, 3):
+		s.mechs[e.m].armor.head = 0
+	y.crates[0].taken = true
+	steps(s, 2)
+	Siege.refill(s, s.siege, 2)
+	var small: bool = y.camps[0].alive
+	var elite: bool = y.camps[3].alive
+	Siege.refill(s, s.siege, 6)
+	return ensure(small and not y.crates[0].taken, "small camp and crate back next wave") or ensure(not elite, "no elite at wave 2") or ensure(y.camps[3].alive, "elite back at wave 6")
+
+
+func test_raids_from_wave_15_wipe_camps_and_pay_nothing() -> int:
+	var s := lab()
+	Siege.plan(s, s.siege, 15)
+	var raid: Array = s.siege.queue.filter(func(q): return q.get("raid", -1) >= 0)
+	var q: int = raid[0].raid
+	for u in raid:
+		Siege.spawn(s, u.kind, u.lane, u.side, 1, {"x": S.AIR[(q + 1) % 4][0] * 0.95, "y": S.AIR[(q + 1) % 4][1] * 0.95})
+	for r in s.siege.enemies:
+		if not r.neutral and r.camp < 0:
+			r.raid = q
+	s.siege.queue.clear()
+	var y: Dictionary = s.siege.yards[q]
+	var t := until(s, 60 * 40, func(): return y.camps.filter(func(c): return not c.alive).size() >= 2)
+	return ensure(not raid.is_empty(), "wave 15 has a raid") or ensure(t > 0, "the raid wiped camps") or ensure(s.siege.wallets[0] == 0, "nobody got paid")
+
+
+func test_wallet_upgrade_reinforce_and_revive() -> int:
+	var s := Siege.create([{}, {}], 3)
+	s.siege.wave.next_in = 999999
+	var me: Dictionary = s.mechs[0]
+	s.siege.wallets[0] = 1000
+	var lv_before := Siege.level_of(me, Siege.low_slot(me))
+	var up := Siege.buy(s, s.siege, "upgrade", me)
+	var head0: float = me.max.head
+	var tough := Siege.buy(s, s.siege, "reinforce", me)
+	s.mechs[1].armor.head = 0
+	steps2(s, 2)
+	var rev := Siege.buy(s, s.siege, "revive", me)
+	steps2(s, 2)
+	return ensure(up and me.loadout.lv.values().has(lv_before + 1), "a part went up a level") or ensure(tough and me.max.head == head0 + floor(head0 * 0.15), "max head %d" % me.max.head) or ensure(rev and not s.mechs[1].ko, "the ally is back")
+
+
+func steps2(s: Dictionary, n: int) -> void:
+	for i in n:
+		Siege.step(s, [idle(), idle()])
+
+
+func test_wallet_buys_only_in_the_plaza() -> int:
+	var s := lab()
+	var me: Dictionary = s.mechs[0]
+	s.siege.wallets[0] = 100
+	me.armor.larm = 10.0
+	var far := Siege.buy(s, s.siege, "repair", me)
+	park(s, 0, 6)
+	var near := Siege.buy(s, s.siege, "repair", me)
+	return ensure(not far, "no repair out on the ring road") or ensure(near and me.armor.larm == me.max.larm, "repair in the plaza")
+
+
+func test_holding_v_at_the_core_donates_to_the_fund() -> int:
+	var s := lab()
+	park(s, 0, 3.5)
+	s.siege.wallets[0] = 40
+	var hold := idle()
+	hold.use = true
+	steps(s, 60, hold)
+	return ensure(s.siege.wallets[0] == 0 and s.siege.fund == 40, "wallet %d fund %d" % [s.siege.wallets[0], s.siege.fund])
+
+
+func test_steam_hides_a_mech() -> int:
+	var s := lab()
+	var st: Dictionary = s.geo.steam[0]
+	park(s, st.x, st.y)
+	var hid := Sim.hidden(s, s.mechs[0])
+	park(s, st.x + st.r + 1.0, st.y)
+	return ensure(hid, "inside the steam you are hidden") or ensure(not Sim.hidden(s, s.mechs[0]), "outside you are not")
+
+
+func test_crush_plate_hits_bots_too() -> int:
+	var s := lab()
+	var h: Dictionary = S.YARD_HAZARDS[0]
+	var p := S.yard_at(0, h.a, h.b)
+	var e := Siege.spawn(s, "walker", 0, 0.0)
+	var b: Dictionary = s.mechs[e.m]
+	for i in Siege.YARD.crush.every + 2:
+		b.x = p.x
+		b.y = p.y
+		b.vx = 0.0
+		b.vy = 0.0
+		Siege.step(s, [idle()])
+	return ensure(b.armor.head < b.max.head, "the plate crushed the walker")
+
+
+func guard_of(s: Dictionary) -> Dictionary:
+	return s.mechs[s.siege.guard]
+
+
+func test_garrison_costs_the_fund_and_stands_at_its_dock() -> int:
+	var s := lab()
+	s.siege.fund = 1000
+	var absent: bool = guard_of(s).ko
+	var ok := Siege.buy(s, s.siege, "garrison", s.mechs[0])
+	steps(s, 1)
+	var g := guard_of(s)
+	return ensure(absent, "no garrison before you buy it") or ensure(ok and s.siege.garrison.tier == 1 and s.siege.fund == 1000 - Siege.GARRISON.cost[0], "tier 1 for %d" % Siege.GARRISON.cost[0]) or ensure(not g.ko and Sim.hypot(g.x - S.GARRISON_DOCK.x, g.y - S.GARRISON_DOCK.y) < 1.0, "it stands at the dock")
+
+
+func test_each_garrison_tier_swaps_parts_up() -> int:
+	var s := lab()
+	s.siege.fund = 100000
+	var seen := []
+	for t in 5:
+		Siege.buy(s, s.siege, "garrison", s.mechs[0])
+		seen.append(guard_of(s).loadout.duplicate(true))
+	var more := Siege.buy(s, s.siege, "garrison", s.mechs[0])
+	return ensure(seen[0].right == "bash" and seen[2].right == "gatling", "a second gun at tier 3") or ensure(seen[3].core == "reactor" and seen[4].core == "aegis", "R skill cores at tiers 4 and 5") or ensure(seen[0].get("lv", {}).get("head", 1) == 1 and seen[4].lv.head == 3, "parts level up") or ensure(not more, "tier 5 is the top")
+
+
+func test_garrison_holds_its_leash_and_shoots_what_comes_in() -> int:
+	var s := lab()
+	s.siege.fund = 1000
+	Siege.buy(s, s.siege, "garrison", s.mechs[0])
+	var far := Siege.spawn(s, "turret", 0, 0.0)
+	var fb: Dictionary = s.mechs[far.m]
+	var most := 0.0
+	for i in 300:
+		fb.x = 0.0
+		fb.y = -50.0
+		Siege.step(s, [idle()])
+		most = maxf(most, Sim.hypot(guard_of(s).x, guard_of(s).y))
+	var near := Siege.spawn(s, "scout", 0, 0.0)
+	var nb: Dictionary = s.mechs[near.m]
+	var t := until(s, 60 * 10, func():
+		nb.x = 4.0
+		nb.y = 4.0
+		return near.act == "die")
+	return ensure(most <= Siege.GARRISON.leash + 1.0, "stayed within %.1f m" % most) or ensure(t > 0, "it killed the scout in the plaza")
+
+
+func test_garrison_rebuilds_for_free_after_its_timer() -> int:
+	var s := lab()
+	s.siege.fund = 1000
+	Siege.buy(s, s.siege, "garrison", s.mechs[0])
+	var fund: int = s.siege.fund
+	guard_of(s).armor.head = 0
+	steps(s, 2)
+	var down: bool = guard_of(s).ko
+	steps(s, Siege.GARRISON.respawn + 2)
+	return ensure(down, "it went down") or ensure(not guard_of(s).ko and guard_of(s).armor.head == guard_of(s).max.head, "back up at full armor") or ensure(s.siege.fund == fund, "no scrap spent")
+
+
+func lonely_guard_run(wave: int) -> Dictionary:
+	var s := Siege.create([{}], 21)
+	var me: Dictionary = s.mechs[0]
+	me.ko = true
+	s.siege.down[0] = 1 << 30
+	s.siege.fund = 100000
+	for t in 5:
+		Siege.buy(s, s.siege, "garrison", me)
+	s.siege.fund = 0
+	s.siege.wave.n = wave - 1
+	s.siege.wave.next_in = Siege.RUN.warn + 2
+	var stop := 60 * 60 * 6
+	for i in stop:
+		Siege.step(s, [idle()])
+		if s.phase == "over":
+			break
+	return s
+
+
+func test_a_full_garrison_alone_still_loses_wave_15() -> int:
+	var s := lonely_guard_run(15)
+	return ensure(s.siege.lost, "lost at wave %d" % s.siege.wave.n)
+
+
+func test_a_full_garrison_alone_still_loses_wave_25() -> int:
+	var s := lonely_guard_run(25)
+	return ensure(s.siege.lost, "lost at wave %d" % s.siege.wave.n)

@@ -102,6 +102,7 @@ var wave_arg := 1
 var spawn_arg := ""
 var modules_arg := false
 var top_arg := false
+var guard_arg := 0
 var core_arg_pct := -1.0
 var shot_on := ""
 var allies := []
@@ -170,6 +171,8 @@ func _ready() -> void:
 			auto_ult = true
 		elif a == "--siege":
 			siege = true
+		elif a.begins_with("--guard="):
+			guard_arg = clampi(a.substr(8).to_int(), 0, 5)
 		elif a == "--top":
 			top_arg = true
 		elif a.begins_with("--core=") and a.substr(7).is_valid_float():
@@ -357,6 +360,11 @@ func new_match() -> void:
 			allies.append(Bot.create_brain(s + 10 + i))
 		state = Siege.create(los, s)
 		state.siege.wave.n = wave_arg - 1
+		for t in guard_arg:
+			state.siege.fund += Siege.GARRISON.cost[t]
+			Siege.buy(state, state.siege, "garrison", state.mechs[0])
+		if guard_arg > 0 and cam_mode > 0:
+			target = state.siege.guard
 		if core_arg_pct >= 0.0:
 			state.siege.core.hp = state.siege.core.max * core_arg_pct / 100.0
 			Siege.rings(state, state.siege)
@@ -422,6 +430,7 @@ func player_input() -> Dictionary:
 		"buy": tapped.get("buy", ""),
 		"call": tapped.has("call"),
 		"post": tapped.has("post"),
+		"use": key(KEY_V),
 	}
 	tapped.clear()
 	return inp
@@ -482,6 +491,9 @@ func _input(event: InputEvent) -> void:
 			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8:
 				if siege:
 					tapped.buy = Hud.SHOP[event.physical_keycode - KEY_1]
+			KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL:
+				if siege:
+					tapped.buy = Hud.WALLET[[KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL].find(event.physical_keycode)]
 			KEY_X:
 				tapped.post = true
 			KEY_F:

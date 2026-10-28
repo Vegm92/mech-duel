@@ -8,9 +8,13 @@ const RUN := {
 	"first": 10 * Sim.TICKS, "build": 25 * Sim.TICKS, "warn": 8 * Sim.TICKS, "cap": 90 * Sim.TICKS, "gap": 30,
 	"respawn": 8 * Sim.TICKS, "respawnWave": 30, "repairDelay": Sim.TICKS, "repair": 25.0 / Sim.TICKS,
 	"buildLate": 15 * Sim.TICKS, "late": 20, "ranged": 5 * Sim.TICKS, "call": 2, "clear": 0.2,
-	"scrap": 5, "aggro": 6.0, "post": 21.0, "leash": 14.0, "corpse": 90, "spawnRing": 7.0, "players": 0.4,
+	"scrap": 3, "aggro": 6.0, "post": 21.0, "leash": 14.0, "corpse": 90, "spawnRing": 7.0, "players": 0.4,
 }
-const SHOP := {"gate": 40, "rebuild": 120, "ring": 200, "repair": 30, "wall": 60, "mine": 80, "laser": 150, "post": 120}
+const SHOP := {"gate": 40, "rebuild": 120, "ring": 200, "wall": 60, "mine": 80, "laser": 150, "post": 120, "garrison": 0}
+const WALLET := {"repair": 30, "upgrade": 80, "reinforce": 100, "revive": 50}
+const YARD := {"wake": 8.0, "leash": 18.0, "wakeTime": 30, "pay": 25.0, "elite": 5, "raidFrom": 15, "raid": ["scoutPack", "ambush"],
+	"reinforce": 1.15, "donate": 10, "donateEvery": 15, "crush": {"every": 360, "warn": 60, "dmg": 60}, "emp": {"every": 480, "on": 120, "tick": 30, "dmg": 10, "slow": 40},
+	"farmLeash": 22.0}
 const MODULE := {"pad": 2.5, "wall": {"hp": 800, "depth": 1.0, "len": 6.0}, "mine": {"n": 4, "spread": 2.5, "dmg": 60, "arm": 30},
 	"laser": {"every": 180, "warn": 60, "dmg": 80, "half": 0.6}, "post": {"dmg": 120, "cd": 240, "reach": 2.0, "range": 40.0, "half": 0.5}}
 const SQUADS := {
@@ -48,6 +52,16 @@ const WAVES := [
 const LATE := {"lanes": 4, "pool": ["raiders", "ambush", "firebase", "airWing", "lineBreakers", "ram", "sniperNest", "shieldWall", "barrage", "titanPush"], "mk": 2}
 const LAST := {"lanes": 4, "pool": [], "must": ["titanPush", "shieldWall", "shieldWall", "airWing", "barrage", "sniperNest", "ram", "lineBreakers", "ambush", "swarmCloud", "raiders"], "mk": 2, "boss": true}
 const ENDLESS := {"lanes": 4, "pool": ["raiders", "ambush", "firebase", "airWing", "lineBreakers", "ram", "sniperNest", "shieldWall", "barrage", "titanPush"], "mk": 3}
+const GARRISON := {
+	"cost": [150, 400, 900, 2000, 4500], "leash": 14.0, "retreat": 0.3, "respawn": 20 * Sim.TICKS, "ult": 4,
+	"tiers": [
+		{"head": "rookie", "core": "furnace", "arms": "wire", "legs": "greaves", "booster": "flicker", "left": "rivet", "right": "bash", "lv": 1},
+		{"head": "rookie", "core": "furnace", "arms": "brace", "legs": "treads", "booster": "flicker", "left": "rivet", "right": "bash", "lv": 2},
+		{"head": "rookie", "core": "furnace", "arms": "brace", "legs": "treads", "booster": "thruster", "left": "rivet", "right": "gatling", "lv": 2},
+		{"head": "rookie", "core": "reactor", "arms": "brace", "legs": "treads", "booster": "thruster", "left": "rivet", "right": "gatling", "lv": 3},
+		{"head": "demon", "core": "aegis", "arms": "anvil", "legs": "stompers", "booster": "rocket", "left": "gatling", "right": "missiles", "lv": 3},
+	],
+}
 const MILESTONES := [10, 20, 30]
 const MUTATORS := ["overclock", "plated", "volatile", "airRaid", "hive", "ironRain"]
 const MUTATE := {"first": 31, "every": 5, "speed": 1.15, "hp": 1.3, "boom": {"dmg": 30, "r": 2.0}, "rain": 3}
@@ -89,19 +103,34 @@ static func geo_of(sg: Dictionary) -> Dictionary:
 			solids.append({"x": p.x, "y": p.y, "r": (S.RING_OUT - S.RING_IN) / 2.0})
 	pillars.append(sg.core)
 	var w: float = S.LANE_W / 2.0
-	var b: float = S.BLOCK
 	var boxes := []
-	for sx in [-1, 1]:
-		for sy in [-1, 1]:
-			boxes.append(box(sx * w, sy * b, sx * h, sy * h))
-			boxes.append(box(sx * b, sy * w, sx * h, sy * b))
+	for lane in 4:
+		for side in [-1, 1]:
+			for span in [[S.BLOCK, S.DOORS[lane][0]], [S.DOORS[lane][1], h]]:
+				var a := S.at(lane, span[0], side * w)
+				var z := S.at(lane, span[1], side * (w + S.LANE_WALL))
+				boxes.append(box(a.x, a.y, z.x, z.y))
+	for q in S.QUADS.size():
+		for hp in S.HEAPS:
+			var p := S.yard_at(q, hp.a, hp.b)
+			var heap := {"x": p.x, "y": p.y, "r": hp.r}
+			pillars.append(heap)
+			solids.append(heap)
+	var steam := []
+	for q in S.QUADS.size():
+		for st in S.STEAM:
+			var p := S.yard_at(q, st.a, st.b)
+			steam.append({"x": p.x, "y": p.y, "r": st.r})
 	for g in sg.gates:
 		boxes.append(g)
 	var gaps := []
 	for l in S.LANES:
 		gaps.append({"dx": l.dx, "dy": l.dy})
-	var rings := [{"r0": S.RING_IN, "r1": S.RING_OUT, "half": w, "gaps": gaps}, {"r0": S.BLOCK, "r1": h * 2.0, "half": w, "gaps": gaps}]
-	return {"walls": walls, "pillars": pillars, "solids": solids, "boxes": boxes, "rings": rings}
+	var arches := gaps.duplicate()
+	for Q in S.QUADS:
+		arches.append({"dx": Q.sx * Sim.Q, "dy": Q.sy * Sim.Q, "half": S.ARCH / 2.0})
+	var rings := [{"r0": S.RING_IN, "r1": S.RING_OUT, "half": w, "gaps": gaps}, {"r0": S.BLOCK, "r1": S.YARD_IN, "half": w, "gaps": arches}]
+	return {"walls": walls, "pillars": pillars, "solids": solids, "boxes": boxes, "rings": rings, "steam": steam}
 
 
 static func box(xa: float, ya: float, xb: float, yb: float) -> Dictionary:
@@ -127,16 +156,28 @@ static func create(loadouts: Array, seed := 1) -> Dictionary:
 	state.timer = 0
 	for m in state.mechs:
 		place(m, m.id)
+	state.mechs.append(guard_body(state.mechs.size(), 1))
+	state.mechs[-1].ko = true
+	state.mechs[-1].absent = true
 	var gates := []
 	for lane in 4:
 		gates.append(gate_box(lane))
 	var core := {"x": 0.0, "y": 0.0, "r": S.CORE.r, "hp": float(S.CORE.hp), "max": S.CORE.hp, "rings": S.ring_hp(4), "repairing": false, "only": 1, "broken": 0}
 	state.siege = {
 		"tick": 0, "wave": {"n": 0, "next_in": RUN.first, "lanes_open": [false, false, false, false], "live": false},
-		"core": core, "gates": gates, "pads": S.pads(), "enemies": [], "queue": [], "scrap": 0, "next": 0,
+		"core": core, "gates": gates, "pads": S.pads(), "enemies": [], "queue": [], "fund": 0, "next": 0,
 		"lost": false, "down": {}, "calm": {}, "was": {}, "team": loadouts.size(), "earned": 0, "mutators": [],
+		"yards": S.yards(), "wallets": [], "tokens": [], "boost": [], "opening": {}, "raid": -1,
+		"garrison": S.garrison(), "guard": loadouts.size(), "gbrain": Bot.create_brain(seed + 99),
 	}
+	for i in loadouts.size():
+		state.siege.wallets.append(0)
+		state.siege.tokens.append(0)
+		state.siege.boost.append(0)
 	state.geo = geo_of(state.siege)
+	for q in S.QUADS.size():
+		for i in S.CAMPS.size():
+			camp_up(state, q, i)
 	return state
 
 
@@ -166,6 +207,9 @@ static func step(state, inputs: Array):
 		var m = state.mechs[i]
 		if not m.ko:
 			Sim.think(state, m, inputs[i] if i < inputs.size() and inputs[i] != null else Sim.IDLE)
+	var gm = state.mechs[sg.guard]
+	if not gm.ko:
+		Sim.think(state, gm, guard_input(state, sg))
 	for i in team:
 		var inp = inputs[i] if i < inputs.size() and inputs[i] != null else Sim.IDLE
 		if not state.mechs[i].ko:
@@ -173,9 +217,11 @@ static func step(state, inputs: Array):
 				buy(state, sg, inp.buy, state.mechs[i])
 			if inp.get("post", false):
 				fire_post(state, sg, state.mechs[i])
+			use(state, sg, i, inp.get("use", false))
 		if inp.get("call", false):
 			call_wave(state, sg)
 	modules(state, sg)
+	hazards(state, sg)
 	for e in sg.enemies:
 		if e.act != "die":
 			drive(state, sg, e, state.mechs[e.m])
@@ -183,7 +229,7 @@ static func step(state, inputs: Array):
 	Sim.world(state)
 	var live := []
 	for m in state.mechs:
-		if not m.ko and not m.get("fly", false):
+		if not m.ko and not m.get("fly", false) and not m.get("sleep", false):
 			Sim.collide(m, 0.0, state.geo)
 			live.append(m)
 	for i in live.size():
@@ -195,6 +241,7 @@ static func step(state, inputs: Array):
 
 
 static func ally_input(state, brain, id: int) -> Dictionary:
+	brain.lanes_only = not (id == 1 and state.siege.team >= 2)
 	var inp := Bot.bot_input(state, brain, id)
 	var m = state.mechs[id]
 	if m.ko:
@@ -214,26 +261,121 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 	if mend:
 		post = S.at(id % 4, S.CORE.repair - 1.5)
 	var o = Bot.pick(state, brain, m)
-	if mend or o.ko or o.team == m.team or Sim.hypot(o.x - post.x, o.y - post.y) > leash or not open_line(state, m.x, m.y, o.x, o.y):
+	if id == 1 and sg.team >= 2 and not mend and not Sim.foes(state, id).any(func(t): return t.team == 1 and Sim.hypot(t.x, t.y) < S.RING_OUT + 2.0):
+		return farm(state, sg, m, o, inp)
+	var camp_bot: bool = o.team == 2 or o.team == m.team
+	if mend or camp_bot or o.ko or o.team == m.team or Sim.hypot(o.x - post.x, o.y - post.y) > leash or not open_line(state, m.x, m.y, o.x, o.y):
 		var dx: float = post.x - m.x
 		var dy: float = post.y - m.y
 		var d := Sim.hypot(dx, dy)
 		inp.mx = dx / d if d > 1.5 else 0.0
 		inp.my = dy / d if d > 1.5 else 0.0
 		inp.dash = false
-		if mend:
+		if mend or camp_bot:
 			for k in ["left", "right", "hook", "shield", "ult"]:
 				inp[k] = false
 	if not sg.wave.live:
 		for item in ["ring", "rebuild", "gate"]:
-			if sg.scrap >= SHOP[item] and (c.broken > 0 if item == "ring" else sg.gates.any(func(g): return g.hp <= 0 if item == "rebuild" else g.hp > 0 and g.hp < g.max * 0.6)):
+			if sg.fund >= SHOP[item] and (c.broken > 0 if item == "ring" else sg.gates.any(func(g): return g.hp <= 0 if item == "rebuild" else g.hp > 0 and g.hp < g.max * 0.6)):
 				inp.buy = item
 				break
 	return inp
 
 
+static func farm(state, sg: Dictionary, m: Dictionary, o, inp: Dictionary) -> Dictionary:
+	var goal = null
+	var hold := false
+	if sg.wallets[m.id] >= 100 and not sg.wave.live:
+		goal = {"x": 0.0, "y": S.CORE.repair - 1.5}
+		hold = true
+	else:
+		for y in sg.yards:
+			for c in y.camps:
+				if c.alive and (goal == null or Sim.hypot(c.x - m.x, c.y - m.y) < Sim.hypot(goal.x - m.x, goal.y - m.y)):
+					goal = c
+		if goal == null:
+			for y in sg.yards:
+				for c in y.crates:
+					if not c.taken and (goal == null or Sim.hypot(c.x - m.x, c.y - m.y) < Sim.hypot(goal.x - m.x, goal.y - m.y)):
+						goal = c
+						hold = true
+	if goal == null:
+		return inp
+	var near: bool = Sim.hypot(goal.x - m.x, goal.y - m.y) < (1.2 if hold else YARD.wake + 4.0)
+	var fight: bool = not o.ko and o.team != m.team and Sim.hypot(o.x - m.x, o.y - m.y) < 12.0 and open_line(state, m.x, m.y, o.x, o.y)
+	if fight and not hold:
+		return inp
+	if near and hold:
+		for k in ["mx", "my"]:
+			inp[k] = 0.0
+		for k in ["left", "right", "hook", "shield", "ult", "dash"]:
+			inp[k] = false
+		inp.use = true
+		return inp
+	if near:
+		return inp
+	var wp := waypoint(m, goal)
+	var dx: float = wp.x - m.x
+	var dy: float = wp.y - m.y
+	var d: float = maxf(0.1, Sim.hypot(dx, dy))
+	inp.mx = dx / d
+	inp.my = dy / d
+	inp.dash = false
+	return inp
+
+
+static func quad_of(p: Dictionary) -> int:
+	for q in S.QUADS.size():
+		if signf(p.x) == S.QUADS[q].sx and signf(p.y) == S.QUADS[q].sy:
+			return q
+	return 0
+
+
+static func lane_near(p: Dictionary) -> int:
+	if absf(p.y) >= absf(p.x):
+		return 0 if p.y < 0 else 2
+	return 1 if p.x > 0 else 3
+
+
+static func in_lane(p: Dictionary) -> bool:
+	return Sim.hypot(p.x, p.y) > S.BLOCK and minf(absf(p.x), absf(p.y)) < S.LANE_W / 2.0 + S.LANE_WALL
+
+
+static func waypoint(m: Dictionary, goal: Dictionary) -> Dictionary:
+	var rm := Sim.hypot(m.x, m.y)
+	var rg := Sim.hypot(goal.x, goal.y)
+	var yard_goal: bool = rg > S.YARD_IN and not in_lane(goal)
+	var yard_me: bool = rm > S.YARD_IN - 0.5 and not in_lane(m)
+	if yard_goal and yard_me and quad_of(m) == quad_of(goal):
+		return goal
+	var lined: bool = absf(absf(m.x) - absf(m.y)) < S.ARCH / 2.0
+	if yard_me:
+		var q := quad_of(m)
+		return S.yard_at(q, 15.0, 15.0) if lined else S.yard_at(q, 22.0, 22.0)
+	if in_lane(m):
+		return S.at(lane_near(m), 21.0)
+	if rm < S.RING_OUT + 0.5:
+		if rg < S.RING_IN:
+			return goal
+		var lane := lane_near(goal)
+		var side: float = absf(m.x) if lane % 2 == 0 else absf(m.y)
+		if rm < S.RING_IN - 0.5 and side > 3.0:
+			return S.at(lane, 12.0)
+		return S.at(lane, 21.0)
+	if rg < S.RING_OUT:
+		var lane := lane_near(m)
+		var side: float = absf(m.x) if lane % 2 == 0 else absf(m.y)
+		return S.at(lane, 12.0) if side < 3.0 else S.at(lane, 21.0)
+	if yard_goal:
+		var q := quad_of(goal)
+		return S.yard_at(q, 22.0, 22.0) if lined and quad_of(m) == q else S.yard_at(q, 15.0, 15.0)
+	return goal
+
+
 static func drive(state, sg: Dictionary, e: Dictionary, b: Dictionary) -> void:
 	var k: Dictionary = BOTS[e.kind]
+	if e.neutral and not awake(state, sg, e, b):
+		return
 	Sim.tick_timers(b)
 	e.cd = maxi(0, e.cd - 1)
 	e.cd2 = maxi(0, e.cd2 - 1)
@@ -312,6 +454,13 @@ static func drive(state, sg: Dictionary, e: Dictionary, b: Dictionary) -> void:
 	elif Sim.hypot(b.vx, b.vy) > 0.5:
 		b.aim = atan2(b.vy, b.vx)
 	var moving := Sim.hypot(b.vx, b.vy) > 0.5
+	if e.neutral and tgt.is_empty() and Sim.hypot(b.x - e.home.x, b.y - e.home.y) < 0.8:
+		b.armor.head = b.max.head
+		b.vx = 0.0
+		b.vy = 0.0
+		b.sleep = true
+		act(e, "dormant")
+		return
 	act(e, "hit" if busy else ("windup" if e.wind > 0 else ("attack" if e.cd > k.cd - 12 else ("plant" if e.rooted > 0 else ("walk" if moving else "idle")))))
 
 
@@ -342,10 +491,17 @@ static func act(e: Dictionary, a: String) -> void:
 
 
 static func target(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dictionary) -> Dictionary:
+	if e.neutral:
+		var prey = null
+		for i in sg.team:
+			var m = state.mechs[i]
+			if not m.ko and not Sim.hidden(state, m) and Sim.hypot(m.x - e.home.x, m.y - e.home.y) <= YARD.leash and (prey == null or Sim.hypot(m.x - b.x, m.y - b.y) < Sim.hypot(prey.x - b.x, prey.y - b.y)):
+				prey = m
+		return {} if prey == null else {"x": prey.x, "y": prey.y, "r": Sim.rad(prey), "mech": prey}
 	var reach: float = k.get("hunt", RUN.aggro if k.get("first", "") != "mech" else k.range)
 	var near = null
 	var nd := 0.0
-	for i in sg.team:
+	for i in sg.team + 1:
 		var m = state.mechs[i]
 		if m.ko or Sim.hidden(state, m):
 			continue
@@ -398,6 +554,10 @@ static func outside(b: Dictionary, lane: int) -> bool:
 
 static func route(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dictionary, tgt: Dictionary) -> Dictionary:
 	var stand: float = k.range * 0.8
+	if e.neutral and (tgt.is_empty() or Sim.hypot(b.x - e.home.x, b.y - e.home.y) > YARD.leash):
+		return e.home
+	if e.raid >= 0 and not tgt.has("mech"):
+		return raid_route(state, sg, e, b)
 	if tgt.has("mech"):
 		var m = tgt.mech
 		var d := Sim.hypot(m.x - b.x, m.y - b.y)
@@ -583,19 +743,23 @@ static func look(state, kind: String) -> void:
 				b.y = p.y
 
 
-static func spawn(state, kind: String, lane: int, side: float, mk := 1) -> Dictionary:
+static func spawn(state, kind: String, lane: int, side: float, mk := 1, at := {}, team := 1) -> Dictionary:
 	var k: Dictionary = BOTS[kind]
 	var e := {}
 	for i in k.get("pack", 1):
-		e = body(state, kind, lane, side + (i - (k.get("pack", 1) - 1) / 2.0) * 1.0, mk)
+		var off: float = (i - (k.get("pack", 1) - 1) / 2.0) * 1.0
+		var p := {} if at.is_empty() else {"x": at.x + off, "y": at.y - off * 0.5}
+		e = body(state, kind, lane, side + off, mk, p, team)
 	return e
 
 
-static func body(state, kind: String, lane: int, side: float, mk: int) -> Dictionary:
+static func body(state, kind: String, lane: int, side: float, mk: int, at := {}, team := 1) -> Dictionary:
 	var sg: Dictionary = state.siege
 	var k: Dictionary = BOTS[kind]
 	var p: Dictionary
-	if k.get("fly", false):
+	if not at.is_empty():
+		p = at
+	elif k.get("fly", false):
 		p = {"x": S.AIR[lane][0] + side * 0.6, "y": S.AIR[lane][1] - side * 0.6}
 	elif k.get("vent", false):
 		p = S.at(lane, S.VENTS[0] + side * 0.6, (1.0 if side >= 0 else -1.0) * (S.LANE_W / 2.0 - k.r - 0.1))
@@ -606,7 +770,7 @@ static func body(state, kind: String, lane: int, side: float, mk: int) -> Dictio
 		if state.mechs[i].get("gone", false):
 			slot = i
 			break
-	var b := Sim.make_mech(slot, Sim.DEFAULT_LOADOUT, 1, {"x": p.x, "y": p.y, "aim": atan2(-p.y, -p.x)})
+	var b := Sim.make_mech(slot, Sim.DEFAULT_LOADOUT, team, {"x": p.x, "y": p.y, "aim": atan2(-p.y, -p.x)})
 	var rows := {}
 	for s in Sim.DEFAULT_LOADOUT:
 		rows[s] = Sim.CATALOG[s][Sim.DEFAULT_LOADOUT[s]]
@@ -626,7 +790,8 @@ static func body(state, kind: String, lane: int, side: float, mk: int) -> Dictio
 		state.mechs[slot] = b
 	var e := {"id": sg.next, "kind": kind, "lane": lane, "x": p.x, "y": p.y, "face": b.aim, "hp": hp, "max": hp, "act": "walk", "t": 0, "mk": mk,
 		"m": slot, "side": clampf(side, -3.0, 3.0), "cd": 0, "cd2": 0, "wind": 0, "aim": b.aim, "juke": 0, "jx": 0.0, "jy": 0.0, "seen": -1,
-		"rooted": 0, "dash": 0, "bit": false, "prey": -1, "mode": "roll" if kind == "jugg" else "", "roll": 0, "blown": false}
+		"rooted": 0, "dash": 0, "bit": false, "prey": -1, "mode": "roll" if kind == "jugg" else "", "roll": 0, "blown": false,
+		"neutral": team == 2, "camp": -1, "home": {"x": p.x, "y": p.y}, "raid": -1, "leg": 0}
 	sg.next += 1
 	sg.enemies.append(e)
 	return e
@@ -644,9 +809,12 @@ static func settle(state, sg: Dictionary) -> void:
 			if sg.mutators.has("volatile") and not e.blown:
 				blow(state, sg, e, b, {"boom": MUTATE.boom})
 				e.blown = false
-			if not e.blown:
+			if e.neutral:
+				act(e, "die")
+				camp_down(state, sg, e)
+			elif not e.blown:
 				var gain := int(ceil(BOTS[e.kind].cost * RUN.scrap / float(BOTS[e.kind].get("pack", 1))))
-				sg.scrap += gain
+				sg.fund += gain
 				sg.earned += gain
 				state.fx.append({"k": "scrap", "x": b.x, "y": b.y, "n": gain, "t": 40})
 			act(e, "die")
@@ -679,8 +847,14 @@ static func settle(state, sg: Dictionary) -> void:
 				fresh.held = m.held
 				place(fresh, i)
 				state.mechs[i] = fresh
+				toughen(fresh, sg.boost[i])
+	guard_settle(state, sg)
 	repair(state, sg)
 	rings(state, sg)
+	for y in sg.yards:
+		for c in y.camps:
+			c.respawn_in = 0 if c.alive else sg.wave.next_in
+	raided(sg)
 
 
 static func repair(state, sg: Dictionary) -> void:
@@ -729,17 +903,24 @@ static func direct(state, sg: Dictionary) -> void:
 			w.live = true
 			w.next_in = RUN.cap
 			sg.earned = 0
+			refill(state, sg, w.n)
 			for pd in sg.pads:
 				if pd.module == "mine":
 					arm(state, pd)
 	var queue := []
 	for q in sg.queue:
-		if q.at <= state.tick:
-			spawn(state, q.kind, q.lane, q.side)
+		if q.at <= state.tick and q.get("raid", -1) >= 0:
+			var air: Array = S.AIR[(q.raid + 1) % 4]
+			var e := spawn(state, q.kind, q.lane, q.side, q.get("mk", 1), {"x": air[0] * 0.95 + q.side, "y": air[1] * 0.95})
+			for r in sg.enemies:
+				if r.kind == q.kind and r.id > e.id - BOTS[q.kind].get("pack", 1):
+					r.raid = q.raid
+		elif q.at <= state.tick:
+			spawn(state, q.kind, q.lane, q.side, q.get("mk", 1))
 		else:
 			queue.append(q)
 	sg.queue = queue
-	if w.live and queue.is_empty() and sg.enemies.filter(func(e): return e.act != "die").is_empty() and w.next_in > RUN.warn:
+	if w.live and queue.is_empty() and sg.enemies.filter(func(e): return e.act != "die" and not e.neutral).is_empty() and w.next_in > RUN.warn:
 		w.live = false
 		w.lanes_open = [false, false, false, false]
 		w.next_in = mini(w.next_in, RUN.build if w.n < RUN.late else RUN.buildLate)
@@ -748,7 +929,7 @@ static func direct(state, sg: Dictionary) -> void:
 		var c: Dictionary = sg.core
 		if c.hp >= c.max * 0.75:
 			var bonus := int(floor(sg.earned * RUN.clear))
-			sg.scrap += bonus
+			sg.fund += bonus
 			state.fx.append({"k": "cleared", "n": bonus, "t": 90})
 		else:
 			state.fx.append({"k": "cleared", "n": 0, "t": 90})
@@ -811,6 +992,15 @@ static func plan(state, sg: Dictionary, n: int) -> void:
 				units[lane].append(u[0])
 	var mk: int = r.get("mk", 1)
 	var start: int = state.tick + RUN.warn
+	if n >= YARD.raidFrom:
+		var q := int(floor(Sim.rng(state) * S.QUADS.size()))
+		var at := start
+		for key in YARD.raid:
+			for u in SQUADS[key]:
+				for i in u[1]:
+					sg.queue.append({"at": at, "kind": u[0], "lane": [0, 1, 2, 3][q], "side": (Sim.rng(state) - 0.5) * 4.0, "mk": mk, "raid": q})
+					at += RUN.gap
+		state.fx.append({"k": "raid", "q": q, "t": RUN.warn})
 	for lane in lanes:
 		if units[lane].is_empty():
 			continue
@@ -839,7 +1029,7 @@ static func call_wave(state, sg: Dictionary) -> void:
 	if w.live or w.next_in <= RUN.warn + 1:
 		return
 	var bonus: int = RUN.call * int(ceil((w.next_in - RUN.warn) / float(Sim.TICKS)))
-	sg.scrap += bonus
+	sg.fund += bonus
 	w.next_in = RUN.warn + 1
 	state.fx.append({"k": "call", "n": bonus, "t": 60})
 
@@ -852,7 +1042,11 @@ static func pad_at(sg: Dictionary, m: Dictionary, reach: float):
 
 
 static func buy(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
-	if sg.wave.live or not SHOP.has(item) or sg.scrap < SHOP[item]:
+	if WALLET.has(item):
+		return spend(state, sg, item, m)
+	if item == "garrison":
+		return raise_guard(state, sg, m)
+	if sg.wave.live or not SHOP.has(item) or sg.fund < SHOP[item]:
 		return false
 	var c: Dictionary = sg.core
 	match item:
@@ -874,18 +1068,356 @@ static func buy(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
 				return false
 			c.broken -= 1
 			c.hp = c.max * (4 - c.broken) / 4.0
-		"repair":
-			if Sim.total_armor(m) >= Sim.total_armor({"armor": m.max}):
-				return false
-			Sim.repair(m, 1e6)
 		_:
 			var pd = pad_at(sg, m, MODULE.pad)
 			if pd == null or (pd.module != "" and not (pd.module == item and pd.get("hp", 1) <= 0)):
 				return false
 			build(state, pd, item)
-	sg.scrap -= SHOP[item]
+	sg.fund -= SHOP[item]
 	state.fx.append({"k": "build", "item": item, "x": m.x, "y": m.y, "t": 30})
 	return true
+
+
+static func spend(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
+	var i: int = m.id
+	var price: int = WALLET[item]
+	if item == "upgrade":
+		var slot := low_slot(m)
+		if slot == "":
+			return false
+		price = WALLET.upgrade * (level_of(m, slot) + 1)
+	var token: bool = item == "reinforce" and sg.tokens[i] > 0
+	if not token and sg.wallets[i] < price:
+		return false
+	if item != "revive" and Sim.hypot(m.x - sg.core.x, m.y - sg.core.y) > S.PLAZA:
+		return false
+	match item:
+		"repair":
+			if Sim.total_armor(m) >= Sim.total_armor({"armor": m.max}):
+				return false
+			Sim.repair(m, 1e6)
+		"upgrade":
+			var slot := low_slot(m)
+			var lo: Dictionary = m.loadout
+			var lv: Dictionary = lo.get("lv", {}).duplicate()
+			lv[slot] = level_of(m, slot) + 1
+			lo.lv = lv
+			var rows := {}
+			for s2 in Sim.DEFAULT_LOADOUT:
+				rows[s2] = Sim.tuned(s2, lo[s2], lv.get(s2, 1))
+			m.rows = rows
+		"reinforce":
+			sg.boost[i] += 1
+			toughen(m, 1)
+		"revive":
+			var down := -1
+			for d in sg.down:
+				if down < 0 or sg.down[d] > sg.down[down]:
+					down = d
+			if down < 0:
+				return false
+			sg.down[down] = 1
+	if token:
+		sg.tokens[i] -= 1
+	else:
+		sg.wallets[i] -= price
+	state.fx.append({"k": "build", "item": item, "x": m.x, "y": m.y, "t": 30})
+	return true
+
+
+static func level_of(m: Dictionary, slot: String) -> int:
+	return m.loadout.get("lv", {}).get(slot, 1)
+
+
+static func low_slot(m: Dictionary) -> String:
+	var best := ""
+	for slot in Sim.DEFAULT_LOADOUT:
+		if level_of(m, slot) < Sim.MAX_LEVEL and (best == "" or level_of(m, slot) < level_of(m, best)):
+			best = slot
+	return best
+
+
+static func toughen(m: Dictionary, n: int) -> void:
+	for p in m.max:
+		var add: float = floor(m.max[p] * (pow(YARD.reinforce, n) - 1.0))
+		m.max[p] += add
+		m.armor[p] += add
+
+
+static func guard_body(id: int, tier: int) -> Dictionary:
+	var spec: Dictionary = GARRISON.tiers[tier - 1].duplicate()
+	var lv := {}
+	for slot in Sim.DEFAULT_LOADOUT:
+		lv[slot] = spec.lv
+	spec.lv = lv
+	var g := Sim.make_mech(id, spec, 0, {"x": S.GARRISON_DOCK.x, "y": S.GARRISON_DOCK.y, "aim": S.GARRISON_DOCK.face})
+	g.guard = tier
+	return g
+
+
+static func next_cost(sg: Dictionary) -> int:
+	var t: int = sg.garrison.tier
+	return GARRISON.cost[t] if t < GARRISON.cost.size() else -1
+
+
+static func raise_guard(state, sg: Dictionary, m: Dictionary) -> bool:
+	var price := next_cost(sg)
+	if sg.wave.live or price < 0 or sg.fund < price:
+		return false
+	sg.fund -= price
+	sg.garrison.tier += 1
+	var g := guard_body(sg.guard, sg.garrison.tier)
+	state.mechs[sg.guard] = g
+	sg.garrison.respawn_in = 0
+	mirror_guard(sg, g)
+	state.fx.append({"k": "build", "item": "garrison", "x": g.x, "y": g.y, "t": 30})
+	return true
+
+
+static func mirror_guard(sg: Dictionary, g: Dictionary) -> void:
+	var G: Dictionary = sg.garrison
+	G.hp = maxf(0.0, g.armor.head)
+	G.max = float(g.max.head)
+	G.x = g.x
+	G.y = g.y
+	G.face = g.aim
+	G.act = "die" if g.ko else ("attack" if g.act != null else ("walk" if Sim.hypot(g.vx, g.vy) > 0.5 else "idle"))
+
+
+static func guard_settle(state, sg: Dictionary) -> void:
+	var G: Dictionary = sg.garrison
+	var g = state.mechs[sg.guard]
+	if G.tier == 0:
+		return
+	if not g.ko and g.armor.head <= 0:
+		g.ko = true
+		g.act = null
+		g.vx = 0.0
+		g.vy = 0.0
+		g.pull = null
+		G.respawn_in = GARRISON.respawn * G.tier
+		state.fx.append({"k": "ko", "id": sg.guard, "x": g.x, "y": g.y, "t": Sim.MATCH.ko})
+	elif g.ko:
+		G.respawn_in -= 1
+		if G.respawn_in <= 0:
+			g = guard_body(sg.guard, G.tier)
+			state.mechs[sg.guard] = g
+			G.respawn_in = 0
+	mirror_guard(sg, g)
+
+
+static func guard_input(state, sg: Dictionary) -> Dictionary:
+	var id: int = sg.guard
+	var g = state.mechs[id]
+	var brain: Dictionary = sg.gbrain
+	brain.lanes_only = true
+	var inp := Bot.bot_input(state, brain, id)
+	var dock: Dictionary = S.GARRISON_DOCK
+	var o = Bot.pick(state, brain, g)
+	var hurt: bool = g.armor.head < g.max.head * GARRISON.retreat
+	var far: bool = o.ko or o.team != 1 or Sim.hypot(o.x, o.y) > GARRISON.leash + S.RING_OUT or not open_line(state, g.x, g.y, o.x, o.y)
+	if hurt or far or Sim.hypot(g.x, g.y) > GARRISON.leash:
+		var dx: float = dock.x - g.x
+		var dy: float = dock.y - g.y
+		var d := Sim.hypot(dx, dy)
+		inp.mx = dx / d if d > 1.0 else 0.0
+		inp.my = dy / d if d > 1.0 else 0.0
+		inp.dash = false
+		if hurt or o.team != 1:
+			for k in ["left", "right", "hook", "ult"]:
+				inp[k] = false
+	if sg.garrison.tier < GARRISON.ult:
+		inp.ult = false
+	return inp
+
+
+static func camp_up(state, q: int, i: int) -> void:
+	var sg: Dictionary = state.siege
+	var c: Dictionary = sg.yards[q].camps[i]
+	var spec: Dictionary = S.CAMPS[i]
+	var n := 0
+	for u in spec.bots:
+		for j in u[1]:
+			var at := {"x": c.x + (n % 2) * 1.6 - 0.8 * mini(n, 1), "y": c.y + (n / 2) * 1.6}
+			var e := spawn(state, u[0], q, 0.0, 1, at, 2)
+			for r in sg.enemies:
+				if r.neutral and r.camp < 0:
+					r.camp = c.id
+					r.home = {"x": state.mechs[r.m].x, "y": state.mechs[r.m].y}
+					r.act = "dormant"
+					state.mechs[r.m].sleep = true
+			n += 1
+	c.alive = true
+
+
+static func camp_down(state, sg: Dictionary, e: Dictionary) -> void:
+	if e.camp < 0:
+		return
+	var c: Dictionary = sg.yards[e.camp / S.CAMPS.size()].camps[e.camp % S.CAMPS.size()]
+	if not c.alive or sg.enemies.any(func(r): return r.camp == e.camp and r.act != "die"):
+		return
+	c.alive = false
+	if e.blown:
+		return
+	var best := -1
+	for i in sg.team:
+		var m = state.mechs[i]
+		var d := Sim.hypot(m.x - c.x, m.y - c.y)
+		if not m.ko and d <= YARD.pay and (best < 0 or d < Sim.hypot(state.mechs[best].x - c.x, state.mechs[best].y - c.y)):
+			best = i
+	if best < 0:
+		return
+	var t: Dictionary = S.CAMP_TIERS[c.tier]
+	sg.wallets[best] += t.scrap
+	sg.tokens[best] += t.get("token", 0)
+	state.fx.append({"k": "loot", "id": best, "n": t.scrap, "x": c.x, "y": c.y, "t": 60})
+
+
+static func refill(state, sg: Dictionary, n: int) -> void:
+	for q in sg.yards.size():
+		var y: Dictionary = sg.yards[q]
+		for i in y.camps.size():
+			if not y.camps[i].alive and (y.camps[i].tier != "elite" or (n - 1) % YARD.elite == 0):
+				camp_up(state, q, i)
+		for c in y.crates:
+			c.taken = false
+			c.progress = 0.0
+
+
+static func use(state, sg: Dictionary, i: int, held: bool) -> void:
+	var m = state.mechs[i]
+	var still: bool = held and m.act == null and Sim.hypot(m.vx, m.vy) < 0.5
+	var key = sg.opening.get(i)
+	var crate = null
+	if still:
+		for y in sg.yards:
+			for c in y.crates:
+				if not c.taken and Sim.hypot(c.x - m.x, c.y - m.y) <= S.CRATE.reach:
+					crate = c
+	if crate == null:
+		if key != null:
+			key.progress = 0.0
+			sg.opening.erase(i)
+		if held and Sim.hypot(m.x - sg.core.x, m.y - sg.core.y) <= S.CORE.repair and sg.wallets[i] > 0 and state.tick % YARD.donateEvery == 0:
+			var n: int = mini(YARD.donate, sg.wallets[i])
+			sg.wallets[i] -= n
+			sg.fund += n
+			state.fx.append({"k": "donate", "id": i, "n": n, "x": m.x, "y": m.y, "t": 20})
+		return
+	sg.opening[i] = crate
+	crate.progress = minf(1.0, crate.progress + 1.0 / (S.CRATE.secs * Sim.TICKS))
+	if crate.progress >= 1.0:
+		crate.taken = true
+		crate.progress = 0.0
+		sg.opening.erase(i)
+		sg.wallets[i] += S.CRATE.scrap
+		state.fx.append({"k": "loot", "id": i, "n": S.CRATE.scrap, "x": crate.x, "y": crate.y, "t": 60})
+
+
+static func hazards(state, sg: Dictionary) -> void:
+	for q in S.QUADS.size():
+		for h in S.YARD_HAZARDS:
+			var p := S.yard_at(q, h.a, h.b)
+			if h.kind == "crush":
+				var C: Dictionary = YARD.crush
+				var t: int = (state.tick + q * 90) % C.every
+				if t == C.every - C.warn:
+					state.fx.append({"k": "crushWarn", "x": p.x, "y": p.y, "t": C.warn})
+				if t != 0:
+					continue
+				state.fx.append({"k": "crush", "x": p.x, "y": p.y, "t": 30})
+				for m in state.mechs:
+					if not m.ko and not m.get("fly", false) and absf(m.x - p.x) < h.half + Sim.rad(m) / 2.0 and absf(m.y - p.y) < h.half + Sim.rad(m) / 2.0:
+						Sim.env_hit(state, m, C.dmg, "legs", 3, 0.0)
+			else:
+				var E: Dictionary = YARD.emp
+				var t: int = (state.tick + q * 120) % E.every
+				if t == 0:
+					state.fx.append({"k": "vent", "x": p.x, "y": p.y, "r": h.r, "t": E.on})
+				if t >= E.on or t % E.tick != 0:
+					continue
+				for m in state.mechs:
+					if not m.ko and not m.get("fly", false) and Sim.hypot(m.x - p.x, m.y - p.y) < h.r + Sim.rad(m):
+						Sim.env_hit(state, m, E.dmg, "legs", 0, 0.0)
+						m.buffs.slow = maxi(m.buffs.slow, E.slow)
+
+
+static func awake(state, sg: Dictionary, e: Dictionary, b: Dictionary) -> bool:
+	if e.act == "dormant":
+		b.vx = 0.0
+		b.vy = 0.0
+		var near := false
+		for i in sg.team:
+			var m = state.mechs[i]
+			if not m.ko and not Sim.hidden(state, m) and Sim.hypot(m.x - b.x, m.y - b.y) <= YARD.wake:
+				near = true
+		if not near and b.armor.head >= b.max.head:
+			e.t += 1
+			return false
+		for r in sg.enemies:
+			if r.camp == e.camp and r.act == "dormant":
+				act(r, "wake")
+				state.mechs[r.m].sleep = false
+		state.fx.append({"k": "wake", "x": b.x, "y": b.y, "t": 20})
+		return false
+	if e.act == "wake" and e.t < YARD.wakeTime:
+		e.t += 1
+		return false
+	return true
+
+
+static func raid_route(state, sg: Dictionary, e: Dictionary, b: Dictionary) -> Dictionary:
+	var q: int = e.raid
+	var y: Dictionary = sg.yards[q]
+	if e.leg == 0:
+		var next = null
+		for c in y.camps:
+			if c.alive and (next == null or Sim.hypot(c.x - b.x, c.y - b.y) < Sim.hypot(next.x - b.x, next.y - b.y)):
+				next = c
+		if next == null:
+			e.leg = 1
+		elif Sim.hypot(next.x - b.x, next.y - b.y) <= 3.5:
+			wipe(state, sg, next)
+		else:
+			return next
+	var outer := S.yard_at(q, 22.0, 22.0)
+	var inner := S.yard_at(q, 15.0, 15.0)
+	if e.leg == 1:
+		if Sim.hypot(outer.x - b.x, outer.y - b.y) < 1.5:
+			e.leg = 2
+		return outer
+	if e.leg == 2:
+		if Sim.hypot(inner.x - b.x, inner.y - b.y) < 1.5:
+			e.leg = 3
+			var Q: Dictionary = S.QUADS[q]
+			e.lane = 0 if (Q.sy < 0 and absf(b.y) >= absf(b.x)) else (1 if Q.sx > 0 and absf(b.x) > absf(b.y) else (2 if Q.sy > 0 and absf(b.y) >= absf(b.x) else 3))
+		return inner
+	var stand := S.at(e.lane, S.RING_OUT + 6.0, 0.0)
+	if Sim.hypot(stand.x - b.x, stand.y - b.y) < 2.0:
+		e.raid = -1
+	return stand
+
+
+static func raided(sg: Dictionary) -> void:
+	for y in sg.yards:
+		y.raided = 0.0
+	for e in sg.enemies:
+		if e.raid >= 0 and e.act != "die":
+			var y: Dictionary = sg.yards[e.raid]
+			y.raided = maxf(y.raided, 1.0 - y.camps.filter(func(c): return c.alive).size() / float(y.camps.size()) * 0.5)
+
+
+static func wipe(state, sg: Dictionary, c: Dictionary) -> void:
+	for r in sg.enemies:
+		if r.camp == c.id and r.act != "die":
+			r.blown = true
+			state.mechs[r.m].armor.head = 0
+	for y in sg.yards:
+		for cr in y.crates:
+			if Sim.hypot(cr.x - c.x, cr.y - c.y) < 16.0:
+				cr.taken = true
+	c.alive = false
+	state.fx.append({"k": "boom", "x": c.x, "y": c.y, "r": 2.5, "big": true, "t": 22})
 
 
 static func build(state, pd: Dictionary, item: String) -> void:

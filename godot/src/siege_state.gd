@@ -17,24 +17,28 @@ const CORE := {"r": 2.5, "hp": 4000, "repair": 5.0, "rings": [0.75, 0.5, 0.25, 0
 const GATE := {"hp": 1500, "depth": 1.5}
 const KINDS := ["scout", "swarm", "spider", "flyer", "turret", "walker", "tripod", "quadheavy", "heavy", "jugg"]
 const ACTS := ["walk", "idle", "attack", "windup", "roll", "plant", "hit", "die", "dormant", "wake"]
-const LANE_WALL := 1.5
+const LANE_WALL := 1.0
 const YARD_IN := 27.5
-const ARCH := 6.0
+const ARCH := 8.0
+const DOORS := [[39.0, 45.0], [61.0, 67.0], [39.0, 45.0], [61.0, 67.0]]
 const QUADS := [{"name": "NE", "sx": 1, "sy": -1}, {"name": "SE", "sx": 1, "sy": 1}, {"name": "SW", "sx": -1, "sy": 1}, {"name": "NW", "sx": -1, "sy": -1}]
 const CAMP_TIERS := {"small": {"scrap": 10}, "medium": {"scrap": 25}, "big": {"scrap": 45}, "elite": {"scrap": 120, "token": 1}}
 const CAMPS := [
-	{"tier": "small", "a": 36.0, "b": 16.0, "bots": [["swarm", 1]]},
-	{"tier": "small", "a": 16.0, "b": 36.0, "bots": [["scout", 2]]},
-	{"tier": "medium", "a": 48.0, "b": 28.0, "bots": [["turret", 1], ["spider", 2]]},
-	{"tier": "big", "a": 28.0, "b": 50.0, "bots": [["walker", 1]]},
-	{"tier": "elite", "a": 58.0, "b": 58.0, "bots": [["heavy", 1]]},
+	{"tier": "small", "a": 30.0, "b": 40.0, "bots": [["swarm", 1]]},
+	{"tier": "medium", "a": 42.0, "b": 28.0, "bots": [["turret", 1], ["spider", 2]]},
+	{"tier": "big", "a": 50.0, "b": 50.0, "bots": [["walker", 1]]},
+	{"tier": "elite", "a": 62.0, "b": 62.0, "bots": [["heavy", 1]]},
 ]
-const CRATES := [[26.0, 26.0], [56.0, 14.0], [14.0, 56.0]]
+const CRATES := [[24.0, 32.0], [32.0, 64.0], [60.0, 36.0], [72.0, 46.0]]
 const CRATE := {"secs": 3, "scrap": 15, "reach": 2.0}
-const HEAPS := [{"a": 36.0, "b": 34.0, "r": 2.5}, {"a": 62.0, "b": 40.0, "r": 2.0}, {"a": 40.0, "b": 64.0, "r": 2.0}]
-const STEAM := [{"a": 44.0, "b": 44.0, "r": 4.0}]
-const YARD_HAZARDS := [{"kind": "crush", "a": 50.0, "b": 50.0, "half": 1.5}, {"kind": "emp", "a": 68.0, "b": 26.0, "r": 3.0}, {"kind": "emp", "a": 26.0, "b": 68.0, "r": 3.0}]
-const GARRISON_DOCK := {"x": 9.0, "y": 9.0, "face": -2.356}
+const HEAPS := [
+	{"a": 36.0, "b": 34.0, "r": 2.0, "kind": "stack"}, {"a": 24.0, "b": 46.0, "r": 3.0, "kind": "hulk"}, {"a": 52.0, "b": 38.0, "r": 1.5, "kind": "pillar"},
+	{"a": 40.0, "b": 58.0, "r": 2.0, "kind": "stack"}, {"a": 66.0, "b": 40.0, "r": 3.0, "kind": "hulk"}, {"a": 46.0, "b": 70.0, "r": 2.0, "kind": "stack"},
+	{"a": 70.0, "b": 56.0, "r": 1.5, "kind": "pillar"}, {"a": 58.0, "b": 26.0, "r": 2.0, "kind": "stack"}, {"a": 40.0, "b": 74.0, "r": 1.5, "kind": "crane"},
+]
+const STEAM := [{"a": 46.0, "b": 36.0, "r": 3.0}, {"a": 30.0, "b": 56.0, "r": 3.0}]
+const YARD_HAZARDS := [{"kind": "crush", "a": 56.0, "b": 20.0, "half": 1.5}, {"kind": "emp", "a": 20.0, "b": 56.0, "r": 2.5}]
+const GARRISON_DOCK := {"x": 0.0, "y": 8.0, "face": PI / 2.0}
 const GARRISON_TIERS := 5
 
 
@@ -60,7 +64,7 @@ static func yards() -> Array:
 		for c in CRATES:
 			var p := yard_at(q, c[0], c[1])
 			crates.append({"x": p.x, "y": p.y, "progress": 0.0, "taken": false})
-		out.append({"quadrant": QUADS[q].name, "camps": camps, "crates": crates})
+		out.append({"quadrant": QUADS[q].name, "camps": camps, "crates": crates, "raided": 0.0})
 	return out
 
 

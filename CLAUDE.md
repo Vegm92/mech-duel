@@ -221,8 +221,28 @@ $P = "$R\godot"
   of each on the north lane. Progression: clearing wave 10, 20, 30 (`milestone` fx) opens the
   claim screen with a full set (`Progress.SIEGE_SPOILS`: tank, artillery, reflector); the best
   wave held is `progress.best` (`[siege] best` in `user://progress.cfg`). Endless from 31: `ENDLESS`
-  row (Mk 3) and one more `MUTATORS` pick every 5 waves (`MUTATE`). Not built yet: gamepad shop,
-  a second local player, netcode, VS (design only).
+  row (Mk 3) and one more `MUTATORS` pick every 5 waves (`MUTATE`).
+  **Scrapyard** (Victor 2026-10-28): the 4 corner blocks are walkable yards (`S.QUADS`, lane walls
+  `LANE_WALL`, one `ARCH` per yard in the ring road's outer wall, a second `rings` entry with
+  per-gap `half`). Each yard: 5 camps of neutral bots (team 2, `neutral`, `camp`, `home`; asleep
+  as `dormant` with `sleep` on the body so they skip collision, `awake` wakes the whole camp,
+  `YARD.leash` sends them home to heal), 3 crates (hold V, `use`), heaps (solid), steam
+  (`geo.steam`, read by `Sim.hidden`), a crush plate and 2 EMP zones (`hazards`, hit bots too).
+  Two currencies: `fund` (shared; lane kills 3 × cost, clean-wave bonus, call-early, donations)
+  and `wallets`/`tokens` per player (camps pay the closest player, `camp_down`; crates).
+  `WALLET` items (keys 9 0 - =, in the plaza): repair, upgrade (+1 level to your lowest part,
+  `Sim.tuned` rows), reinforce (`toughen`, kept through respawns in `boost`), revive. Camps and
+  crates `refill` each wave, the Elite every 5. From wave 15 a raid (`YARD.raid`) spawns at a
+  yard's air corner and `raid_route`s camp to camp (`wipe`, no pay), out the arch, to a gate.
+  AI ally 1 farms (`farm`, `waypoint` through gate gaps and arches); lane allies skip camp bots
+  (`brain.lanes_only` in `Bot.pick`).
+  **Garrison** (Victor 2026-10-28): one AI guardian, a real mech at index `siege.guard` (right
+  after the players, `absent` until bought), tiers in `GARRISON` (parts + level, bought with the
+  fund, shop key 8), `guard_input` = `bot.gd` leashed 14 m to the core, back to `GARRISON_DOCK`
+  when hurt, R only from tier 4; it rebuilds free after 20 s × tier. `view.remake` rebuilds its
+  model when the tier changes and adds a cyan halo. Tests check a tier-5 Garrison alone still
+  loses at waves 15 and 25. Not built yet: gamepad shop, a second local player, netcode, VS
+  (design only).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

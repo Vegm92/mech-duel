@@ -5,6 +5,7 @@ const Mech = preload("res://src/mech.gd")
 const Garage = preload("res://src/garage.gd")
 const Sfx = preload("res://src/sfx.gd")
 const Look = preload("res://src/look.gd")
+const Siege = preload("res://src/siege.gd")
 
 const PANEL := Color(0.04, 0.11, 0.23, 0.82)
 const EDGE := Color(0.31, 0.59, 0.9, 0.5)
@@ -36,8 +37,9 @@ const READOUT := {
 	"rarm": [Vector2(158, 71), 52.0, Vector2(150, 66), HORIZONTAL_ALIGNMENT_RIGHT],
 	"legs": [Vector2(85, 99), 50.0, Vector2(80, 120), HORIZONTAL_ALIGNMENT_CENTER],
 }
-const SHOP := ["gate", "rebuild", "ring", "repair", "wall", "mine", "laser", "post"]
-const SHOP_COST := {"gate": 40, "rebuild": 120, "ring": 200, "repair": 30, "wall": 60, "mine": 80, "laser": 150, "post": 120}
+const SHOP := ["gate", "rebuild", "ring", "wall", "mine", "laser", "post", "garrison"]
+const WALLET := ["repair", "upgrade", "reinforce", "revive"]
+const WALLET_KEYS := ["9", "0", "-", "="]
 const SLOTS := [["left", "capLmb", "capLt"], ["right", "capRmb", "capRt"], ["shield", "capQ", "capRb"], ["hook", "capE", "capL3"], ["dash", "capSpace", "capLb"], ["ult", "capR", "capR3"]]
 
 signal resume
@@ -177,6 +179,9 @@ func paint() -> void:
 			slots(size)
 			if not state.siege.wave.live and state.phase != "over":
 				siege_shop(size)
+			elif Sim.hypot(state.mechs[0].x, state.mechs[0].y) <= 14.0 and state.phase != "over":
+				siege_wallet(size, size.y - SLOT.y - 14 - 74)
+			siege_crate(size)
 		if state.phase != "over":
 			siege_calls(size)
 		if state.phase == "over":
@@ -294,9 +299,9 @@ func siege_top(size: Vector2) -> void:
 	var r := Rect2(size.x / 2.0 - 150, 12, 300, 76)
 	plate(r)
 	label(tr("siegeWave").format({"n": w.n if w.live else w.n + 1}), Vector2(r.position.x, r.position.y + 32), 28, TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
-	var left: int = sg.enemies.filter(func(e): return e.act != "die").size() + sg.queue.size()
+	var left: int = sg.enemies.filter(func(e): return e.act != "die" and not e.get("neutral", false)).size() + sg.queue.size()
 	var sub: String = tr("siegeLeft").format({"n": left}) if w.live or w.next_in > 36000 else tr("siegeNext").format({"s": int(ceil(w.next_in / float(Sim.TICKS)))})
-	label(sub + "   " + tr("siegeScrap").format({"n": sg.scrap}), Vector2(r.position.x, r.position.y + 50), 13, DIM, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+	label(sub + "   " + tr("siegeFund").format({"n": sg.fund}) + "   " + tr("siegeWallet").format({"n": sg.wallets[0]}) + ("   " + tr("siegeTokens").format({"n": sg.tokens[0]}) if sg.tokens[0] > 0 else ""), Vector2(r.position.x, r.position.y + 50), 13, DIM, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 	var c: Dictionary = sg.core
 	var bar := Rect2(r.position.x + 16, r.position.y + 58, r.size.x - 32, 10)
 	canvas.draw_rect(bar, SEG_OFF)
@@ -305,6 +310,10 @@ func siege_top(size: Vector2) -> void:
 		var x := bar.position.x + bar.size.x * (3 - i) / 4.0
 		canvas.draw_rect(Rect2(x - 1, bar.position.y - 3, 2, bar.size.y + 6), WIRE if c.rings[i] > 0 else HEAT_C)
 	label(tr("siegeCore"), Vector2(bar.position.x, bar.position.y - 2), 10, DIM)
+	var G: Dictionary = sg.garrison
+	if G.tier > 0:
+		var gt := tr("siegeGuard").format({"t": G.tier}) if G.respawn_in <= 0 else tr("siegeGuardDown").format({"t": G.tier, "s": int(ceil(G.respawn_in / float(Sim.TICKS)))})
+		label(gt, Vector2(r.position.x, r.position.y + r.size.y + 16), 13, WIRE if G.respawn_in <= 0 else HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 4, bold)
 
 
 func siege_shop(size: Vector2) -> void:
@@ -317,14 +326,44 @@ func siege_shop(size: Vector2) -> void:
 	var left: int = int(ceil(maxf(0, sg.wave.next_in - 480) / float(Sim.TICKS)))
 	if left > 0 and left < 600:
 		label(tr("siegeCall").format({"n": 2 * left}), Vector2(x0, y - 8), 13, DIM, HORIZONTAL_ALIGNMENT_RIGHT, SHOP.size() * (w + gap) - gap, 4)
+	label(tr("siegeUse"), Vector2(x0, y + 70), 12, DIM, HORIZONTAL_ALIGNMENT_LEFT, -1, 4)
 	for i in SHOP.size():
 		var k: String = SHOP[i]
-		var r := Rect2(x0 + i * (w + gap), y, w, 52)
-		var can: bool = sg.scrap >= SHOP_COST[k]
-		plate(r)
-		label(str(i + 1), Vector2(r.position.x + 6, r.position.y + 16), 13, ACCENT if can else SEG_OFF, HORIZONTAL_ALIGNMENT_LEFT, -1, 0, bold)
-		label(tr("shop_" + k), Vector2(r.position.x, r.position.y + 30), 12, TEXT if can else SEG_OFF, HORIZONTAL_ALIGNMENT_CENTER, w)
-		label(str(SHOP_COST[k]), Vector2(r.position.x, r.position.y + 46), 12, WIRE if can else SEG_OFF, HORIZONTAL_ALIGNMENT_CENTER, w, 0, bold)
+		var cost: int = Siege.next_cost(sg) if k == "garrison" else Siege.SHOP[k]
+		var name: String = tr("shop_garrison").format({"t": sg.garrison.tier + 1}) if k == "garrison" and cost >= 0 else tr("shop_" + k)
+		cell(Rect2(x0 + i * (w + gap), y, w, 52), str(i + 1), name if cost >= 0 else tr("shop_garrisonMax"), maxi(cost, 0), cost >= 0 and sg.fund >= cost, WIRE)
+	siege_wallet(size, y - 64)
+
+
+func cell(r: Rect2, key: String, name: String, cost: int, can: bool, c: Color) -> void:
+	plate(r)
+	label(key, Vector2(r.position.x + 6, r.position.y + 16), 13, ACCENT if can else SEG_OFF, HORIZONTAL_ALIGNMENT_LEFT, -1, 0, bold)
+	label(name, Vector2(r.position.x, r.position.y + 30), 12, TEXT if can else SEG_OFF, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+	label(str(cost), Vector2(r.position.x, r.position.y + 46), 12, c if can else SEG_OFF, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
+
+
+func siege_wallet(size: Vector2, y: float) -> void:
+	var sg: Dictionary = state.siege
+	var m: Dictionary = state.mechs[0]
+	var w := 96.0
+	var gap := 6.0
+	var x0 := size.x / 2.0 - (WALLET.size() * w + (WALLET.size() - 1) * gap) / 2.0
+	label(tr("siegeWalletShop").format({"n": sg.wallets[0]}), Vector2(x0, y - 8), 13, SURGE_C, HORIZONTAL_ALIGNMENT_LEFT, -1, 4, bold)
+	for i in WALLET.size():
+		var k: String = WALLET[i]
+		var cost: int = Siege.WALLET[k] * ((Siege.level_of(m, Siege.low_slot(m)) + 1) if k == "upgrade" and Siege.low_slot(m) != "" else 1)
+		var can: bool = sg.wallets[0] >= cost or (k == "reinforce" and sg.tokens[0] > 0)
+		cell(Rect2(x0 + i * (w + gap), y, w, 52), WALLET_KEYS[i], tr("shop_" + k), cost, can, SURGE_C)
+
+
+func siege_crate(size: Vector2) -> void:
+	for y in state.siege.yards:
+		for c in y.crates:
+			if c.progress > 0.0:
+				var r := Rect2(size.x / 2.0 - 90, size.y * 0.62, 180, 14)
+				canvas.draw_rect(r, SEG_OFF)
+				canvas.draw_rect(Rect2(r.position, Vector2(r.size.x * c.progress, r.size.y)), SURGE_C)
+				label(tr("siegeCrate"), Vector2(r.position.x, r.position.y - 4), 13, TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 4, bold)
 
 
 func watch(key: String, hp: float, now: int) -> void:
@@ -399,6 +438,9 @@ func siege_calls(size: Vector2) -> void:
 				c = WIRE
 			"ring":
 				text = tr("siegeRing")
+				c = HEAT_C
+			"raid":
+				text = tr("siegeRaid").format({"yard": Siege.S.QUADS[f.q].name})
 				c = HEAT_C
 			"mutator":
 				text = tr("siegeMutator").format({"name": tr("mut_" + f.id)})

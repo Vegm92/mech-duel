@@ -82,16 +82,20 @@ quadrant-local (a, b) to world). What changes in the arena, numbers in `siege_st
   stay in those walls (spiders pop out into the lane and into the yard).
 - The ring road keeps its outer wall from `BLOCK` 26 to `YARD_IN` 27.5, with the 4 lane gaps plus
   one yard arch per quadrant on the 45° diagonal, `ARCH` 6 m wide (no door).
-- In each yard: 5 camps (`CAMPS`, tier small/medium/big/elite; the bots are existing kinds),
-  3 salvage crates (`CRATES`), scrap heaps you can hide behind (`HEAPS`, solid circles), a steam
-  patch that hides a mech (`STEAM`), a crush plate and 2 EMP zones (`YARD_HAZARDS`, they hit bots
-  too). The crowd and floodlight towers need a new home (yard edges along the border, or on the
-  lane walls); the air entries (`AIR`) are now inside the yards.
+- Layout numbers agreed with `siege-arena` 2026-10-28: lane walls at lateral 5 (1 m thick in the
+  sim), open doors in the lane walls (`DOORS`: N/S at 39..45, E/W at 61..67, open for everyone),
+  an 8 m arch per yard, 4 camps (`CAMPS`, `tier` is the string small/medium/big/elite; the bots
+  are existing kinds), 4 crates (`CRATES`), 9 cover pieces (`HEAPS`, solid circles that block
+  shots and sight), 2 steam patches (`STEAM`, hide a mech like duel smoke: `Sim.hidden`), a crush
+  plate and an EMP zone (`YARD_HAZARDS`, they hit bots too). Crowd and floodlights move to an
+  outer stadium past the border; the air entries (`AIR`) are inside the yards.
+- `yards[].raided` is 0..1 while a raid squad is in that yard (0.5 when it arrives, 1 when every
+  camp is wiped), else 0. Crates are `{x, y, progress 0..1, taken}`.
 
 ### Garrison (2026-10-28, Victor)
 
 One allied defender for the core, built from player parts (`Mech.build` + `SETS`, no new model).
-`GARRISON_DOCK` is its dock in the plaza (x 9, y 9, facing the core). `garrison.tier` 0 = not
+`GARRISON_DOCK` is its dock in the plaza (x 0, y 8, pad r 2.5, facing south). `garrison.tier` 0 = not
 built, 1..5 = bought tiers; `act` uses the mech acts (`idle`, `walk`, `attack`, `die`, `dock`).
 
 
