@@ -40,6 +40,10 @@ const STEAM := [{"a": 46.0, "b": 36.0, "r": 3.0}, {"a": 30.0, "b": 56.0, "r": 3.
 const YARD_HAZARDS := [{"kind": "crush", "a": 56.0, "b": 20.0, "half": 1.5}, {"kind": "emp", "a": 20.0, "b": 56.0, "r": 2.5}]
 const GARRISON_DOCK := {"x": 0.0, "y": 8.0, "face": PI / 2.0}
 const GARRISON_TIERS := 5
+const BAY := {"x": -8.0, "y": 8.0, "face": -PI / 4.0}
+const PART_SLOTS := ["head", "core", "arms", "legs", "booster", "left", "right"]
+const RUN_TIERS := 5
+const RECALL := {"secs": 3, "cd": 25}
 
 
 static func at(lane: int, d: float, side := 0.0) -> Dictionary:
@@ -65,6 +69,13 @@ static func yards() -> Array:
 			var p := yard_at(q, c[0], c[1])
 			crates.append({"x": p.x, "y": p.y, "progress": 0.0, "taken": false})
 		out.append({"quadrant": QUADS[q].name, "camps": camps, "crates": crates, "raided": 0.0})
+	return out
+
+
+static func tiers() -> Dictionary:
+	var out := {}
+	for s in PART_SLOTS:
+		out[s] = 0
 	return out
 
 
@@ -109,5 +120,6 @@ static func stub(rings_left := 4) -> Dictionary:
 		"tick": 0, "wave": {"n": 1, "next_in": 480, "lanes_open": [true, false, false, false]},
 		"core": {"x": 0.0, "y": 0.0, "hp": hp, "max": CORE.hp, "rings": rings, "repairing": false},
 		"gates": gates, "pads": pads(), "enemies": enemies, "yards": yards(),
-		"fund": 0, "wallets": [0], "tokens": [0], "garrison": garrison(),
+		"fund": 0, "wallets": [120], "tokens": [0], "garrison": garrison(),
+		"tiers": [tiers()], "recall": [], "shop_open": [false],
 	}

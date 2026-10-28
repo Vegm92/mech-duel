@@ -257,6 +257,53 @@ they farm; lane arrows on the HUD, raids from wave 15 and the growing respawn ti
 AI allies get roles: ally 1 farms the nearest yard while the wave is not live or its lane is quiet,
 the others hold lanes, ally 3 floats at the core.
 
+## 8b2. In-run upgrades and the radial shop (Victor 2026-10-28, tune later)
+
+Victor played to wave 6: bots felt too hard to kill because your mech never grew during a run.
+Now it grows like a LoL build, but with the parts we already have.
+
+**Upgrade tiers.** Each of the 7 slots (head, core, arms, legs, booster, left hand, right hand) has a
+run-only tier 0..5 on top of its Salvage level, bought from your **wallet** in the plaza. Price =
+base × tier² (hands 40, head/arms/legs 35, booster 30, core 45; tier 5 of a hand = 1000). Tiers
+stay with the slot when you swap the part in it.
+
+| Slot | Per tier |
+|---|---|
+| Left / right hand | +12% damage, -5% cooldown |
+| Head | +10% head armor, +6% R charge |
+| Arms | +10% arm armor, -3% hand times |
+| Legs | +10% leg armor, +4% top speed |
+| Booster | -8% dash recharge |
+| Core | +12% R charge gain, +4% damage |
+
+**Buy parts.** In the plaza you can swap any part or weapon you **own** (Salvage) into a slot:
+light 60, standard 150, heavy 300; weapons by class (by their Load: up to 14 = 60, up to 18 = 150,
+more = 300). Parts you don't own stay locked. The parts bay prop stands at `BAY` in the plaza.
+
+**Instant buys** (wallet): repair kit 40 (full armor), coolant 20 (heat to 0), surge cell 60 (+50 R
+charge), reinforce 100 or a token (+15% max armor for the run), revive 50 (a downed teammate now).
+
+**Wallet income.** Every run starts with 120 in each wallet. Each lane kill also pays every player
+1 × the bot's cost (the fund still gets 3 ×). Yards stay the big earner.
+
+**Recall.** Hold B (pad X) 3 s, broken by taking damage: you appear at your plaza spot. 25 s
+cooldown. Makes the yard ↔ plaza loop work.
+
+**Radial shop.** Hold Shift (pad Y) in the plaza (within 14 m of the core), move the mouse or stick
+toward a wedge, release or click to buy, right click / Esc / pad B goes back. The sim keeps running.
+Level 1: Weapons, Plating (head, arms, legs), Engine (legs, booster), Core, Heal (kit, coolant, surge
+cell), Parts (swap), Team (gate, rebuild, ring, barricade, mine, laser, rail post, Garrison; fund),
+Reinforce, Revive. Level 2 shows cost (dimmed when you can't pay) and the stat change. Keys checked
+for the radial: Shift, B, V, X, G and 1-8 are free or siege-only; no punctuation keys are bound (a
+Spanish layout moves them). All bindings use physical keycodes.
+
+**AI teammates buy.** In the plaza between waves they spend their wallet on hand damage, then
+plating, engine, core; they recall when armor is low or the wallet is over 300, then go back out.
+
+**Balance targets.** Waves 1-10 beatable by a base build plus one AI teammate; Light Scout, Swarm
+cube and Spider die in 3 or fewer default-weapon hits. A fully upgraded build clearly outlasts a
+base one at waves 10/20/30, and a full-tier build without players still falls by wave 30.
+
 ## 8c. Garrison (Victor 2026-10-28, tune later)
 
 A fortress upgrade that gives the core **one** allied defender, upgraded many times for a lot of

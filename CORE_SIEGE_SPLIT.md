@@ -65,6 +65,9 @@ siege = {
   yards: [{quadrant, camps: [{id, tier, x, y, alive, respawn_in}], crates: [{x, y, progress, taken}]}],
   fund, wallets: [int per player], tokens: [int per player],
   garrison: {tier, hp, max, x, y, face, act, respawn_in},
+  tiers: [{head, core, arms, legs, booster, left, right: 0..5} per player],
+  recall: [{player, t, max, x, y}],
+  shop_open: [bool per player],
 }
 ```
 
@@ -91,6 +94,19 @@ quadrant-local (a, b) to world). What changes in the arena, numbers in `siege_st
   outer stadium past the border; the air entries (`AIR`) are inside the yards.
 - `yards[].raided` is 0..1 while a raid squad is in that yard (0.5 when it arrives, 1 when every
   camp is wiped), else 0. Crates are `{x, y, progress 0..1, taken}`.
+
+### In-run upgrades, recall, radial shop (2026-10-28, Victor)
+
+- `tiers[i][slot]` 0..5 = run-only upgrade tier of each of the 7 slots (`PART_SLOTS`) for player
+  `i`, on top of its Salvage level. A view may show pips on the HUD; nothing in the arena reads it.
+- `recall` lists players channelling a recall: `t` ticks done of `max` (3 s), at (x, y). When it
+  completes they appear at their plaza spot. Art: a beam/charge effect while it runs.
+- `shop_open[i]` is true while player `i` holds the radial shop open (the sim keeps running).
+- `BAY` (x -8, y 8, facing the core) is where the parts-bay prop stands in the plaza (`siege-arena`).
+  Buying works anywhere in the plaza; the bay is the visual anchor.
+- The radial widget is `godot/src/radial.gd` (owned by `siege-bots`). It takes entries
+  `{id, label_key, cost, enabled, sub, note}` and returns the picked `id`; `core-siege` builds the
+  entries (`Siege.menu`) and the buy logic.
 
 ### Garrison (2026-10-28, Victor)
 
