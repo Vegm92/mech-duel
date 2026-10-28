@@ -35,7 +35,9 @@ Decisions (Victor, 2026-10-28, one question each):
   input (hype is the show's output, §6).
 - Co-op scale 1–4: the budget already scales with `budget(n, team)`; the pressure sample divides by
   team size; tactics have a minimum team size where it matters (§4).
-- Off switch for tests and A/B: `--director=off` (plans exactly like today).
+- Off switch for tests and A/B: `--director=off` (plans exactly like today). The game starts with
+  it **off** until the meter is tuned (Victor, 2026-10-28, after the v0 balance run: every bot team
+  lost about a wave sooner with it on); `--director=on` turns it on. The sim default stays on.
 
 **Never** (tests check each one, §8):
 - spawn bots anywhere but the lane border mouths, the air corners and the side vents, and never

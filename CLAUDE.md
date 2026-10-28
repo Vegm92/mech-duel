@@ -259,6 +259,8 @@ $P = "$R\godot"
   Balance tool: `tools/siege_balance.gd` (`-s <abs path> -- --from=<wave> --waves=<n> --team=<n>
   --tiers=<0..5> --guard=<0..5> --seeds=a,b`), one BALANCE line per seed. Look flags: `--shop`
   (opens the radial with scrap), `--farm` (your autopilot farms), `--guard=<tier>`.
+  Bot HP follows the default Rivet (42 dmg since the duel balance pass): scout 1 hit, swarm 1,
+  spider 2, walker 7 (table in `CORE_SIEGE_DESIGN.md` 8b2, `default_weapon_kills_*` checks it).
   **Director** (Victor 2026-10-28, spec `CORE_SIEGE_DIRECTOR.md`): `siege.gd` `sense` takes one
   pressure sample (0-100) per second of a live wave into `siege.director`; `score` turns each wave
   into W → strain → dial (from wave 4); `plan` applies the 5-wave `BEAT` (budget × mult × (1 ±
@@ -268,7 +270,8 @@ $P = "$R\godot"
   entries carry `w` = their group's warn tick), and a `tactic` fx is the announcer call (`dir_*`
   text, `|` splits headline and sub line). No spawn within `DIRECTOR.near` (8 m) of a player: a
   vent flips side, else it waits `DIRECTOR.retry`. Waves 1-3 plan as if it were off.
-  `--director=off` turns it off; `director.force = <tactic>` is the test hook. `bot.gd` `SKILL`
+  The game starts it off until the meter is tuned (Victor 2026-10-28: v0 made every bot team
+  lose about a wave sooner); `--director=on` turns it on. `director.force = <tactic>` is the test hook. `bot.gd` `SKILL`
   (skilled / average / weak) merges into a brain; `tools/siege_balance.gd -- --director=both
   --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
   Not built yet: a second local player, netcode, VS (design only).

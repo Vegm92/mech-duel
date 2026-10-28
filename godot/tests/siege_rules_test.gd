@@ -6,7 +6,7 @@ const Siege = preload("res://src/siege.gd")
 const S = preload("res://src/siege_state.gd")
 const Progress = preload("res://src/progress.gd")
 
-const GOLDEN := 1312459456
+const GOLDEN := 143156958
 
 var failed := 0
 var filter := ""
@@ -1139,10 +1139,12 @@ func test_every_tactic_warns_each_group_and_spawns_only_at_mouths_vents_and_corn
 		var seen := {}
 		var called := false
 		var queued := []
+		var start := 0
 		for k in 60 * 50:
 			Siege.step(s, [idle(), idle()])
 			if k == 0:
 				queued = s.siege.queue.filter(func(q): return q.has("kind") and not q.has("raid"))
+				start = s.tick + Siege.RUN.warn
 			for f in s.fx:
 				if f.k == "warn" and f.t == Siege.RUN.warn:
 					warns[s.tick] = true
@@ -1166,8 +1168,8 @@ func test_every_tactic_warns_each_group_and_spawns_only_at_mouths_vents_and_corn
 				fails.append("%s: warned %d ticks ahead" % [id, first[w] - w])
 		if not called:
 			fails.append("%s: never announced" % id)
-		if first.size() < 2 and id != "pincer":
-			fails.append("%s: only %d spawn group(s)" % [id, first.size()])
+		if id != "pincer" and first.values().filter(func(t): return t > start).is_empty():
+			fails.append("%s: no group comes late" % id)
 	for f in fails:
 		print("  " + f)
 	return ensure(fails.is_empty(), "every tactic is fair")

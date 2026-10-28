@@ -96,21 +96,21 @@ const TANKS := ["heavy", "jugg", "walker"]
 const RANGED := ["turret", "tripod", "quadheavy"]
 const MK := [{"hp": 1.0, "dmg": 1.0, "speed": 1.0}, {"hp": 1.5, "dmg": 1.25, "speed": 1.0}, {"hp": 2.2, "dmg": 1.5, "speed": 1.1}]
 const BOTS := {
-	"scout": {"cost": 1, "hp": 60, "speed": 7.5, "r": 0.6, "poise": 1, "attack": "bolt", "range": 12.0, "dmg": 10, "impact": 0, "cd": 60, "windup": 12, "shot": {"speed": 30, "radius": 0.25, "range": 14}, "dodge": 0.35},
-	"swarm": {"cost": 2, "pack": 3, "hp": 40, "speed": 6.5, "r": 0.4, "poise": 0, "attack": "bite", "range": 1.0, "dmg": 6, "impact": 0, "cd": 40, "windup": 8, "boom": {"dmg": 40, "r": 2.5}},
-	"spider": {"cost": 2, "hp": 130, "speed": 6.5, "r": 0.7, "poise": 1, "attack": "lunge", "range": 4.5, "dmg": 25, "impact": 2, "cd": 90, "windup": 18, "lunge": 5.0, "hunt": 30.0, "vent": true},
-	"flyer": {"cost": 3, "hp": 120, "speed": 7.0, "r": 0.6, "poise": 1, "attack": "bolt", "range": 10.0, "dmg": 10, "impact": 0, "cd": 40, "windup": 6, "shot": {"speed": 34, "radius": 0.25, "range": 12}, "fly": true, "first": "mech", "halt": false},
-	"turret": {"cost": 4, "hp": 320, "speed": 3.5, "r": 1.0, "poise": 3, "attack": "bolt", "range": 22.0, "dmg": 24, "impact": 1, "cd": 90, "windup": 20, "shot": {"speed": 36, "radius": 0.35, "range": 24}, "plant": 45, "first": "mech"},
-	"walker": {"cost": 5, "hp": 420, "speed": 4.0, "r": 1.2, "poise": 3, "attack": "claw", "range": 2.4, "dmg": 35, "impact": 2, "cd": 70, "windup": 16, "gun": {"range": 12.0, "dmg": 20, "cd": 80, "impact": 0, "shot": {"speed": 32, "radius": 0.3, "range": 14}}},
-	"tripod": {"cost": 5, "hp": 240, "speed": 3.5, "r": 1.0, "poise": 2, "attack": "rail", "range": 34.0, "dmg": 90, "impact": 2, "cd": 180, "windup": 120, "lock": 30, "hunt": 40.0, "keep": 24.0, "first": "mech"},
-	"quadheavy": {"cost": 8, "hp": 800, "speed": 3.0, "r": 1.5, "poise": 4, "attack": "salvo", "range": 45.0, "dmg": 35, "impact": 1, "cd": 300, "windup": 40, "shells": 4, "spread": 2.5, "splash": 2.0, "delay": 90, "first": "core"},
-	"heavy": {"cost": 9, "hp": 1150, "speed": 2.8, "r": 1.6, "poise": 5, "attack": "cannon", "range": 18.0, "dmg": 80, "impact": 3, "cd": 150, "windup": 30, "splash": 2.5, "delay": 30, "first": "mech"},
-	"jugg": {"cost": 9, "hp": 1000, "speed": 3.0, "r": 1.4, "poise": 5, "attack": "ram", "range": 2.4, "dmg": 120, "impact": 4, "cd": 0, "windup": 40, "roll": 11.0, "rollTime": 480, "exposed": 240, "push": 6.0, "gateK": 3},
+	"scout": {"cost": 1, "hp": 40, "speed": 7.5, "r": 0.6, "poise": 1, "attack": "bolt", "range": 12.0, "dmg": 10, "impact": 0, "cd": 60, "windup": 12, "shot": {"speed": 30, "radius": 0.25, "range": 14}, "dodge": 0.35},
+	"swarm": {"cost": 2, "pack": 3, "hp": 25, "speed": 6.5, "r": 0.4, "poise": 0, "attack": "bite", "range": 1.0, "dmg": 6, "impact": 0, "cd": 40, "windup": 8, "boom": {"dmg": 40, "r": 2.5}},
+	"spider": {"cost": 2, "hp": 84, "speed": 6.5, "r": 0.7, "poise": 1, "attack": "lunge", "range": 4.5, "dmg": 25, "impact": 2, "cd": 90, "windup": 18, "lunge": 5.0, "hunt": 30.0, "vent": true},
+	"flyer": {"cost": 3, "hp": 80, "speed": 7.0, "r": 0.6, "poise": 1, "attack": "bolt", "range": 10.0, "dmg": 10, "impact": 0, "cd": 40, "windup": 6, "shot": {"speed": 34, "radius": 0.25, "range": 12}, "fly": true, "first": "mech", "halt": false},
+	"turret": {"cost": 4, "hp": 210, "speed": 3.5, "r": 1.0, "poise": 3, "attack": "bolt", "range": 22.0, "dmg": 24, "impact": 1, "cd": 90, "windup": 20, "shot": {"speed": 36, "radius": 0.35, "range": 24}, "plant": 45, "first": "mech"},
+	"walker": {"cost": 5, "hp": 275, "speed": 4.0, "r": 1.2, "poise": 3, "attack": "claw", "range": 2.4, "dmg": 35, "impact": 2, "cd": 70, "windup": 16, "gun": {"range": 12.0, "dmg": 20, "cd": 80, "impact": 0, "shot": {"speed": 32, "radius": 0.3, "range": 14}}},
+	"tripod": {"cost": 5, "hp": 155, "speed": 3.5, "r": 1.0, "poise": 2, "attack": "rail", "range": 34.0, "dmg": 90, "impact": 2, "cd": 180, "windup": 120, "lock": 30, "hunt": 40.0, "keep": 24.0, "first": "mech"},
+	"quadheavy": {"cost": 8, "hp": 520, "speed": 3.0, "r": 1.5, "poise": 4, "attack": "salvo", "range": 45.0, "dmg": 35, "impact": 1, "cd": 300, "windup": 40, "shells": 4, "spread": 2.5, "splash": 2.0, "delay": 90, "first": "core"},
+	"heavy": {"cost": 9, "hp": 750, "speed": 2.8, "r": 1.6, "poise": 5, "attack": "cannon", "range": 18.0, "dmg": 80, "impact": 3, "cd": 150, "windup": 30, "splash": 2.5, "delay": 30, "first": "mech"},
+	"jugg": {"cost": 9, "hp": 650, "speed": 3.0, "r": 1.4, "poise": 5, "attack": "ram", "range": 2.4, "dmg": 120, "impact": 4, "cd": 0, "windup": 40, "roll": 11.0, "rollTime": 480, "exposed": 240, "push": 6.0, "gateK": 3},
 }
 
 
 static func budget(n: int, team: int) -> float:
-	return (3 + 2.2 * n + 0.16 * n * n) * (1 + RUN.players * (team - 1))
+	return (2.7 + 1.98 * n + 0.144 * n * n) * (1 + RUN.players * (team - 1))
 
 
 static func geo_of(sg: Dictionary) -> Dictionary:
