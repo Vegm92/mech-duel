@@ -306,6 +306,51 @@ Skillshot claw: 13 m, 40 m/s, 30 damage. On a hit it pulls the target toward you
 1.8 m away (max 0.4 s), then stuns it 12t. That's the setup for a melee hit. A raised shield in front
 blocks it. Cooldown 8 s, +10 Heat.
 
+### Brace (E on the Oni Horns head, built 2026-10-28)
+
+Instant, no windup, no action: for 2 s you take half damage (`BRACE.cut`, applied before an overshield / bubble
+soaks the rest, and to traps and hazards too) and walk at half speed (`BRACE.move`). You can still shoot, slash,
+dash and raise the shield. Cooldown 12 s, no Heat. Shown as an amber ring burst, a warm glow on the body and the lit E
+slot. The bot braces when a shot is incoming or the rival is within 5 m.
+
+### Cleanse (E on the Sun Crest head, built 2026-10-28)
+
+Instant and castable while stunned, jammed or hooked (it runs at the very top of `start`, before the "busy" gate). On
+cast it clears your slow, skill lock (`buffs.jam`, from EMP and the arc trail), stagger and a hook pull. Then for 2 s
+(`CLEANSE.time`, `buffs.cleanse`, `warded()`) those effects do not stick: slow (frost trail, stasis and bubble-type
+fields), skill lock (EMP, arc trail), the hook's pull and stun, and the stun of a leg landing. Damage from them still
+lands, and ordinary hit stagger (poise) still works. Pull-type displacement (magnet trail, gravity well) is not
+blocked. Cooldown 14 s, no Heat. Shown as a white ring burst, a pale glow on the body and the lit E slot. The bot
+casts it when it is slowed, jammed or pulled. Root (Trap, planned) will be cleansed the same way.
+
+### Focus (E on the Sniper Visor head, built 2026-10-28)
+
+Instant, like Brace (the E skills share `E_SPEC` and the cast code in `start`). For 3 s (`FOCUS.time`) every gun shot you
+fire does 35% more damage (`FOCUS.dmg`; guns only, so melee, trails and R skills are unchanged) and bolts fly 30%
+faster (`FOCUS.speed`, stacks with the Rail core's bolt speed), but you walk at half speed (`FOCUS.move`). No aim
+help: you still aim by hand. Cooldown 10 s, no Heat. Shown as a green-white ring that closes in, a teal glow on the
+body and the lit E slot. The bot uses it when its gun is ready and the rival is within 40% of the gun's range.
+
+### The other six E skills (built 2026-10-28)
+
+All instant, no windup, no Heat, castable only when not stunned or skill-locked (Cleanse is the exception). Numbers
+are the constants in `sim.gd` (`PULSE`, `XRAY`, `FROST`, `ARCWALL`, `TRAP`, `LUNGE`), shown in the HUD slot (lit while a
+buff runs) and each has its own `fx` kind and sound.
+
+| Skill (head) | Rule | Cooldown |
+|---|---|---|
+| Repair Pulse (Medic Dome) | Heals your weakest part 60 over 3 s (`heal_weakest`, the same pick as the Leech core). Any damage that reaches armor stops it. | 14 s |
+| Frost Field (Ward Orb) | A circle (3 m) at the cursor up to 10 m away, 4 s. Rivals inside are slowed and cannot dash. Built as a `stasis` field with no damage. | 12 s |
+| Electric Wall (Tri-Antenna) | A 4 m wall at the cursor up to 8 m away, 2.5 s. It stops the rival's bolts, missiles, beams and cones like the Bastion wall; your own shots pass. A rival touching it takes 10 to the legs and is slowed 1.5 s, once per wall. | 12 s |
+| Trap (Mine Hatch) | A mine 2 m ahead, armed after 0.5 s, lives 12 s. A rival stepping on it takes 35 and is rooted 1.5 s: `buffs.root` stops walking and dashing, shooting still works. Cleanse removes root and the ward blocks it. | 9 s |
+| X-Ray (Radar Dish) | 1.5 s in which your bolts, missiles, beams and cones ignore pillars and placed walls (yours and theirs). Mechs still block them. | 16 s |
+| Lunge (Rhino Horn) | A 6 m dash toward the cursor (`DASH_MOVES.lunge`, 15 ticks) that hits the first mech in the way for 40, impact 2, and stops there. Costs no dash charge and gives the usual dash-swing afterburn. | 7 s |
+
+Bot rules (`wants_e` in `bot.gd`): Pulse when under 70% health, no shot incoming and the rival is over 8 m away; Frost
+Field when it sees the rival 4 to 9 m away; Electric Wall when a shot is incoming; Trap when the rival is 2.5 to 8 m
+away; X-Ray when its line to the rival is blocked and its gun is ready (it then fires without sight); Lunge with a
+melee weapon, in sight, 3 to 7.5 m. It never presses E in the same tick as a dash.
+
 ### Repair pad (built)
 
 At the arena center. Ready 8 s into each round; touching it repairs 60 on every part, broken ones
@@ -520,7 +565,7 @@ pressured into overheat, R baited by an opponent whose E is still lit.
 
 ## 5. Parts
 
-### Built (garage, Exteel rework 2026-10-21: 10 heads, 10 cores, 6 arms, 10 legs, 6 boosters, 20 weapons)
+### Built (garage, Exteel rework 2026-10-21: 10 heads (+ the Rookie Helm, 2026-10-28), 10 cores, 6 arms, 10 legs, 6 boosters, 20 weapons)
 
 Numbers live in `HEADS`, `CORES`, `ARMS`, `LEG_PARTS`, `BOOSTERS` and `WEAPONS` in `godot/src/sim.gd`. The
 garage is a store in the Exteel style: PARTS (head, core, arms, legs, booster) and WEAPONS (left
@@ -615,18 +660,34 @@ Hand speed multiplies windup, recovery and cooldown of both hands' weapons.
 
 Heads do not pick the R skill (the core does). R charge multiplies every Surge gain.
 
-| Part | Series | Armor | R charge |
-|---|---|---|---|
-| Rhino Horn | Standard | 300 | ×1 |
-| Stag Pincers | Standard | 292 | ×1.08 |
-| Sun Crest | Light | 285 | ×1.3 |
-| Radar Dish | Standard | 296 | ×1.04 |
-| Sniper Visor | Light | 278 | ×1.4 |
-| Medic Dome | Heavy | 325 | ×0.86 |
-| Ward Orb | Standard | 308 | ×0.92 |
-| Tri-Antenna | Standard | 290 | ×1.12 |
-| Mine Hatch | Standard | 304 | ×0.94 |
-| Oni Horns | Heavy | 335 | ×0.8 |
+A head carries the E skill (`e` in `HEADS`; Victor 2026-10-28). Q stays the shield for everyone. Every head has its own
+E skill (table below); the Rookie Helm has none, so its E slot on the HUD is blank, the key does nothing and the bot
+never presses it. Shockwave was parked: it duplicates the Stompers Slam and the EMP R skill.
+
+| Part | Series | Armor | R charge | E skill |
+|---|---|---|---|---|
+| Rookie Helm (default) | Standard | 305 | ×1 | none |
+| Rhino Horn | Standard | 300 | ×1 | Lunge |
+| Stag Pincers | Standard | 292 | ×1.08 | Chain Hook |
+| Sun Crest | Light | 285 | ×1.3 | Cleanse |
+| Radar Dish | Standard | 296 | ×1.04 | X-Ray |
+| Sniper Visor | Light | 278 | ×1.4 | Focus |
+| Medic Dome | Heavy | 325 | ×0.86 | Repair Pulse |
+| Ward Orb | Standard | 308 | ×0.92 | Frost Field |
+| Tri-Antenna | Standard | 290 | ×1.12 | Electric Wall |
+| Mine Hatch | Standard | 304 | ×0.94 | Trap |
+| Oni Horns | Heavy | 325 | ×0.8 | Brace |
+
+Bot check, 2026-10-28 (each head on a build vs the same build with the Rookie Helm; three builds: default, brawler set,
+sniper set; both sides; draws did not occur). First run, 60 matches per head, wins: Rookie mirror 20, Lunge 21, Trap 24,
+Focus 25, Frost Field 29, Hook 30, Cleanse 31, Repair Pulse 34, X-Ray 37, Brace 43, Electric Wall 44. Tuned from that:
+Electric Wall 3 s to 2.5 s and 10 s to 12 s cooldown; Brace cooldown 9 s to 12 s and Oni Horns armor 335 to 325;
+X-Ray cooldown 14 s to 16 s; Lunge 30 to 40 damage, 8 s to 7 s cooldown and a longer bot range; Trap 25 to 35 damage,
+0.6 s to 0.5 s arming, 10 s to 9 s cooldown; Focus 25% to 35% damage and 12 s to 10 s cooldown. Second run, 90 matches
+per head, wins: Lunge 41, Trap 41, Focus 43, Hook 46, Electric Wall 47, X-Ray 50, Brace 53. Every tuned head is now
+within 46% to 59%; Hook is 51%. Cleanse, Frost Field and Repair Pulse were in range and left alone (52%, 48%, 57% on
+the first run). The Rookie mirror wins only 33% on its own, so the builds favour the second name slightly: read the
+numbers against Hook, not against 50%.
 
 #### Core (R skill + passive)
 
