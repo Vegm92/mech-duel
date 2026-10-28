@@ -5,6 +5,7 @@ const Mech = preload("res://src/mech.gd")
 const Garage = preload("res://src/garage.gd")
 const Sfx = preload("res://src/sfx.gd")
 const Look = preload("res://src/look.gd")
+const Siege = preload("res://src/siege.gd")
 
 const PANEL := Color(0.04, 0.11, 0.23, 0.82)
 const EDGE := Color(0.31, 0.59, 0.9, 0.5)
@@ -36,6 +37,9 @@ const READOUT := {
 	"rarm": [Vector2(158, 71), 52.0, Vector2(150, 66), HORIZONTAL_ALIGNMENT_RIGHT],
 	"legs": [Vector2(85, 99), 50.0, Vector2(80, 120), HORIZONTAL_ALIGNMENT_CENTER],
 }
+const SHOP := ["gate", "rebuild", "ring", "wall", "mine", "laser", "post", "garrison"]
+const WALLET := ["kit", "coolant", "surge", "reinforce", "revive"]
+const TIER_ROWS := ["left", "right", "head", "arms", "legs", "booster", "core"]
 const SLOTS := [["left", "capLmb", "capLt"], ["right", "capRmb", "capRt"], ["shield", "capQ", "capRb"], ["hook", "capE", "capL3"], ["dash", "capSpace", "capLb"], ["ult", "capR", "capR3"]]
 
 signal resume
@@ -55,6 +59,9 @@ var top := {}
 var last := {}
 var menu: VBoxContainer
 var replay := -1.0
+var hp_was := {}
+var best := 0
+var hurt_at := {}
 
 
 func _ready() -> void:
@@ -164,6 +171,23 @@ func paint() -> void:
 		pops()
 	if replay >= 0.0:
 		replay_bars(size)
+	elif state.has("siege"):
+		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
+		siege_tiers(Vector2(16, 16 + PANEL_SIZE.y + 10))
+		siege_top(size)
+		siege_marks(size)
+		if not paused:
+			slots(size)
+			if not state.siege.wave.live and state.phase != "over":
+				siege_shop(size)
+			siege_crate(size)
+		if state.phase != "over":
+			siege_calls(size)
+		if state.phase == "over":
+			var cy := size.y * 0.38
+			label(tr("siegeLost"), Vector2(0, cy + 30), 110, HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, heavy, 32)
+			label(tr("siegeHeld").format({"n": maxi(0, state.siege.wave.n - 1)}) + ("   ·   " + tr("siegeBest").format({"n": best}) if best > 0 else ""), Vector2(0, cy + 80), 30, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, bold, 14)
+			label(tr("rematch"), Vector2(0, cy + 118), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
 	else:
 		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
 		mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot"))
@@ -266,6 +290,208 @@ func clock(size: Vector2) -> void:
 	var secs := int(ceil(maxf(0.0, state.clock) / Sim.TICKS))
 	label("%d:%02d" % [floori(secs / 60.0), secs % 60], Vector2(r.position.x, r.position.y + 33), 30, TEXT if secs > 10 else HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
 	label(tr("round").format({"n": state.round}), Vector2(r.position.x, r.position.y + 47), 11, DIM, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+
+
+func siege_top(size: Vector2) -> void:
+	var sg: Dictionary = state.siege
+	var w: Dictionary = sg.wave
+	var r := Rect2(size.x / 2.0 - 150, 12, 300, 76)
+	plate(r)
+	label(tr("siegeWave").format({"n": w.n if w.live else w.n + 1}), Vector2(r.position.x, r.position.y + 32), 28, TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
+	var left: int = sg.enemies.filter(func(e): return e.act != "die" and not e.get("neutral", false)).size() + sg.queue.filter(func(q): return q.has("kind")).size()
+	var sub: String = tr("siegeLeft").format({"n": left}) if w.live or w.next_in > 36000 else tr("siegeNext").format({"s": int(ceil(w.next_in / float(Sim.TICKS)))})
+	label(sub + "   " + tr("siegeFund").format({"n": sg.fund}) + "   " + tr("siegeWallet").format({"n": sg.wallets[0]}) + ("   " + tr("siegeTokens").format({"n": sg.tokens[0]}) if sg.tokens[0] > 0 else ""), Vector2(r.position.x, r.position.y + 50), 13, DIM, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+	var c: Dictionary = sg.core
+	var bar := Rect2(r.position.x + 16, r.position.y + 58, r.size.x - 32, 10)
+	canvas.draw_rect(bar, SEG_OFF)
+	canvas.draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(c.hp / c.max, 0, 1), bar.size.y)), hp_color(c.hp / c.max))
+	for i in 4:
+		var x := bar.position.x + bar.size.x * (3 - i) / 4.0
+		canvas.draw_rect(Rect2(x - 1, bar.position.y - 3, 2, bar.size.y + 6), WIRE if c.rings[i] > 0 else HEAT_C)
+	label(tr("siegeCore"), Vector2(bar.position.x, bar.position.y - 2), 10, DIM)
+	var G: Dictionary = sg.garrison
+	if G.tier > 0:
+		var gt := tr("siegeGuard").format({"t": G.tier}) if G.respawn_in <= 0 else tr("siegeGuardDown").format({"t": G.tier, "s": int(ceil(G.respawn_in / float(Sim.TICKS)))})
+		label(gt, Vector2(r.position.x, r.position.y + r.size.y + 16), 13, WIRE if G.respawn_in <= 0 else HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 4, bold)
+
+
+func siege_shop(size: Vector2) -> void:
+	var sg: Dictionary = state.siege
+	var y := size.y - SLOT.y - 14 - 30
+	var left: int = int(ceil(maxf(0, sg.wave.next_in - 480) / float(Sim.TICKS)))
+	var line: String = tr("siegeShop")
+	if left > 0 and left < 600:
+		line += "   ·   " + tr("siegeCall").format({"n": 2 * left})
+	label(line, Vector2(0, y - 22), 15, ACCENT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4, bold)
+	label(tr("siegeKeys") + "   ·   " + tr("siegeUse"), Vector2(0, y), 12, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4)
+
+
+func shop_menu(i: int) -> Array:
+	var sg: Dictionary = state.siege
+	var m: Dictionary = state.mechs[i]
+	var w: int = sg.wallets[i]
+	var tier := func(slot: String) -> Dictionary:
+		var c := Siege.price_of(sg, m, "tier:" + slot)
+		var t: int = sg.tiers[i][slot]
+		var note: String = tr("noteMax") if c < 0 else tr("noteTier").format({"a": t, "b": t + 1}) + " · " + tr("fx_" + ("hand" if slot in ["left", "right"] else slot))
+		return {"id": "tier:" + slot, "label_key": "tier_" + slot, "cost": c, "enabled": c >= 0 and w >= c, "sub": [], "note": note}
+	var wallet := func(id: String) -> Dictionary:
+		var c := Siege.price_of(sg, m, id)
+		return {"id": id, "label_key": "shop_" + id, "cost": c, "enabled": w >= c or (id == "reinforce" and sg.tokens[i] > 0), "sub": [], "note": ""}
+	var parts := []
+	for slot in Siege.S.PART_SLOTS:
+		var keys := []
+		for key in Sim.CATALOG[slot]:
+			var c := Siege.price_of(sg, m, "swap:%s:%s" % [slot, key])
+			if c >= 0:
+				keys.append({"id": "swap:%s:%s" % [slot, key], "label_key": "p_" + key, "cost": c, "enabled": w >= c, "sub": [], "note": tr("noteLevel").format({"n": Siege.owned_level(sg, i, slot, key)})})
+		if not keys.is_empty():
+			parts.append({"id": "parts:" + slot, "label_key": "tierShort_" + slot, "cost": -1, "enabled": true, "sub": keys.slice(0, 8), "note": ""})
+	var team := []
+	for k in ["gate", "rebuild", "ring", "wall", "mine", "laser", "post", "garrison"]:
+		var c: int = Siege.next_cost(sg) if k == "garrison" else Siege.SHOP[k]
+		team.append({"id": k, "label_key": "shop_" + k, "cost": c, "enabled": c >= 0 and not sg.wave.live and sg.fund >= c, "sub": [], "note": tr("noteFund").format({"n": sg.fund}) if k == "gate" else ""})
+	var group := func(id: String, key: String, sub: Array) -> Dictionary:
+		return {"id": id, "label_key": key, "cost": -1, "enabled": true, "sub": sub, "note": ""}
+	return [
+		group.call("weapons", "radialWeapons", [tier.call("left"), tier.call("right")]),
+		group.call("plating", "radialPlating", [tier.call("head"), tier.call("arms"), tier.call("legs")]),
+		group.call("engine", "radialEngine", [tier.call("legs"), tier.call("booster")]),
+		group.call("core", "radialCore", [tier.call("core")]),
+		group.call("heal", "radialHeal", [wallet.call("kit"), wallet.call("coolant"), wallet.call("surge")]),
+		group.call("parts", "radialParts", parts),
+		group.call("team", "radialTeam", team),
+		wallet.call("reinforce"),
+		wallet.call("revive"),
+	]
+
+
+func siege_tiers(at: Vector2) -> void:
+	var t: Dictionary = state.siege.tiers[0]
+	plate(Rect2(at, Vector2(PANEL_SIZE.x, 18 + TIER_ROWS.size() * 15)))
+	label(tr("siegeTiers"), at + Vector2(10, 14), 11, DIM)
+	for r in TIER_ROWS.size():
+		var y: float = at.y + 30 + r * 15
+		label(tr("tierShort_" + TIER_ROWS[r]), Vector2(at.x + 10, y), 11, TEXT)
+		for k in 5:
+			canvas.draw_rect(Rect2(at.x + 96 + k * 22, y - 9, 18, 8), ACCENT if k < t[TIER_ROWS[r]] else SEG_OFF)
+	var rc = null
+	for c in state.siege.recall:
+		if c.player == 0:
+			rc = c
+	if rc != null:
+		label(tr("siegeRecall"), at + Vector2(0, 30 + TIER_ROWS.size() * 15 + 12), 13, WIRE, HORIZONTAL_ALIGNMENT_LEFT, -1, 4, bold)
+		canvas.draw_rect(Rect2(at + Vector2(0, 30 + TIER_ROWS.size() * 15 + 18), Vector2(PANEL_SIZE.x * rc.t / float(rc.max), 6)), WIRE)
+
+
+func siege_crate(size: Vector2) -> void:
+	for y in state.siege.yards:
+		for c in y.crates:
+			if c.progress > 0.0:
+				var r := Rect2(size.x / 2.0 - 90, size.y * 0.62, 180, 14)
+				canvas.draw_rect(r, SEG_OFF)
+				canvas.draw_rect(Rect2(r.position, Vector2(r.size.x * c.progress, r.size.y)), SURGE_C)
+				label(tr("siegeCrate"), Vector2(r.position.x, r.position.y - 4), 13, TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 4, bold)
+
+
+func watch(key: String, hp: float, now: int) -> void:
+	if hp < hp_was.get(key, hp):
+		hurt_at[key] = now
+	hp_was[key] = hp
+
+
+func siege_marks(size: Vector2) -> void:
+	var sg: Dictionary = state.siege
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var now := Time.get_ticks_msec()
+	var spots := {"core": Vector3(sg.core.x, 2.0, sg.core.y)}
+	for i in sg.gates.size():
+		spots["g%d" % i] = Vector3(sg.gates[i].x, 2.0, sg.gates[i].y)
+		watch("g%d" % i, sg.gates[i].hp, now)
+	watch("core", sg.core.hp, now)
+	for key in hurt_at:
+		if now - hurt_at[key] < 1500:
+			marker(cam, size, spots[key], HEAT_C, "", true)
+	for f in state.fx:
+		if f.k == "warn":
+			var g: Dictionary = sg.gates[f.lane]
+			marker(cam, size, Vector3(g.x, 4.0, g.y), HEAT_C if f.boss else ACCENT, tr("siegeIncoming").format({"bot": tr("bot_" + f.kind), "n": f.n}), int(f.t / 15) % 2 == 0)
+
+
+func marker(cam: Camera3D, size: Vector2, at: Vector3, c: Color, text: String, lit: bool) -> void:
+	var inset := 48.0
+	var p := cam.unproject_position(at)
+	var behind := cam.is_position_behind(at)
+	var box := Rect2(Vector2(inset, inset + 90), size - Vector2(inset * 2, inset * 2 + 270))
+	if behind or not box.has_point(p):
+		var mid := size / 2.0
+		var d := (p - mid) * (-1.0 if behind else 1.0)
+		var k := minf(absf(box.size.x / 2.0 / d.x) if d.x != 0 else 1e9, absf(box.size.y / 2.0 / d.y) if d.y != 0 else 1e9)
+		var e := mid + d * k
+		var u := d.normalized()
+		var n := Vector2(-u.y, u.x)
+		canvas.draw_colored_polygon(PackedVector2Array([e + u * 16, e - u * 8 + n * 11, e - u * 8 - n * 11]), Color(c, 1.0 if lit else 0.45))
+		p = e - u * 30
+	elif text == "":
+		canvas.draw_arc(p, 22, 0, TAU, 24, Color(c, 0.9 if lit else 0.4), 3)
+		return
+	if text == "":
+		return
+	var tw := bold.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 40.0
+	var r := Rect2(p.x - tw / 2.0, p.y - 40, tw, 28)
+	canvas.draw_style_box(Garage.plate(PANEL, c if lit else EDGE, 2, 6), r)
+	var h := r.position + Vector2(10, 7)
+	canvas.draw_rect(Rect2(h + Vector2(0, 4), Vector2(14, 12)), c)
+	canvas.draw_colored_polygon(PackedVector2Array([h + Vector2(9, 4), h + Vector2(14, 4), h + Vector2(16, -3)]), c)
+	canvas.draw_rect(Rect2(h + Vector2(3, 8), Vector2(8, 3)), Color8(80, 190, 255))
+	label(text, Vector2(r.position.x + 30, r.position.y + 20), 15, TEXT, HORIZONTAL_ALIGNMENT_LEFT, -1, 4, bold)
+
+
+func siege_calls(size: Vector2) -> void:
+	var cy := size.y * 0.3
+	var shown := {}
+	for f in state.fx:
+		var text := ""
+		var sub := ""
+		var c := TEXT
+		match f.k:
+			"cleared":
+				text = tr("siegeCleared")
+				sub = tr("siegeBonus").format({"n": f.n}) if f.n > 0 else ""
+				c = Look.POP.heal
+			"call":
+				text = tr("siegeBonus").format({"n": f.n})
+				c = WIRE
+			"ring":
+				text = tr("siegeRing")
+				c = HEAT_C
+			"raid":
+				text = tr("siegeRaid").format({"yard": Siege.S.QUADS[f.q].name})
+				c = HEAT_C
+			"mutator":
+				text = tr("siegeMutator").format({"name": tr("mut_" + f.id)})
+				sub = tr("mutd_" + f.id)
+				c = SURGE_C
+			"tactic":
+				var names: Array = f.lanes.map(func(l): return Siege.S.LANES[l].name)
+				var air: Array = Siege.S.AIR[f.get("corner", 0)]
+				var yard: Array = Siege.S.QUADS.filter(func(q): return q.sx == signi(int(air[0])) and q.sy == signi(int(air[1])))
+				var parts: PackedStringArray = tr("dir_" + f.id).format({"a": names[0] if names.size() > 0 else "", "b": names[1] if names.size() > 1 else "", "lane": names[0] if names.size() > 0 else "", "corner": yard[0].name}).split("|")
+				text = parts[0]
+				sub = parts[1] if parts.size() > 1 else ""
+				c = WIRE if f.id == "breather" else HEAT_C
+			"warn":
+				if f.boss:
+					text = tr("siegeBoss")
+					c = HEAT_C
+		if text != "" and not shown.has(text):
+			shown[text] = true
+			label(text, Vector2(0, cy), 54, c, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, heavy, 20)
+			if sub != "":
+				label(sub, Vector2(0, cy + 36), 24, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
+			cy += 70
 
 
 func cd_frac(key: String, cur: float) -> float:

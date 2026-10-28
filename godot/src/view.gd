@@ -209,13 +209,16 @@ var danger_mesh := ImmediateMesh.new()
 var last_shrink := -1.0
 
 
-func build() -> void:
+func build(siege := false) -> void:
+	marks = Node3D.new()
+	add_child(marks)
+	reticle = Mech.add(self, Mech.ring(0.35, 0.45), Mech.flat(Color(Mech.TEAM_LIGHT[0], 0.8)))
+	if siege:
+		return
 	var S: Dictionary = Look.STAGE
 	var we := WorldEnvironment.new()
 	we.environment = Look.env()
 	add_child(we)
-	marks = Node3D.new()
-	add_child(marks)
 	var sun := DirectionalLight3D.new()
 	sun.light_energy = S.key
 	sun.light_color = S.key_color
@@ -304,7 +307,6 @@ func build() -> void:
 	danger.mesh = danger_mesh
 	danger.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(danger)
-	reticle = Mech.add(self, Mech.ring(0.35, 0.45), Mech.flat(Color(Mech.TEAM_LIGHT[0], 0.8)))
 
 
 func build_floor(corners: Array) -> void:
@@ -466,6 +468,8 @@ func reset(state: Dictionary) -> void:
 		m.queue_free()
 	mechs.clear()
 	for m in state.mechs:
+		if m.has("bot"):
+			continue
 		var node := Mech.new()
 		add_child(node)
 		node.build(m.loadout, m.team)
@@ -481,7 +485,8 @@ func reset(state: Dictionary) -> void:
 	var teams := {}
 	for m in state.mechs:
 		teams[m.team] = true
-	seat_fans(teams.size())
+	if crowd != null:
+		seat_fans(teams.size())
 	hype = 0.0
 	hype_tick = state.tick
 	cheer = [0.0, 0.0, 0.0, 0.0]
@@ -490,6 +495,26 @@ func reset(state: Dictionary) -> void:
 		towers[i].at = Vector3(m.x, Look.STAGE.aim_y, m.y)
 		towers[i].v = Vector3.ZERO
 	follow(state, 0.0)
+
+
+func remake(i: int, m: Dictionary) -> void:
+	var old: Node3D = mechs[i]
+	for g in old.get_meta("ghosts", []):
+		g.queue_free()
+	for k in old.get_meta("marks", []):
+		if k is Node:
+			k.queue_free()
+	old.queue_free()
+	var node := Mech.new()
+	add_child(node)
+	node.build(m.loadout, m.team)
+	node.smoke = Fx.wreck(node)
+	mark(node, m)
+	node.set_meta("guard", m.guard)
+	var halo := Mech.add(node, Mech.ring(1.25, 1.45), Mech.flat(Color(Look.PAL.cyan, 0.85), true))
+	halo.top_level = true
+	node.set_meta("halo", halo)
+	mechs[i] = node
 
 
 ## Team markers: a ring on the floor, an arrow over the head and a rim on the edges, all in the team color.
@@ -543,6 +568,10 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 	muzzle_off.clear()
 	follow(state, dt)
 	for i in mechs.size():
+		var sm0 = state.mechs[i]
+		if sm0.has("guard") and mechs[i].get_meta("guard", -1) != sm0.guard:
+			remake(i, sm0)
+		mechs[i].visible = not sm0.get("absent", false)
 		mechs[i].sync(state.mechs[i], tick, dt)
 		if shocks.size() <= i:
 			shocks.append(Mech.add(self, Mech.plane(), emp_mats[1]))
@@ -554,6 +583,9 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		var marks_of: Array = mechs[i].get_meta("marks")
 		var seen := not Sim.hidden(state, sm)
 		place_marks(marks_of, sm)
+		if mechs[i].has_meta("halo"):
+			mechs[i].get_meta("halo").position = Vector3(sm.x, MARK.y, sm.y)
+			mechs[i].get_meta("halo").visible = not sm.ko
 		marks_of[0].visible = seen and not replaying
 		marks_of[1].visible = seen and not sm.ko and not replaying
 		marks_of[2].set_shader_parameter("strength", Look.RIM.strength if seen else 0.0)
@@ -633,7 +665,8 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 				n.get_child(2).emitting = false
 			pool[n.get_meta("kind")].append(n)
 	active = keep
-	arena(state)
+	if not state.has("siege"):
+		arena(state)
 
 
 func guard(m: Dictionary, node) -> void:

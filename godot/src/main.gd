@@ -14,6 +14,11 @@ const CrowdSound = preload("res://src/crowd_sound.gd")
 const Sfx = preload("res://src/sfx.gd")
 const Killcam = preload("res://src/killcam.gd")
 const Look = preload("res://src/look.gd")
+const Siege = preload("res://src/siege.gd")
+const SiegeView = preload("res://src/siege_view.gd")
+const SiegeBots = preload("res://src/siege_bots.gd")
+const Radial = preload("res://src/radial.gd")
+const SIEGE_CAM := {"dist": 48.0, "edge": 62.0, "near": 36.0, "far": 64.0, "top": 205.0}
 
 const PITCH := deg_to_rad(60.0)
 const FOV := 40.0
@@ -92,6 +97,22 @@ var recent: Array[Vector2] = []
 var rec := Killcam.recorder()
 var replay := {}
 var replay_at := -1
+var siege := false
+var team_n := 2
+var wave_arg := 1
+var director_on := true
+var spawn_arg := ""
+var modules_arg := false
+var top_arg := false
+var guard_arg := 0
+var farm_arg := false
+var shop_arg := false
+var core_arg_pct := -1.0
+var shot_on := ""
+var allies := []
+var siege_view: Node3D
+var siege_bots: Node3D
+var shop: Control
 
 
 func _ready() -> void:
@@ -153,6 +174,30 @@ func _ready() -> void:
 			auto_dash = true
 		elif a == "--ult":
 			auto_ult = true
+		elif a == "--siege":
+			siege = true
+		elif a == "--shop":
+			shop_arg = true
+		elif a == "--farm":
+			farm_arg = true
+		elif a.begins_with("--guard="):
+			guard_arg = clampi(a.substr(8).to_int(), 0, 5)
+		elif a == "--top":
+			top_arg = true
+		elif a.begins_with("--core=") and a.substr(7).is_valid_float():
+			core_arg_pct = a.substr(7).to_float()
+		elif a.begins_with("--shot-on="):
+			shot_on = a.substr(10)
+		elif a == "--modules":
+			modules_arg = true
+		elif a.begins_with("--spawn="):
+			spawn_arg = a.substr(8)
+		elif a == "--director=off":
+			director_on = false
+		elif a.begins_with("--wave="):
+			wave_arg = maxi(1, a.substr(7).to_int())
+		elif a.begins_with("--team="):
+			team_n = clampi(a.substr(7).to_int(), 1, 4)
 		elif a.begins_with("--lang="):
 			TranslationServer.set_locale(a.substr(7))
 		elif a == "--pad":
@@ -175,14 +220,17 @@ func _ready() -> void:
 	cam.far = 400.0
 	cam.rotation = Vector3(-PITCH, 0, 0)
 	add_child(cam)
-	view = View.new()
-	add_child(view)
 	add_child(crowd_sound)
 	add_child(sfx)
-	view.build()
 	hud = Hud.new()
-	hud.view = view
 	add_child(hud)
+	shop_action()
+	shop = Radial.new()
+	hud.add_child(shop)
+	shop.confirm_on_release = true
+	shop.hold_action = &"siege_shop"
+	shop.picked.connect(func(path: PackedStringArray): tapped.buy = path[-1])
+	make_view()
 	loadout = flag_loadout()
 	garage = Garage.new()
 	garage.progress = progress
@@ -192,6 +240,7 @@ func _ready() -> void:
 	claim.picked.connect(claimed)
 	claim.ui.connect(sfx.ui)
 	garage.fight.connect(start)
+	garage.siege.connect(start.bind(true))
 	hud.resume.connect(resume)
 	hud.restart.connect(new_match)
 	hud.quit.connect(to_garage)
@@ -206,6 +255,40 @@ func _ready() -> void:
 		new_match()
 		if claim_arg:
 			claim.open(progress.pool(["larm", "legs"], rival_lo, true), rival_key, progress.tier(rival_key), progress)
+
+
+func shop_action() -> void:
+	if InputMap.has_action(&"siege_shop"):
+		return
+	InputMap.add_action(&"siege_shop")
+	var k := InputEventKey.new()
+	k.physical_keycode = KEY_SHIFT
+	InputMap.action_add_event(&"siege_shop", k)
+	var b := InputEventJoypadButton.new()
+	b.device = -1
+	b.button_index = JOY_BUTTON_Y
+	InputMap.action_add_event(&"siege_shop", b)
+
+
+func make_view() -> void:
+	for n in [view, siege_view, siege_bots]:
+		if n != null:
+			n.queue_free()
+	siege_view = null
+	siege_bots = null
+	view = View.new()
+	add_child(view)
+	view.build(siege)
+	if siege:
+		siege_view = SiegeView.new()
+		add_child(siege_view)
+		siege_view.build()
+		view.crowd_mat = siege_view.crowd_mat
+		view.towers.append_array(siege_view.towers)
+		siege_bots = SiegeBots.new()
+		add_child(siege_bots)
+	hud.view = view
+	view.visible = not garage.visible if garage != null else true
 
 
 func flag_loadout() -> Dictionary:
@@ -262,7 +345,10 @@ func to_garage() -> void:
 		take_shot()
 
 
-func start(lo: Dictionary) -> void:
+func start(lo: Dictionary, mode := false) -> void:
+	if mode != siege:
+		siege = mode
+		make_view()
 	loadout = lo
 	if not autopilot and shot_path == "":
 		save_loadout()
@@ -296,11 +382,45 @@ func new_match() -> void:
 	if sandbox:
 		loadout.left = Sim.WEAPONS.keys()[gun]
 		loadout.right = loadout.left
-	state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
+	if siege:
+		shop.close()
+		var los := [progress.with_levels(loadout.duplicate())]
+		allies = [null]
+		for i in range(1, team_n):
+			los.append(Sim.SETS.values()[(s + i) % Sim.SETS.size()])
+			allies.append(Bot.create_brain(s + 10 + i))
+		state = Siege.create(los, s)
+		state.siege.director.on = director_on
+		if not progress.unlock_all:
+			var own := {}
+			for slot in Siege.S.PART_SLOTS:
+				own[slot] = {}
+				for key in Sim.CATALOG[slot]:
+					if progress.has(slot, key):
+						own[slot][key] = progress.level(slot, key)
+			state.siege.owned[0] = own
+		state.siege.wave.n = wave_arg - 1
+		for t in guard_arg:
+			state.siege.fund += Siege.GARRISON.cost[t]
+			Siege.buy(state, state.siege, "garrison", state.mechs[0])
+		if guard_arg > 0 and cam_mode > 0:
+			target = state.siege.guard
+		if core_arg_pct >= 0.0:
+			state.siege.core.hp = state.siege.core.max * core_arg_pct / 100.0
+			Siege.rings(state, state.siege)
+		if modules_arg:
+			for b in [[0, "wall"], [1, "mine"], [2, "laser"], [3, "post"]]:
+				Siege.build(state, state.siege.pads[b[0]], b[1])
+		if Siege.BOTS.has(spawn_arg):
+			Siege.look(state, spawn_arg)
+	else:
+		state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
 	if sandbox:
 		pin()
 	brain = Bot.create_brain(s + 1)
 	pilot = Bot.create_brain(s + 2)
+	if farm_arg:
+		pilot.farm = true
 	view.reset(state)
 	hud.state = state
 	snap_camera()
@@ -315,7 +435,7 @@ func new_match() -> void:
 
 func snap_camera() -> void:
 	var me = state.mechs[0]
-	var foe = state.mechs[1]
+	var foe = state.mechs[0 if siege else 1]
 	focus = Vector3((me.x + foe.x) / 2.0, 0, (me.y + foe.y) / 2.0)
 	place_camera()
 	cam.reset_physics_interpolation()
@@ -349,7 +469,18 @@ func player_input() -> Dictionary:
 		"hook": key(KEY_E) or tapped.has("hook") or pad("hook"),
 		"dash": key(KEY_SPACE) or tapped.has("dash") or pad("dash"),
 		"ult": key(KEY_R) or tapped.has("ult") or pad("ult"),
+		"buy": tapped.get("buy", ""),
+		"call": tapped.has("call"),
+		"post": tapped.has("post"),
+		"use": key(KEY_V) or (siege and Input.is_joy_button_pressed(pad_id, JOY_BUTTON_A)),
+		"recall": key(KEY_B) or (siege and Input.is_joy_button_pressed(pad_id, JOY_BUTTON_X)),
+		"shop": shop.visible,
 	}
+	if shop.visible:
+		for k in ["left", "right", "hook", "ult", "dash", "shield"]:
+			inp[k] = false
+		inp.ax = state.mechs[0].tx
+		inp.ay = state.mechs[0].ty
 	tapped.clear()
 	return inp
 
@@ -406,6 +537,10 @@ func _input(event: InputEvent) -> void:
 					get_viewport().set_input_as_handled()
 			KEY_L:
 				I18n.toggle()
+			KEY_X:
+				tapped.post = true
+			KEY_SHIFT:
+				open_shop()
 			KEY_F:
 				frozen = not frozen
 				tapped.clear()
@@ -423,6 +558,7 @@ func _input(event: InputEvent) -> void:
 				auto_fire = not auto_fire
 			KEY_G:
 				guard = not guard
+				tapped.call = true
 			KEY_K:
 				refill = not refill
 			KEY_J:
@@ -441,7 +577,9 @@ func _input(event: InputEvent) -> void:
 			zoom = minf(zoom * 1.1, 3.0)
 	elif event is InputEventJoypadButton and event.pressed:
 		var k = PAD.find_key(event.button_index)
-		if k:
+		if event.button_index == JOY_BUTTON_Y:
+			open_shop()
+		elif k:
 			tapped[k] = true
 		elif event.button_index == JOY_BUTTON_START:
 			paused = not paused
@@ -453,13 +591,21 @@ func _input(event: InputEvent) -> void:
 			tapped[k] = true
 
 
+func open_shop() -> void:
+	if not siege or shop.visible or paused or state.phase == "over" or state.mechs[0].ko:
+		return
+	if Sim.hypot(state.mechs[0].x, state.mechs[0].y) > Siege.S.PLAZA:
+		return
+	shop.open(hud.shop_menu(0))
+
+
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and not autopilot and shot_path == "" and state.get("phase", "") == "fight":
 		paused = true
 
 
 func _physics_process(delta: float) -> void:
-	if garage.visible:
+	if garage.visible or claim.visible:
 		return
 	aim = aim_point()
 	var held := stop > 0
@@ -470,9 +616,14 @@ func _physics_process(delta: float) -> void:
 		if Killcam.done(replay):
 			back_to_live()
 	elif not paused and not frozen and not held:
-		var me = Bot.bot_input(state, pilot, 0) if autopilot and not sandbox else player_input()
-		var foe = Bot.bot_input(state, brain, 1)
-		if sandbox:
+		var me = (Siege.ally_input(state, pilot, 0) if siege else Bot.bot_input(state, pilot, 0)) if autopilot and not sandbox else player_input()
+		var foe = Bot.bot_input(state, brain, 1) if not siege else null
+		if siege:
+			var ins := [me]
+			for i in range(1, state.siege.team):
+				ins.append(Siege.ally_input(state, allies[i], i))
+			Siege.step(state, ins)
+		elif sandbox:
 			pin()
 			var t = state.mechs[1]
 			me.mx = 0.0
@@ -499,14 +650,30 @@ func _physics_process(delta: float) -> void:
 						foe.shield = true
 		else:
 			Killcam.record(rec, state, [me, foe])
-		Sim.step(state, [me, foe])
-		if Killcam.wants(state, rec):
+		if not siege:
+			Sim.step(state, [me, foe])
+		if not siege and Killcam.wants(state, rec):
 			start_replay()
+	if siege and shop_arg and state.tick == 60:
+		state.siege.fund += 2000
+		state.siege.wallets[0] += 600
+		open_shop()
+	if siege and shop.visible:
+		if state.mechs[0].ko or Sim.hypot(state.mechs[0].x, state.mechs[0].y) > Siege.S.PLAZA:
+			shop.close()
+		elif state.tick % 10 == 0:
+			shop.refresh(hud.shop_menu(0))
 	if not frozen and not held:
 		view.sync(state, aim, delta)
+		if siege:
+			siege_view.update(state.siege)
+			siege_bots.sync(state.siege, delta)
 	track()
-	crowd_sound.update(view.fresh_fx, view.hype, state.phase == "fight" and not paused, not paused)
+	crowd_sound.update(view.fresh_fx, 0.0 if siege else view.hype, state.phase == "fight" and not paused and not siege, not paused)
 	sfx.update(state, view.fresh_fx, paused)
+	if shot_on != "" and not shooting and view.fresh_fx.any(func(f): return f.k == shot_on):
+		shooting = true
+		take_shot()
 	view.fresh_fx = []
 	shake = maxf(shake, view.shake)
 	view.shake = 0.0
@@ -536,6 +703,19 @@ func _physics_process(delta: float) -> void:
 
 
 func track() -> void:
+	if siege:
+		for f in view.fresh_fx:
+			if f.k == "milestone" and not progress.unlock_all:
+				var drops := progress.spoils(f.n)
+				if not drops.is_empty():
+					Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+					claim.open(drops, Progress.SIEGE_SPOILS[f.n], f.n / 10, progress)
+		if state.phase == "over" and not settled:
+			settled = true
+			if not progress.unlock_all and progress.held(maxi(0, state.siege.wave.n - 1)):
+				progress.save_file()
+		hud.best = progress.best
+		return
 	for f in view.fresh_fx:
 		if f.k == "break" and f.id == 1 and not broke.has(f.part):
 			broke.append(f.part)
@@ -559,6 +739,11 @@ func settle() -> void:
 
 
 func claimed(slot: String, key: String) -> void:
+	if siege:
+		progress.claim(slot, key)
+		progress.save_file()
+		Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+		return
 	progress.claim(slot, key)
 	progress.win(rival_key)
 	progress.save_file()
@@ -594,11 +779,17 @@ func pin() -> void:
 
 func follow(delta: float) -> void:
 	var me = state.mechs[0]
-	var foe = state.mechs[1]
+	var foe = state.mechs[0 if siege else 1]
 	var a := Vector3(me.x, 0, me.y)
 	var b := Vector3(foe.x, 0, foe.y)
 	var target := (a + b) / 2.0
 	var want := clampf(maxf(absf(a.x - b.x) * 0.9 + 8.0, absf(a.z - b.z) * 2.0 + 12.0), 28.0, 64.0)
+	if siege:
+		want = clampf(SIEGE_CAM.dist * zoom, SIEGE_CAM.near, SIEGE_CAM.far)
+		target = Vector3(clampf(a.x, -SIEGE_CAM.edge, SIEGE_CAM.edge), 0, clampf(a.z, -SIEGE_CAM.edge, SIEGE_CAM.edge))
+		if top_arg:
+			want = SIEGE_CAM.top
+			target = Vector3.ZERO
 	if sandbox:
 		want = maxf(absf(a.x - b.x) * SANDBOX.cam + 8.0, 10.0) * zoom
 	var dead := 1.5

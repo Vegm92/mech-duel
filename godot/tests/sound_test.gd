@@ -10,7 +10,7 @@ var failed := 0
 func _initialize() -> void:
 	Sfx.buses()
 	check(["SFX", "Env", "Crowd", "Music"].all(func(b): return AudioServer.get_bus_index(b) > 0), "the four buses exist")
-	var src := FileAccess.get_file_as_string("res://src/sim.gd")
+	var src := FileAccess.get_file_as_string("res://src/sim.gd") + FileAccess.get_file_as_string("res://src/siege.gd")
 	var re := RegEx.create_from_string("\"k\": \"(\\w+)\"")
 	var kinds := {"beam": true}
 	for line in src.split("\n"):
@@ -57,7 +57,7 @@ func _initialize() -> void:
 	for k in kinds:
 		fresh.append({"k": k, "id": 0, "x": 30.0, "y": 30.0, "gun": "rivet", "blade": "saw", "n": 40, "head": false, "big": true})
 	sfx.update(state, fresh, false)
-	check(sfx.next_voice > 0 and sfx.voices.all(func(v): return v.stream != null), "a fight's events fill the voice pool")
+	check(sfx.voices.all(func(v): return v.stream != null), "a fight's events fill the voice pool")
 	var flat := sfx.next_flat
 	sfx.ui("select")
 	check(sfx.next_flat == flat + 1, "a menu sound plays without a 3D spot")

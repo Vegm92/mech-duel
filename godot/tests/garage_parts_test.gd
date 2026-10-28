@@ -16,6 +16,7 @@ func _initialize() -> void:
 	await run("every_part_builds_alone_with_a_model", test_every_part_builds_alone_with_a_model)
 	await run("garage_previews_on_hover_and_equips_on_click", test_garage_previews_on_hover_and_equips_on_click)
 	await run("match_flow_comes_back_to_the_garage", test_match_flow_comes_back_to_the_garage)
+	await run("siege_button_starts_a_siege_and_fight_goes_back_to_a_duel", test_siege_button_starts_a_siege_and_fight_goes_back_to_a_duel)
 	await run("pad_moves_aims_acts_and_pauses", test_pad_moves_aims_acts_and_pauses)
 	await run("garage_works_with_a_pad", test_garage_works_with_a_pad)
 	await run("decor_keeps_off_pads_spawns_and_traps", test_decor_keeps_off_pads_spawns_and_traps)
@@ -143,6 +144,30 @@ func test_match_flow_comes_back_to_the_garage() -> int:
 	var quit: Button = m.hud.menu.get_child(2)
 	await mouse(quit.get_global_rect().get_center(), true)
 	bad += ensure(m.garage.visible and m.garage.loadout == Sim.SETS.tank, "Quit to garage keeps your bot")
+	m.queue_free()
+	return int(bad > 0)
+
+
+func test_siege_button_starts_a_siege_and_fight_goes_back_to_a_duel() -> int:
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	root.add_child(m)
+	await process_frame
+	m.state.phase = "over"
+	m.to_garage()
+	await process_frame
+	m.garage.go_siege()
+	await physics_frame
+	await physics_frame
+	var bad := ensure(m.siege and m.state.has("siege") and m.siege_view != null, "CORE SIEGE starts a siege run")
+	bad += ensure(m.view.visible and not m.garage.visible, "the siege view shows")
+	m.state.phase = "over"
+	m.to_garage()
+	await process_frame
+	m.garage.go()
+	await physics_frame
+	await physics_frame
+	bad += ensure(not m.siege and not m.state.has("siege") and m.siege_view == null, "FIGHT goes back to a duel")
 	m.queue_free()
 	return int(bad > 0)
 

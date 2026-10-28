@@ -23,6 +23,8 @@ $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon
 $G --headless --path godot -s res://tests/hype_test.gd         # crowd hype and crowd sounds
 $G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-run lands on the same K.O., one smooth move, pillars, match flow, skip
 $G --headless --path godot -s res://tests/progress_test.gd     # Salvage: owned parts, claims, levels, rival ladder, save file
+$G --headless --path godot -s res://tests/siege_rules_test.gd  # Core Siege: own golden hash, waves, gates, core rings, repair, respawn
+$G --path godot -- --siege --team=2 --wave=6                    # Core Siege (co-op wave defense), from wave 6
 $G --path godot -- --replay=0 --seed=1                          # watch a kill cam right away (bots fight to the first K.O.)
 ```
 
@@ -181,6 +183,95 @@ $P = "$R\godot"
   (everything open, nothing saved, also on for `--autopilot`, `--shot` and `--sandbox`),
   `--progress=<abs path>` (use that file and lock parts even in look checks), `--claim` (open the
   claim screen for the first rival; look check). Not built: stakes, coop, PvP, the nemesis.
+- **Core Siege** (Victor 2026-10-28; spec `CORE_SIEGE_DESIGN.md`, who edits what
+  `CORE_SIEGE_SPLIT.md`): co-op wave defense, up to 4 mechs (you + `bot.gd` allies) hold a Reactor
+  Core against grey enemy bots on 4 lanes. The garage's CORE SIEGE button starts a run (`start(lo,
+  true)`; `make_view` rebuilds the view when the mode changes), `--siege` starts look checks in it.
+  View: `view.build(true)` keeps only marks and the reticle; `siege_view` (arena, core, gates,
+  pads, crowd on the blocks, 4 floodlight towers whose spots join `view.towers`, crowd material
+  shared as `view.crowd_mat` so `view.react` makes it cheer) and `siege_bots` are children of main.
+  Camera (`SIEGE_CAM`): follows only you, dist 48 (wheel 36-64), focus clamped to ±62, never
+  rotating. Look flags: `--top` (whole map, dist 205), `--core=<pct>` (start the core lower),
+  `--shot-on=<fx kind>` (save the still when that fx fires, e.g. `ring`, `coreDown`),
+  `--team=1..4`, `--wave=<n>` (dev: start at wave n). Sim: `siege.gd` (`create`, `step`, wave
+  director `direct`/`plan`, bot AI `drive`, core rings + repair + respawn in `settle`) on top of
+  `sim.gd`; constants and the view contract in `siege_state.gd`; the views read only
+  `state.siege` (`siege_view.gd` arena/core, `siege_bots.gd` bots; owned by the art sessions).
+  Every bot also has a body in `state.mechs` (team 1, key `bot`, armor all in `head`, legs top
+  ÷ `MOVE.jammed` because its leg pool is 0), so every player weapon, skill and dash hits it with no
+  special case; dead bodies are recycled (`gone`). Arena shape lives in `state.geo` (walls,
+  pillars, solids, `boxes` with optional `only` team + `hp` = gates, `rings` with lane `gaps`);
+  `Sim.geo(state)` falls back to the duel arena, so the duel and its `GOLDEN` are untouched.
+  Fortress has no auto-aim: only traps and player-aimed guns. Bots are data rows in `Siege.BOTS`
+  (attack `bolt`, `bite`, `lunge`, `claw` + `gun`, `rail`, `salvo`, `cannon`, `ram`; flags `fly`,
+  `vent`, `plant`, `hunt`, `keep`, `first`, `dodge`, `pack`; size `r` read by `Sim.rad`), Mk 1..3
+  scale through `MK`. Bot shells reuse `state.lobs` (`shell_land` hurts gates and the core), the
+  Tripod's rail is `Sim.line_attack` after a `sight` fx. `--spawn=<bot id>` puts 3 of one bot on
+  the north lane and stops the waves (look check). Waves: `WAVES` (1-20), `LATE` (21-29, Mk 2),
+  `LAST` (30), `ENDLESS`; a row has `lanes`, `pool`, `must`, `mk`, `boss`; `plan` fills
+  `budget(n, team)` with `SQUADS`, spreads them over lanes, tanks first, `RANGED` 5 s later, and
+  emits a `warn` fx per lane 8 s ahead. Scrap: kills pay 5 × cost, a wave cleared above 75% core
+  pays +20%, G calls the wave early (+2 per second skipped). Build phase shop (`SHOP`, keys 1-8,
+  `buy` in the input): gate repair, gate rebuild, core ring, mech repair, and pad modules
+  (`MODULE`): barricade (a `boxes` entry bots must break), mine field (re-armed each wave), lane
+  laser (fixed beam on a 3 s cycle, 1 s `laserWarn`), rail post (X fires a rail on your own aim).
+  AI allies hold lane posts, fall back to the core when a bot gets inside, repair it between
+  waves and buy only rings and gate fixes. HUD: wave plate, shop, warning markers over gates
+  (edge arrow off screen), red arrows to gates or the core under attack. `--modules` builds one
+  of each on the north lane. Progression: clearing wave 10, 20, 30 (`milestone` fx) opens the
+  claim screen with a full set (`Progress.SIEGE_SPOILS`: tank, artillery, reflector); the best
+  wave held is `progress.best` (`[siege] best` in `user://progress.cfg`). Endless from 31: `ENDLESS`
+  row (Mk 3) and one more `MUTATORS` pick every 5 waves (`MUTATE`).
+  **Scrapyard** (Victor 2026-10-28): the 4 corner blocks are walkable yards (`S.QUADS`, lane walls
+  `LANE_WALL`, one `ARCH` per yard in the ring road's outer wall, a second `rings` entry with
+  per-gap `half`). Each yard: 5 camps of neutral bots (team 2, `neutral`, `camp`, `home`; asleep
+  as `dormant` with `sleep` on the body so they skip collision, `awake` wakes the whole camp,
+  `YARD.leash` sends them home to heal), 3 crates (hold V, `use`), heaps (solid), steam
+  (`geo.steam`, read by `Sim.hidden`), a crush plate and 2 EMP zones (`hazards`, hit bots too).
+  Two currencies: `fund` (shared; lane kills 3 × cost, clean-wave bonus, call-early, donations)
+  and `wallets`/`tokens` per player (camps pay the closest player, `camp_down`; crates).
+  `WALLET` items (keys 9 0 - =, in the plaza): repair, upgrade (+1 level to your lowest part,
+  `Sim.tuned` rows), reinforce (`toughen`, kept through respawns in `boost`), revive. Camps and
+  crates `refill` each wave, the Elite every 5. From wave 15 a raid (`YARD.raid`) spawns at a
+  yard's air corner and `raid_route`s camp to camp (`wipe`, no pay), out the arch, to a gate.
+  AI ally 1 farms (`farm`, `waypoint` through gate gaps and arches); lane allies skip camp bots
+  (`brain.lanes_only` in `Bot.pick`).
+  **Garrison** (Victor 2026-10-28): one AI guardian, a real mech at index `siege.guard` (right
+  after the players, `absent` until bought), tiers in `GARRISON` (parts + level, bought with the
+  fund, shop key 8), `guard_input` = `bot.gd` leashed 14 m to the core, back to `GARRISON_DOCK`
+  when hurt, R only from tier 4; it rebuilds free after 20 s × tier. `view.remake` rebuilds its
+  model when the tier changes and adds a cyan halo. Tests check a tier-5 Garrison alone still
+  loses at waves 15 and 25.
+  **In-run upgrades** (Victor 2026-10-28, after playing to wave 6): `siege.tiers[i][slot]` 0..5 for
+  the 7 slots, bought from the wallet in the plaza (`TIER.base` × tier²); `outfit` rebuilds
+  `m.rows` from `Sim.tuned` + the tier effects (`TIER`) and scales `m.max` (plating tiers, reinforce
+  `boost`), also on respawn. `swap:<slot>:<key>` puts an owned part in a slot (`SWAP` prices,
+  `siege.owned[i]` from `progress`, `null` = all owned), `kit`/`coolant`/`surge`/`reinforce`/
+  `revive` are instant (`WALLET`). Wallets start at `TIER.wallet` and every lane kill pays each
+  player `TIER.share` × cost. Recall: hold B (pad X) 3 s, a hit breaks it (`recall`,
+  `siege.recall`, 25 s cooldown). **Radial shop**: `radial.gd` (owned by `siege-bots`), opened by
+  main.gd `open_shop` on the `siege_shop` action (physical Shift, pad Y) in the plaza only; entries
+  from `hud.shop_menu`, a pick sets `tapped.buy`; while open, fire and aim are off and the sim
+  keeps running; it closes when you leave the plaza. No punctuation keys are bound (a Spanish
+  layout moves them). V / pad A = crates and donating. `siege.buys` counts purchases (arena buy
+  pulse). AI teammates (`ai_wallet`, `next_buy`, `AI_SHOP`) walk in between waves to buy tiers in
+  order hands → plating → engine → core, buy a kit when hurt, recall when hurt or rich.
+  Balance tool: `tools/siege_balance.gd` (`-s <abs path> -- --from=<wave> --waves=<n> --team=<n>
+  --tiers=<0..5> --guard=<0..5> --seeds=a,b`), one BALANCE line per seed. Look flags: `--shop`
+  (opens the radial with scrap), `--farm` (your autopilot farms), `--guard=<tier>`.
+  **Director** (Victor 2026-10-28, spec `CORE_SIEGE_DIRECTOR.md`): `siege.gd` `sense` takes one
+  pressure sample (0-100) per second of a live wave into `siege.director`; `score` turns each wave
+  into W → strain → dial (from wave 4); `plan` applies the 5-wave `BEAT` (budget × mult × (1 ±
+  15% dial), breather waves 4/9/14… are plain and add `DIRECTOR.rest` to the build phase) and picks
+  a `TACTICS` row (probe, ambush, pincer, airdrop, feint, siege, hammer) that only reshapes the
+  spawn queue: delayed groups get their own queued `warn` (`{"at", "fx"}` queue entries; bot
+  entries carry `w` = their group's warn tick), and a `tactic` fx is the announcer call (`dir_*`
+  text, `|` splits headline and sub line). No spawn within `DIRECTOR.near` (8 m) of a player: a
+  vent flips side, else it waits `DIRECTOR.retry`. Waves 1-3 plan as if it were off.
+  `--director=off` turns it off; `director.force = <tactic>` is the test hook. `bot.gd` `SKILL`
+  (skilled / average / weak) merges into a brain; `tools/siege_balance.gd -- --director=both
+  --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
+  Not built yet: a second local player, netcode, VS (design only).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

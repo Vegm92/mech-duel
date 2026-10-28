@@ -239,6 +239,7 @@ const SOLIDS := [
 	{"x": CX, "y": CY - 5.5, "r": 0.45}, {"x": CX, "y": CY + 5.5, "r": 0.45},
 	{"x": CX, "y": CY - 18, "r": 0.45}, {"x": CX, "y": CY + 18, "r": 0.45},
 ]
+const DUEL_GEO := {"walls": WALLS, "pillars": PILLARS, "solids": SOLIDS}
 const MATCH := {"wins": 3, "countdown": 3 * TICKS, "time": 60 * TICKS, "ko": 150, "hitstop": 5, "breakStop": 7, "koStop": 24}
 const IDLE := {"mx": 0, "my": 0, "ax": 0, "ay": 0, "left": false, "right": false, "hook": false, "shield": false, "dash": false, "ult": false}
 
@@ -311,14 +312,50 @@ static func arena_corners(o := 0.0) -> Array:
 	return out
 
 
-static func clamp_arena(x: float, y: float, pad := 0.0) -> Dictionary:
+static func clamp_arena(x: float, y: float, pad := 0.0, walls: Array = WALLS) -> Dictionary:
 	for _pass in 2:
-		for w in WALLS:
+		for w in walls:
 			var o: float = x * w.nx + y * w.ny - (w.d - pad)
 			if o > 0:
 				x -= w.nx * o
 				y -= w.ny * o
 	return {"x": x, "y": y}
+
+
+static func geo(state) -> Dictionary:
+	return state.geo if state.has("geo") else DUEL_GEO
+
+
+static func in_gap(ring: Dictionary, x: float, y: float, pad: float) -> bool:
+	for gp in ring.gaps:
+		if x * gp.dx + y * gp.dy > 0 and absf(y * gp.dx - x * gp.dy) < gp.get("half", ring.half) - pad:
+			return true
+	return false
+
+
+static func struck(state, g: Dictionary, s) -> bool:
+	var team = state.mechs[s.owner].team
+	for b in g.boxes:
+		if b.get("only", team) != team or b.get("hp", 1) <= 0:
+			continue
+		if s.x < b.x0 - s.r or s.x > b.x1 + s.r or s.y < b.y0 - s.r or s.y > b.y1 + s.r:
+			continue
+		if b.has("hp"):
+			b.hp = maxf(0, b.hp - s.dmg * b.get("soak", 1.0))
+		state.fx.append({"k": "ping", "x": s.x, "y": s.y, "a": atan2(s.vy, s.vx), "t": 8})
+		return true
+	for p in g.pillars:
+		if p.has("hp") and p.get("only", team) == team and hypot(s.x - p.x, s.y - p.y) < p.r + s.r:
+			p.hp = maxf(0, p.hp - s.dmg)
+			state.fx.append({"k": "ping", "x": s.x, "y": s.y, "a": atan2(s.vy, s.vx), "t": 8})
+			return true
+	if not s.get("high", false):
+		var d := hypot(s.x, s.y)
+		for r in g.get("rings", []):
+			if d > r.r0 - s.r and d < r.r1 + s.r and not in_gap(r, s.x, s.y, 0.0):
+				state.fx.append({"k": "ping", "x": s.x, "y": s.y, "a": atan2(s.vy, s.vx), "t": 8})
+				return true
+	return false
 
 
 static func elapsed(state) -> int:
@@ -442,10 +479,18 @@ static func ak(m) -> String:
 
 
 static func hidden(state, m) -> bool:
+	if state.has("geo"):
+		for st in state.geo.get("steam", []):
+			if hypot(m.x - st.x, m.y - st.y) < st.r:
+				return true
 	for tr in state.trails:
 		if tr.kind == "smoke" and seg_dist(tr.x1, tr.y1, tr.x2, tr.y2, m.x, m.y) < tr.get("w", TRAILS.smoke.width):
 			return true
 	return false
+
+
+static func rad(m) -> float:
+	return m.get("r", MECH_R)
 
 
 static func airborne(m) -> bool:
@@ -519,8 +564,8 @@ static func seg_dist(x0: float, y0: float, x1: float, y1: float, px: float, py: 
 	return hypot(x0 + dx * k - px, y0 + dy * k - py)
 
 
-static func clear_line(x0: float, y0: float, x1: float, y1: float) -> bool:
-	for p in PILLARS:
+static func clear_line(x0: float, y0: float, x1: float, y1: float, pillars: Array = PILLARS) -> bool:
+	for p in pillars:
 		if seg_dist(x0, y0, x1, y1, p.x, p.y) <= p.r:
 			return false
 	return true
@@ -663,12 +708,7 @@ static func roll_wave(state) -> Array:
 
 static func step(state, inputs: Array):
 	state.tick += 1
-	var fx := []
-	for f in state.fx:
-		f.t -= 1
-		if f.t > 0:
-			fx.append(f)
-	state.fx = fx
+	age_fx(state)
 	var ins := []
 	for i in state.mechs.size():
 		ins.append(inputs[i] if i < inputs.size() and inputs[i] != null else IDLE)
@@ -706,20 +746,9 @@ static func step(state, inputs: Array):
 	for m in turns(state):
 		if not m.ko:
 			think(state, m, ins[m.id])
-	move_shots(state)
-	update_lobs(state)
-	update_mines(state)
-	update_fields(state)
-	update_trails(state)
-	zap_walls(state)
-	var walls := []
-	for w in state.walls:
-		w.t -= 1
-		if w.t > 0:
-			walls.append(w)
-	state.walls = walls
+	world(state)
 	for m in state.mechs:
-		collide(m, state.shrink)
+		collide(m, state.shrink, geo(state))
 	var live = state.mechs.filter(func(m): return not m.ko)
 	for i in live.size():
 		for j in range(i + 1, live.size()):
@@ -732,6 +761,30 @@ static func step(state, inputs: Array):
 		if state.clock <= 0:
 			time_up(state)
 	return state
+
+
+static func world(state) -> void:
+	move_shots(state)
+	update_lobs(state)
+	update_mines(state)
+	update_fields(state)
+	update_trails(state)
+	zap_walls(state)
+	var walls := []
+	for w in state.walls:
+		w.t -= 1
+		if w.t > 0:
+			walls.append(w)
+	state.walls = walls
+
+
+static func age_fx(state) -> void:
+	var fx := []
+	for f in state.fx:
+		f.t -= 1
+		if f.t > 0:
+			fx.append(f)
+	state.fx = fx
 
 
 static func hash_state(state) -> int:
@@ -960,7 +1013,7 @@ static func dash(state, m, inp, feinted) -> void:
 		dist = minf(dist, maxf(1, ln))
 	var ux := dx / ln
 	var uy := dy / ln
-	var end := clamp_arena(m.x + ux * dist, m.y + uy * dist, MECH_R + state.shrink)
+	var end := clamp_arena(m.x + ux * dist, m.y + uy * dist, MECH_R + state.shrink, geo(state).walls)
 	var kind = booster(m).trail
 	var trail = null
 	if TRAILS[kind].has("life"):
@@ -974,7 +1027,7 @@ static func magnetize(state, m) -> void:
 	var M = TRAILS.magnet
 	for t in foes(state, m.id):
 		var d := hypot(m.x - t.x, m.y - t.y)
-		if airborne(t) or d > M.reach or d < 2 * MECH_R:
+		if airborne(t) or d > M.reach or d < 2 * rad(t):
 			continue
 		push(t, (m.x - t.x) / d, (m.y - t.y) / d, M.pull)
 		state.fx.append({"k": "magnet", "id": m.id, "x": m.x, "y": m.y, "x1": m.x, "y1": m.y, "x2": t.x, "y2": t.y, "t": 18})
@@ -986,7 +1039,7 @@ static func update_trails(state) -> void:
 		var T = TRAILS[tr.kind]
 		var atk = state.mechs[tr.owner]
 		for t in foes(state, tr.owner):
-			if airborne(t) or seg_dist(tr.x1, tr.y1, tr.x2, tr.y2, t.x, t.y) >= T.width + MECH_R:
+			if airborne(t) or seg_dist(tr.x1, tr.y1, tr.x2, tr.y2, t.x, t.y) >= T.width + rad(t):
 				continue
 			var frm := atan2((tr.y1 + tr.y2) / 2.0 - t.y, (tr.x1 + tr.x2) / 2.0 - t.x)
 			if not tr.cast:
@@ -1011,7 +1064,7 @@ static func update_trails(state) -> void:
 static func bump(state, m, a, h) -> void:
 	var target = null
 	for t in foes(state, m.id):
-		if not airborne(t) and hypot(t.x - m.x, t.y - m.y) <= 2 * MECH_R + 0.25:
+		if not airborne(t) and hypot(t.x - m.x, t.y - m.y) <= 2 * rad(t) + 0.25:
 			target = t
 			break
 	if target == null:
@@ -1026,7 +1079,7 @@ static func bump(state, m, a, h) -> void:
 static func land(state, m, L) -> void:
 	state.fx.append({"k": "land", "id": m.id, "x": m.x, "y": m.y, "r": L.r, "t": 20})
 	for t in foes(state, m.id):
-		if airborne(t) or hypot(t.x - m.x, t.y - m.y) > L.r + MECH_R:
+		if airborne(t) or hypot(t.x - m.x, t.y - m.y) > L.r + rad(t):
 			continue
 		hit(state, m, t, floor(L.dmg * power(m, true)), "LEGS", L.get("impact", 0), atan2(m.y - t.y, m.x - t.x), next_cast(state))
 		if not L.has("stun") or warded(t):
@@ -1063,7 +1116,7 @@ static func fire(state, m, hand: String, follow: bool) -> void:
 		var a := atan2(m.ty - m.y, m.tx - m.x)
 		for i in n:
 			var off := (i - (n - 1) / 2.0) * spread
-			var c := clamp_arena(m.x + cos(a) * d - sin(a) * off, m.y + sin(a) * d + cos(a) * off, state.shrink)
+			var c := clamp_arena(m.x + cos(a) * d - sin(a) * off, m.y + sin(a) * d + cos(a) * off, state.shrink, geo(state).walls)
 			state.lobs.append({"kind": "shell", "owner": m.id, "sx": mx, "sy": my, "x": c.x, "y": c.y, "t": g.delay, "T": g.delay, "r": g.splash, "dmg": dmg, "impact": impact, "cast": cast})
 	elif g.kind == "ray":
 		for i in n:
@@ -1113,7 +1166,7 @@ static func swing(state, m, hand: String, spin: bool) -> void:
 	for t in foes(state, m.id):
 		var dx: float = t.x - m.x
 		var dy: float = t.y - m.y
-		if airborne(t) or hypot(dx, dy) > b.range + MECH_R or not in_arc(m.aim, arc, dx, dy):
+		if airborne(t) or t.get("fly", false) or hypot(dx, dy) > b.range + rad(t) or not in_arc(m.aim, arc, dx, dy):
 			continue
 		var dmg = floor((b.spinDmg if spin else b.dmg) * (core(m).get("hotDmg", HEAT.hotDmg) if hot else 1) * jam * power(m, true))
 		hit(state, m, t, dmg, "LEGS", b.impact + (1 if hot else 0), atan2(-dy, -dx), cast)
@@ -1131,7 +1184,7 @@ static func near_foes(state, m, x: float, y: float, r: float) -> Array:
 static func ult_target(state, m, reach: float) -> Dictionary:
 	var d := minf(reach, hypot(m.tx - m.x, m.ty - m.y))
 	var ang := atan2(m.ty - m.y, m.tx - m.x)
-	return clamp_arena(m.x + cos(ang) * d, m.y + sin(ang) * d, state.shrink)
+	return clamp_arena(m.x + cos(ang) * d, m.y + sin(ang) * d, state.shrink, geo(state).walls)
 
 
 static func fire_ult(state, m, a) -> void:
@@ -1175,7 +1228,7 @@ static func fire_ult(state, m, a) -> void:
 		"mines":
 			for i in h.count:
 				var ang: float = (float(i) / h.count) * TAU
-				var c := clamp_arena(m.x + cos(ang) * h.ring, m.y + sin(ang) * h.ring, 1 + state.shrink)
+				var c := clamp_arena(m.x + cos(ang) * h.ring, m.y + sin(ang) * h.ring, 1 + state.shrink, geo(state).walls)
 				var dmg = floor(h.dmg * power(m, false))
 				state.mines.append({"owner": m.id, "x": c.x, "y": c.y, "arm": h.arm, "life": h.life, "dmg": dmg, "cast": next_cast(state)})
 		"blink":
@@ -1319,24 +1372,28 @@ static func move_shot(state, s) -> bool:
 			return false
 	var best = null
 	for t in enemies:
-		if airborne(t) or seg_dist(x0, y0, s.x, s.y, t.x, t.y) >= MECH_R + s.r:
+		if airborne(t) or seg_dist(x0, y0, s.x, s.y, t.x, t.y) >= rad(t) + s.r:
 			continue
 		if best == null or hypot(t.x - x0, t.y - y0) < hypot(best.x - x0, best.y - y0):
 			best = t
 	if best != null:
 		return shot_hits(state, s, best)
+	var g := geo(state)
+	if g.has("boxes") and struck(state, g, s):
+		return false
 	var wall = null
-	for w in WALLS:
+	for w in g.walls:
 		if s.x * w.nx + s.y * w.ny >= w.d - state.shrink:
 			wall = w
 			break
 	var pillar = null
-	for p in PILLARS:
-		if state.mechs[s.owner].buffs.xray == 0 and seg_dist(x0, y0, s.x, s.y, p.x, p.y) < p.r + s.r:
+	var team = state.mechs[s.owner].team
+	for p in g.pillars:
+		if p.get("only", team) == team and state.mechs[s.owner].buffs.xray == 0 and seg_dist(x0, y0, s.x, s.y, p.x, p.y) < p.r + s.r:
 			pillar = p
 			break
 	if wall != null or pillar != null:
-		var c := clamp_arena(s.x, s.y, state.shrink)
+		var c := clamp_arena(s.x, s.y, state.shrink, geo(state).walls)
 		state.fx.append({"k": "ping", "x": c.x, "y": c.y, "a": atan2(s.vy, s.vx), "t": 8})
 		if s.bounces <= 0:
 			return false
@@ -1356,7 +1413,7 @@ static func move_shot(state, s) -> bool:
 			s.vy -= 2 * dot * ny
 			s.x = pillar.x + nx * (pillar.r + s.r + 0.05)
 			s.y = pillar.y + ny * (pillar.r + s.r + 0.05)
-		var c2 := clamp_arena(s.x, s.y, 0.01 + state.shrink)
+		var c2 := clamp_arena(s.x, s.y, 0.01 + state.shrink, geo(state).walls)
 		s.x = c2.x
 		s.y = c2.y
 		return true
@@ -1415,7 +1472,9 @@ static func line_attack(state, m, sx: float, sy: float, angle: float, length: fl
 	var dy := sin(angle)
 	var ln := length
 	if not guard.get("through", false) and m.buffs.xray == 0:
-		for p in PILLARS:
+		for p in geo(state).pillars:
+			if p.get("only", m.team) != m.team:
+				continue
 			var d = ray_circle(sx, sy, dx, dy, p)
 			if d != null and d < ln:
 				ln = d
@@ -1429,7 +1488,7 @@ static func line_attack(state, m, sx: float, sy: float, angle: float, length: fl
 		var px: float = t.x - sx
 		var py: float = t.y - sy
 		var along := px * dx + py * dy
-		if airborne(t) or along <= -MECH_R or along - MECH_R >= ln or absf(px * dy - py * dx) >= half_width + MECH_R:
+		if airborne(t) or along <= -rad(t) or along - rad(t) >= ln or absf(px * dy - py * dx) >= half_width + rad(t):
 			continue
 		var d = dmg
 		if t.buffs.mirror > 0 and in_arc(t.aim, ULTS.mirror.arc, -dx, -dy):
@@ -1454,7 +1513,7 @@ static func cone_attack(state, m, dir: float, g, dmg, impact, cast) -> void:
 	for t in foes(state, m.id):
 		var dx: float = t.x - m.x
 		var dy: float = t.y - m.y
-		if airborne(t) or hypot(dx, dy) > g.range + MECH_R or not in_arc(dir, g.arc, dx, dy) or (m.buffs.xray == 0 and not clear_line(m.x, m.y, t.x, t.y)):
+		if airborne(t) or hypot(dx, dy) > g.range + rad(t) or not in_arc(dir, g.arc, dx, dy) or (m.buffs.xray == 0 and not clear_line(m.x, m.y, t.x, t.y, geo(state).pillars)):
 			continue
 		if state.walls.any(func(w): return wall_blocks(state, m.id, w) and cross_t(m.x, m.y, t.x, t.y, w) != null):
 			continue
@@ -1555,7 +1614,7 @@ static func cast_e(state, m, skill: String, spec) -> void:
 			var fy := sin(m.aim)
 			state.walls.append({"owner": m.id, "zap": true, "zapped": [], "x1": at.x - (fy * spec.len) / 2.0, "y1": at.y + (fx * spec.len) / 2.0, "x2": at.x + (fy * spec.len) / 2.0, "y2": at.y - (fx * spec.len) / 2.0, "t": spec.time, "T": spec.time})
 		"trap":
-			at = clamp_arena(m.x + cos(m.aim) * spec.dist, m.y + sin(m.aim) * spec.dist, 1 + state.shrink)
+			at = clamp_arena(m.x + cos(m.aim) * spec.dist, m.y + sin(m.aim) * spec.dist, 1 + state.shrink, geo(state).walls)
 			state.mines.append({"owner": m.id, "x": at.x, "y": at.y, "arm": spec.arm, "life": spec.life, "dmg": floor(spec.dmg * power(m, false)), "cast": next_cast(state), "root": spec.root})
 		_:
 			m.buffs[skill] = spec.time
@@ -1572,7 +1631,7 @@ static func lunge(state, m) -> void:
 		ln = 1.0
 	var ux := dx / ln
 	var uy := dy / ln
-	var end := clamp_arena(m.x + ux * LUNGE.dist, m.y + uy * LUNGE.dist, MECH_R + state.shrink)
+	var end := clamp_arena(m.x + ux * LUNGE.dist, m.y + uy * LUNGE.dist, MECH_R + state.shrink, geo(state).walls)
 	m.act = {"k": "dash", "ph": "go", "t": LUNGE.ticks, "T": LUNGE.ticks, "move": "lunge", "dx": ux, "dy": uy, "speed": (LUNGE.dist / float(LUNGE.ticks)) * TICKS, "lx": end.x, "ly": end.y, "hit": false, "trail": null}
 	state.fx.append({"k": "dash", "id": m.id, "x": m.x, "y": m.y, "t": 6})
 
@@ -1586,7 +1645,7 @@ static func zap_walls(state) -> void:
 		if not w.get("zap", false):
 			continue
 		for t in foes(state, w.owner):
-			if t.id in w.zapped or airborne(t) or seg_dist(w.x1, w.y1, w.x2, w.y2, t.x, t.y) >= MECH_R + 0.2:
+			if t.id in w.zapped or airborne(t) or seg_dist(w.x1, w.y1, w.x2, w.y2, t.x, t.y) >= rad(t) + 0.2:
 				continue
 			w.zapped.append(t.id)
 			if warded(t):
@@ -1700,7 +1759,7 @@ static func move(state, m, inp) -> void:
 		var dvx: float = mx * top - m.vx
 		var dvy: float = my * top - m.vy
 		var dv := hypot(dvx, dvy)
-		var rate: float = (legs.top / legs.accel if top > 0 and ln > 0 else legs.top / (legs.accel * MOVE.brake)) * DT * (TRAPS.oil.grip if on_oil(m) else 1)
+		var rate: float = (legs.top / legs.accel if top > 0 and ln > 0 else legs.top / (legs.accel * MOVE.brake)) * DT * (TRAPS.oil.grip if not state.has("geo") and on_oil(m) else 1)
 		var k := 1.0 if dv <= rate else rate / dv
 		m.vx += dvx * k
 		m.vy += dvy * k
@@ -1717,7 +1776,7 @@ static func update_lobs(state) -> void:
 			continue
 		state.fx.append({"k": "boom", "x": l.x, "y": l.y, "r": l.r, "big": l.kind == "strike", "t": 22})
 		for t in foes(state, l.owner):
-			if hypot(t.x - l.x, t.y - l.y) <= l.r + MECH_R:
+			if hypot(t.x - l.x, t.y - l.y) <= l.r + rad(t):
 				hit(state, state.mechs[l.owner], t, l.dmg, "LEGS", l.impact, atan2(l.sy - t.y, l.sx - t.x), l.cast)
 	state.lobs = keep
 
@@ -1734,7 +1793,7 @@ static func update_mines(state) -> void:
 		var caught := []
 		if mi.arm <= 0:
 			for t in foes(state, mi.owner):
-				if not airborne(t) and hypot(t.x - mi.x, t.y - mi.y) <= h.trigger + MECH_R:
+				if not airborne(t) and not t.get("fly", false) and hypot(t.x - mi.x, t.y - mi.y) <= h.trigger + rad(t):
 					caught.append(t)
 		if caught.is_empty():
 			keep.append(mi)
@@ -1766,12 +1825,12 @@ static func update_fields(state) -> void:
 	state.fields = keep
 
 
-static func collide(m, shrink: float) -> void:
-	for p in SOLIDS:
+static func collide(m, shrink: float, g: Dictionary = DUEL_GEO) -> void:
+	for p in g.solids:
 		var dx: float = m.x - p.x
 		var dy: float = m.y - p.y
 		var d := hypot(dx, dy)
-		var lim: float = p.r + MECH_R
+		var lim: float = p.r + rad(m)
 		if d >= lim or d == 0:
 			continue
 		var nx := dx / d
@@ -1782,8 +1841,38 @@ static func collide(m, shrink: float) -> void:
 		if vn < 0:
 			m.vx -= vn * nx
 			m.vy -= vn * ny
-	for w in WALLS:
-		var o: float = m.x * w.nx + m.y * w.ny + MECH_R - (w.d - shrink)
+	for b in g.get("boxes", []):
+		if b.get("only", m.team) != m.team or b.get("hp", 1) <= 0:
+			continue
+		var cx := clampf(m.x, b.x0, b.x1)
+		var cy := clampf(m.y, b.y0, b.y1)
+		var bx: float = m.x - cx
+		var by: float = m.y - cy
+		var bd := hypot(bx, by)
+		if bd >= rad(m):
+			continue
+		if bd == 0:
+			var out := [m.x - b.x0, b.x1 - m.x, m.y - b.y0, b.y1 - m.y]
+			var k: int = out.find(out.min())
+			bx = [-1.0, 1.0, 0.0, 0.0][k]
+			by = [0.0, 0.0, -1.0, 1.0][k]
+			cx = [b.x0, b.x1, m.x, m.x][k]
+			cy = [m.y, m.y, b.y0, b.y1][k]
+			bd = 1.0
+		m.x = cx + bx / bd * rad(m)
+		m.y = cy + by / bd * rad(m)
+		var vb: float = (m.vx * bx + m.vy * by) / bd
+		if vb < 0:
+			m.vx -= vb * bx / bd
+			m.vy -= vb * by / bd
+	for r in g.get("rings", []):
+		var d := hypot(m.x, m.y)
+		if d > 0 and d > r.r0 - rad(m) and d < r.r1 + rad(m) and not in_gap(r, m.x, m.y, 0.0):
+			var to: float = r.r0 - rad(m) if d < (r.r0 + r.r1) / 2.0 else r.r1 + rad(m)
+			m.x *= to / d
+			m.y *= to / d
+	for w in g.walls:
+		var o: float = m.x * w.nx + m.y * w.ny + rad(m) - (w.d - shrink)
 		if o <= 0:
 			continue
 		m.x -= w.nx * o
@@ -1798,9 +1887,9 @@ static func separate(a, b) -> void:
 	var dx: float = b.x - a.x
 	var dy: float = b.y - a.y
 	var d := hypot(dx, dy)
-	if d >= MECH_R * 2 or d == 0:
+	if d >= (rad(a) + rad(b)) or d == 0:
 		return
-	var k := (MECH_R * 2 - d) / 2.0 / d
+	var k := ((rad(a) + rad(b)) - d) / 2.0 / d
 	a.x -= dx * k
 	a.y -= dy * k
 	b.x += dx * k

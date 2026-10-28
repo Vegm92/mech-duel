@@ -7,9 +7,11 @@ const LADDER := ["duelist", "sniper", "speedster", "assassin", "glasscannon", "v
 const BOSS := [["core", "reactor"], ["core", "titan"], ["core", "flywheel"], ["core", "bastion"], ["core", "deflector"], ["core", "shroud"], ["right", "fist"]]
 const KO_DROPS := ["head", "core", "booster"]
 const BREAK_DROPS := {"larm": ["arms", "left"], "rarm": ["arms", "right"], "legs": ["legs"]}
+const SIEGE_SPOILS := {10: "tank", 20: "artillery", 30: "reflector"}
 
 var owned := {}
 var beaten := {}
+var best := 0
 var unlock_all := true
 var path := SAVE
 
@@ -84,6 +86,19 @@ func pool(broke: Array, foe: Dictionary, ko: bool) -> Array:
 	return out
 
 
+func spoils(wave: int) -> Array:
+	if not SIEGE_SPOILS.has(wave):
+		return []
+	return pool(["larm", "rarm", "legs"], Sim.SETS[SIEGE_SPOILS[wave]], true)
+
+
+func held(waves: int) -> bool:
+	if waves <= best:
+		return false
+	best = waves
+	return true
+
+
 func claim(slot: String, key: String) -> void:
 	owned[id(slot, key)] = mini(Sim.MAX_LEVEL, level(slot, key) + 1)
 
@@ -132,6 +147,9 @@ func load_file() -> void:
 		for set_key in wins:
 			if LADDER.has(set_key) and wins[set_key] is int:
 				beaten[set_key] = maxi(0, wins[set_key])
+	var top = cfg.get_value("siege", "best", 0)
+	if top is int:
+		best = maxi(0, top)
 
 
 func save_file() -> void:
@@ -140,4 +158,5 @@ func save_file() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("salvage", "owned", owned)
 	cfg.set_value("salvage", "beaten", beaten)
+	cfg.set_value("siege", "best", best)
 	cfg.save(path)
