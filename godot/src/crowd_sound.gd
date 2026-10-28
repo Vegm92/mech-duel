@@ -45,10 +45,12 @@ func _ready() -> void:
 	bed = AudioStreamPlayer.new()
 	bed.stream = loop
 	bed.volume_db = -80.0
+	bed.bus = "Crowd"
 	add_child(bed)
 	bed.play(rng.randf() * loop.get_length())
 	for i in VOICES:
 		var p := AudioStreamPlayer.new()
+		p.bus = "Crowd"
 		add_child(p)
 		voices.append(p)
 
