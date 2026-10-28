@@ -206,6 +206,82 @@ top of every wave), Hive (Swarm Clouds cost half), Iron Rain (a Quad Heavy on to
   deterministic and seeded, inputs are small dicts; needs a lobby, input delay and a desync check
   on `hash_state`).
 
+## 8b. Scrapyard (Victor 2026-10-28, tune later)
+
+Like a jungle, but a junkyard of mech parts and wrecks. The 4 blocks between the lanes (NE, SE, SW,
+NW) become 4 walkable **yards**. Players leave the plaza to farm scrap there, taking a risk.
+
+**Shape** (`siege_state.gd`): each lane keeps a 1.5 m wall on both sides out to the border. The
+ring road's outer wall (26 to 27.5 m) gets one 6 m arch per yard on the 45° diagonal, so a yard is
+reached only from the ring road. Inside: 5 camps, 3 salvage crates, scrap heaps (cover), a steam
+patch (hides a mech, like smoke), a crush plate and 2 EMP zones (they hit bots too).
+
+**Two currencies.**
+- **Fortress fund** (shared): lane bot kills pay 3 × cost (was 5), a clean wave +20%, calling the
+  wave early +2 per second skipped. Pays for gates, core rings, pad modules and the Garrison.
+- **Wallet** (one per player): yard camps and crates. Spent in the plaza (within 14 m of the
+  core) at any time: mech repair 30, part upgrade (+1 level to your lowest part for this run, 80 ×
+  new level), reinforce (+15% max armor for this run, 100 scrap or 1 token), revive (bring a downed
+  teammate back now, 50, from anywhere). Hold V at the core to donate wallet scrap to the fund
+  (10 per 0.25 s), so farmers feed the fortress.
+- This makes roles: lane holders, farmers, a floater at the core. Core repair still needs someone
+  standing at the core.
+
+**Camps** (neutral bots, team 2, existing kinds, no new models). Asleep (`dormant`) until a player
+comes within 8 m or hits one; then `wake` and fight players only (they ignore lane bots). They chase
+up to 18 m from their camp, then walk home and heal to full.
+
+| Camp | Bots | Scrap |
+|---|---|---|
+| Small Heap (×2 per yard) | 3 swarm cubes, or 2 scouts | 10 |
+| Medium Wreck | 1 turret + 2 spiders | 25 |
+| Big Hulk | 1 quad walker | 45 |
+| Elite Titan Hulk (1 per yard) | 1 heavy mech | 120 + 1 reinforce token |
+| Salvage crate (×3 per yard) | hold V 3 s, stand still | 15 |
+
+The scrap goes to the player closest to the camp (within 25 m) when its last bot dies. Camps and
+crates refill at the start of every wave; the Elite only every 5 waves. One yard pays about 135 per
+wave (+120 from the Elite every 5 waves); lane kills at wave 10 pay about 190 to the fund for 2
+players. Yards out-earn lanes about 3 to 1 but clearing all 4 takes most of a wave.
+
+**Risks.** Spiders pop out of the side vents into the yard, flyers cross it from the air corners,
+tripods on the lanes snipe into it, and from wave 15 every wave sends a **raid squad** (Scout Pack +
+Ambush Cell, the wave's Mk) into one yard from its air corner: it wipes each camp it reaches (no
+scrap), takes the crates, then leaves through the arch onto the ring road and attacks the nearest
+gate from inside the fort's outer road.
+
+**Tuning risks.** Farming too strong (players skip lanes and buy everything): knobs are camp
+scrap, the refill rule and the 3 × cost lane rate. Players away too long: gates fall while
+they farm; lane arrows on the HUD, raids from wave 15 and the growing respawn timer push back.
+
+AI allies get roles: ally 1 farms the nearest yard while the wave is not live or its lane is quiet,
+the others hold lanes, ally 3 floats at the core.
+
+## 8c. Garrison (Victor 2026-10-28, tune later)
+
+A fortress upgrade that gives the core **one** allied defender, upgraded many times for a lot of
+fund scrap. One unit, not an army. AI-driven like the AI teammates (`bot.gd`), so the no-auto-aim
+rule (about player input) is not touched.
+
+- Built from the players' part catalog (no new model), team 0, a core-colored glow and team ring,
+  docked at `GARRISON_DOCK` (9, 9) in the plaza.
+
+| Tier | Fund cost | Build | Part level |
+|---|---|---|---|
+| 1 | 150 | light frame: Wire arms, Greaves, Flicker, Rivet + Bash (one gun) | 1 |
+| 2 | 400 | + Brace arms, Treads | 2 |
+| 3 | 900 | + Gatling in the right hand (second gun) | 2 |
+| 4 | 2000 | + Reactor core, uses its R skill (Overdrive) | 3 |
+| 5 | 4500 | heavy: Oni Horns, Anvil arms, Stompers, Rocket booster, Aegis core (shield dome R), Gatling + Missiles | 3 |
+
+- Behavior: guards the plaza (leash 14 m from the core), engages bots in range, goes first for
+  anything hitting the core or a gate, retreats to its dock below 30% head armor. Dies like a mech
+  (armor pools, breaks), rebuilds at its dock after 20 s × tier, free.
+- It must not hold waves alone: a bot-only run at wave 15 and 25 with a tier-5 Garrison and no
+  players still loses (a test checks it).
+- HUD: tier and the next tier's cost in the shop; the buy is a fund item.
+- VS: each team has its own Garrison.
+
 ## 9. VS variant (design only, not built)
 
 Team vs team, LoL-style.
@@ -217,6 +293,8 @@ Team vs team, LoL-style.
 - Respawn timer grows through the match (6 s → 20 s).
 - Sudden death at 20 min: bot budget ×2.
 - Gates shoot only slow, telegraphed, dodgeable shots (no aim help for anyone).
+- Each team's yards are its backyard; invade the enemy's yards to steal its scrap. Each team has its
+  own Garrison.
 
 ## 10. Code layout and the shared state
 
