@@ -164,6 +164,12 @@ const SETS := {
 	"tank": {"head": "medic", "core": "aegis", "arms": "anvil", "legs": "stompers", "booster": "rocket", "left": "scatter", "right": "hammer"},
 	"speedster": {"head": "crest", "core": "volt", "arms": "wire", "legs": "wheels", "booster": "flicker", "left": "gatling", "right": "saw"},
 	"artillery": {"head": "antenna", "core": "coolant", "arms": "bulwark", "legs": "treads", "booster": "thruster", "left": "mortar", "right": "missiles"},
+	"assassin": {"head": "crest", "core": "phantom", "arms": "reed", "legs": "skates", "booster": "wisp", "left": "katana", "right": "whip"},
+	"pyro": {"head": "pincer", "core": "meltdown", "arms": "brace", "legs": "spider", "booster": "thruster", "left": "flamer", "right": "flail"},
+	"controller": {"head": "dish", "core": "gravity", "arms": "frame", "legs": "mono", "booster": "comet", "left": "tesla", "right": "ricochet"},
+	"vampire": {"head": "dispenser", "core": "leech", "arms": "reed", "legs": "hover", "booster": "twin", "left": "ricochet", "right": "claws"},
+	"reflector": {"head": "orb", "core": "mirror", "arms": "bulwark", "legs": "treads", "booster": "twin", "left": "bash", "right": "bunker"},
+	"glasscannon": {"head": "visor", "core": "glass", "arms": "wire", "legs": "jets", "booster": "flicker", "left": "rivet", "right": "mortar"},
 }
 const DASH := {"ticks": 10, "endLag": 6, "slide": 0.4, "vent": 25, "afterburn": 48, "feintRefund": 0.7}
 const TRAILS := {

@@ -133,7 +133,7 @@ func build_tab() -> void:
 	text(left, tr(TITLES[tab]), Vector2(PAD, 156), 12, HOLO, AREA, true)
 	var slot: String = SLOTS[tab]
 	var items: Array = Sim.SETS.keys() if slot == "set" else Sim.CATALOG[slot].keys()
-	var cols := 4 if items.size() > 10 else 2
+	var cols := 3 if slot == "set" and items.size() > 6 else 4 if items.size() > 10 else 2
 	var rows := ceili(items.size() / float(cols))
 	var gap := 8.0
 	var cw := (AREA - gap * (cols - 1)) / cols
