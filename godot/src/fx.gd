@@ -24,6 +24,12 @@ const EMP := {"flash": 0.5, "star": 1.8, "secs": 0.35, "inner": 0.8, "band": 0.9
 const BLINK := {"ring": 1.4, "secs": 0.25, "w": 0.3, "flash": 0.35}
 const HEAL := {"ring": 1.3, "secs": 0.4, "y": 1.6}
 const SOAK := {"flash": 0.3, "star": 0.9, "ring": 1.1, "secs": 0.18}
+const BRACE := {"flash": 0.5, "star": 1.1, "ring": 1.5, "secs": 0.25}
+const BRACE_C := Color8(255, 190, 70)
+const CLEANSE := {"flash": 0.45, "star": 1.3, "ring": 1.7, "secs": 0.3}
+const CLEANSE_C := Color8(255, 246, 200)
+const FOCUS := {"flash": 0.4, "star": 1.2, "ring": 1.2, "secs": 0.25}
+const FOCUS_C := Color8(110, 255, 215)
 const MAGNET := {"w": 0.18, "secs": 0.2}
 const CRUSH := {"r": 2.2, "c": Color(1.0, 0.86, 0.66)}
 const PING := {"flash": 0.18, "star": 0.6, "secs": 0.06, "spread": 50.0}
@@ -656,6 +662,40 @@ static func soak(parent: Node3D, f: Dictionary) -> void:
 	star(parent, p, SOAK.star, SOAK.secs * 0.6, SHIELD_C)
 	ring(parent, p, 0.3, SOAK.ring, SOAK.secs, SHIELD_C)
 	burst(parent, p, Vector3.UP, LAYERS.shield_sparks)
+
+
+static func brace(parent: Node3D, f: Dictionary) -> void:
+	var p := Vector3(f.x, 1.05, f.y)
+	flash(parent, p, BRACE.flash, 0.06, BRACE_C.lightened(0.5))
+	star(parent, p, BRACE.star, BRACE.secs * 0.6, BRACE_C)
+	ring(parent, p, 0.3, BRACE.ring, BRACE.secs, BRACE_C)
+	ring(parent, Vector3(f.x, 0.08, f.y), 0.3, BRACE.ring * 0.8, BRACE.secs, BRACE_C)
+
+
+const CAST_C := {"xray": Color8(190, 240, 255), "frost": Color8(150, 215, 255), "arcwall": Color8(255, 240, 120), "trap": Color8(255, 150, 70)}
+
+
+static func cast(parent: Node3D, f: Dictionary) -> void:
+	var c: Color = CAST_C[f.k]
+	var p := Vector3(f.x, 0.9, f.y)
+	flash(parent, p, 0.4, 0.05, c.lightened(0.5))
+	star(parent, p, 1.1, 0.15, c)
+	ring(parent, Vector3(f.x, 0.08, f.y), 0.4, 1.6, 0.25, c)
+
+
+static func focused(parent: Node3D, f: Dictionary) -> void:
+	var p := Vector3(f.x, 1.05, f.y)
+	flash(parent, p, FOCUS.flash, 0.05, FOCUS_C.lightened(0.5))
+	star(parent, p, FOCUS.star, FOCUS.secs * 0.6, FOCUS_C)
+	ring(parent, p, 1.6, FOCUS.ring * 0.3, FOCUS.secs, FOCUS_C)
+
+
+static func cleanse(parent: Node3D, f: Dictionary) -> void:
+	var p := Vector3(f.x, 1.05, f.y)
+	flash(parent, p, CLEANSE.flash, 0.06, Color.WHITE)
+	star(parent, p, CLEANSE.star, CLEANSE.secs * 0.6, CLEANSE_C)
+	ring(parent, p, 0.3, CLEANSE.ring, CLEANSE.secs, CLEANSE_C)
+	burst(parent, p, Vector3.UP, LAYERS.heal_squares)
 
 
 static func magnet(parent: Node3D, f: Dictionary) -> void:

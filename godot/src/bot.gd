@@ -162,6 +162,29 @@ static func goal(state, m, o):
 	return best
 
 
+static func wants_e(e: String, m, o, d: float, sight: bool, threat, g, shooter, melees: Array) -> bool:
+	match e:
+		"brace":
+			return threat != null or d < 5
+		"cleanse":
+			return m.buffs.slow > 0 or m.buffs.jam > 0 or m.buffs.root > 0 or m.pull != null
+		"focus":
+			return g != null and sight and m.cd[shooter] == 0 and d > 5 and d < g.range * 0.4
+		"pulse":
+			return health(m) < 0.7 and threat == null and d > 8
+		"xray":
+			return g != null and not sight and m.cd[shooter] == 0 and d < g.range
+		"frost":
+			return sight and d > 4 and d < 9
+		"arcwall":
+			return threat != null
+		"trap":
+			return d > 2.5 and d < 8
+		"lunge":
+			return not melees.is_empty() and sight and o.pull == null and d > 3 and d < 7.5
+	return false
+
+
 static func wants_ult(kind: String, d: float, sight: bool, open: bool, hurt: bool, threat, h, heat: float) -> bool:
 	match kind:
 		"lance":
@@ -347,17 +370,19 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 			inp.ax = m.x + inp.mx * 6
 			inp.ay = m.y + inp.my * 6
 
+	if m.cd.hook == 0 and not inp.dash and wants_e(Sim.e_skill(m), m, o, d, sight, threat, g, shooter, melees):
+		inp.hook = true
 	var facing: bool = o.act != null and o.act.k == "shield" and o.act.ph == "up" and cos(o.act.angle - atan2(-dy, -dx)) > cos(Sim.SHIELD.arc)
 	var heat_ok: bool = m.heat < BOT.heatCap or o.armor.head <= (g.get("dmg", 0) if g != null else 0)
 	var lob: bool = g != null and g.kind == "lob"
 	if m.surge >= Sim.SURGE.max and wants_ult(h.kind, d, sight, open, health(m) < 0.55, threat, h, m.heat):
 		inp.ult = true
-	elif m.cd.hook == 0 and (melees.is_empty() or melee_ready(m)) and sight and not facing and d > 4 and d < Sim.HOOK.range - 1:
+	elif Sim.e_skill(m) == "hook" and m.cd.hook == 0 and (melees.is_empty() or melee_ready(m)) and sight and not facing and d > 4 and d < Sim.HOOK.range - 1:
 		inp.hook = true
 		var travel := d / Sim.HOOK.speed
 		inp.ax = o.x + o.vx * travel
 		inp.ay = o.y + o.vy * travel
-	elif g != null and m.cd[shooter] == 0 and (sight or lob) and heat_ok and (not facing or lob) and d > 2 and d < g.range and tick >= brain.nextShot[shooter]:
+	elif g != null and m.cd[shooter] == 0 and (sight or lob or m.buffs.xray > 0) and heat_ok and (not facing or lob) and d > 2 and d < g.range and tick >= brain.nextShot[shooter]:
 		inp[shooter] = true
 		brain.nextShot[shooter] = tick + g.cd + floor(Sim.rng(brain) * minf(BOT.rhythm, g.cd))
 	return inp

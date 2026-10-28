@@ -98,16 +98,17 @@ const BOOSTERS := {
 	"rocket": {"series": "heavy", "trail": "clean", "dash": 8.5, "dashCd": 390},
 }
 const HEADS := {
-	"horn": {"series": "standard", "armor": 300, "surge": 1},
-	"pincer": {"series": "standard", "armor": 292, "surge": 1.08},
-	"crest": {"series": "light", "armor": 285, "surge": 1.3},
-	"dish": {"series": "standard", "armor": 296, "surge": 1.04},
-	"visor": {"series": "light", "armor": 278, "surge": 1.4},
-	"medic": {"series": "heavy", "armor": 325, "surge": 0.86},
-	"orb": {"series": "standard", "armor": 308, "surge": 0.92},
-	"antenna": {"series": "standard", "armor": 290, "surge": 1.12},
-	"dispenser": {"series": "standard", "armor": 304, "surge": 0.94},
-	"demon": {"series": "heavy", "armor": 335, "surge": 0.8},
+	"rookie": {"series": "standard", "armor": 305, "surge": 1, "e": ""},
+	"horn": {"series": "standard", "armor": 300, "surge": 1, "e": "lunge"},
+	"pincer": {"series": "standard", "armor": 292, "surge": 1.08, "e": "hook"},
+	"crest": {"series": "light", "armor": 285, "surge": 1.3, "e": "cleanse"},
+	"dish": {"series": "standard", "armor": 296, "surge": 1.04, "e": "xray"},
+	"visor": {"series": "light", "armor": 278, "surge": 1.4, "e": "focus"},
+	"medic": {"series": "heavy", "armor": 325, "surge": 0.86, "e": "pulse"},
+	"orb": {"series": "standard", "armor": 308, "surge": 0.92, "e": "frost"},
+	"antenna": {"series": "standard", "armor": 290, "surge": 1.12, "e": "arcwall"},
+	"dispenser": {"series": "standard", "armor": 304, "surge": 0.94, "e": "trap"},
+	"demon": {"series": "heavy", "armor": 325, "surge": 0.8, "e": "brace"},
 }
 const ULTS := {
 	"lance": {"kind": "lance", "windup": 36},
@@ -155,7 +156,7 @@ const BODY := ["head", "core", "arms", "legs", "booster"]
 const HANDS := ["left", "right"]
 const ARM_OF := {"left": "larm", "right": "rarm"}
 const CATALOG := {"head": HEADS, "core": CORES, "arms": ARMS, "legs": LEG_PARTS, "booster": BOOSTERS, "left": WEAPONS, "right": WEAPONS}
-const DEFAULT_LOADOUT := {"head": "horn", "core": "furnace", "arms": "frame", "legs": "greaves", "booster": "thruster", "left": "rivet", "right": "saw"}
+const DEFAULT_LOADOUT := {"head": "rookie", "core": "furnace", "arms": "frame", "legs": "greaves", "booster": "thruster", "left": "rivet", "right": "saw"}
 const SETS := {
 	"duelist": {"head": "horn", "core": "furnace", "arms": "frame", "legs": "greaves", "booster": "twin", "left": "rivet", "right": "drill"},
 	"sniper": {"head": "visor", "core": "rail", "arms": "reed", "legs": "hover", "booster": "wisp", "left": "needle", "right": "laser"},
@@ -184,8 +185,19 @@ const DASH_MOVES := {
 	"double": {"dist": 0.85, "charges": 2, "cd": 1},
 	"pounce": {"time": 2, "dist": 1.3, "air": 1.4, "toCursor": true, "land": {"r": 1.6, "dmg": 40, "impact": 4}},
 	"roll": {"hit": {"dmg": 35, "impact": 2, "push": 1.2, "through": true}},
+	"lunge": {"hit": {"dmg": 40, "impact": 2, "push": 0}},
 }
 const SHIELD := {"arc": 50 * DEG, "turn": (540 * DEG) / TICKS, "perfect": 8, "minHold": 20, "maxHold": 90, "recovery": 10, "cd": 240, "perfectCd": 120, "absorb": 160, "breakStagger": 24, "breakCd": 540, "load": 20}
+const BRACE := {"time": 120, "cut": 0.5, "move": 0.5, "cd": 720}
+const CLEANSE := {"time": 120, "cd": 840}
+const FOCUS := {"time": 180, "dmg": 1.35, "speed": 1.3, "move": 0.5, "cd": 600}
+const PULSE := {"time": 180, "cd": 840, "amount": 60}
+const XRAY := {"time": 90, "cd": 960}
+const FROST := {"range": 10, "r": 3.0, "time": 240, "cd": 720}
+const ARCWALL := {"range": 8, "len": 4, "time": 150, "cd": 720, "dmg": 10, "slow": 90}
+const TRAP := {"dist": 2, "arm": 30, "life": 720, "dmg": 35, "root": 90, "cd": 540}
+const LUNGE := {"dist": 6, "ticks": 15, "cd": 420}
+const E_SPEC := {"brace": BRACE, "focus": FOCUS, "pulse": PULSE, "xray": XRAY, "frost": FROST, "arcwall": ARCWALL, "trap": TRAP}
 const HOOK := {"range": 13, "speed": 40, "radius": 0.4, "dmg": 30, "windup": 6, "recovery": 14, "cd": 480, "load": 10, "pull": 24, "pullSpeed": 22, "stop": 1.8, "stun": 12}
 const LANCE := {"windup": 36, "turn": (120 * DEG) / TICKS, "length": 16, "halfWidth": 0.7, "base": 100, "perHeat": 2, "impact": 4, "poise": 1, "recoil": 2, "recovery": 24, "stuffRefund": 50, "perfectCut": 0.5}
 const ULT_RECOVERY := 20
@@ -434,6 +446,14 @@ static func core(m):
 	return CORES[m.loadout.core]
 
 
+static func e_skill(m) -> String:
+	return head(m).e
+
+
+static func e_active(m) -> bool:
+	return m.buffs.get(e_skill(m), 0) > 0
+
+
 static func ult_of(lo) -> String:
 	return CORES[lo.core].ult
 
@@ -556,7 +576,7 @@ static func make_mech(id: int, loadout, team: int, s) -> Dictionary:
 		"cd": {"left": 0, "right": 0, "hook": 0, "shield": 0, "dash": 0},
 		"buf": {"left": 0, "right": 0, "hook": 0, "dash": 0, "ult": 0},
 		"held": {"left": false, "right": false, "hook": false, "shield": false, "dash": false, "ult": false},
-		"buffs": {"overdrive": 0, "berserk": 0, "bubble": 0, "bubbleHp": 0, "jam": 0, "slow": 0, "speed": 0, "power": 0, "cool": 0, "deflect": 0, "mirror": 0},
+		"buffs": {"overdrive": 0, "berserk": 0, "bubble": 0, "bubbleHp": 0, "jam": 0, "slow": 0, "speed": 0, "power": 0, "cool": 0, "deflect": 0, "mirror": 0, "brace": 0, "cleanse": 0, "focus": 0, "pulse": 0, "xray": 0, "root": 0},
 		"act": null, "stagger": 0, "pull": null, "afterburn": 0, "lastHitCast": 0, "ko": false, "dashes": charges(lo), "lift": 0, "liftT": 1,
 	}
 
@@ -659,6 +679,7 @@ static func step(state, inputs: Array):
 	update_mines(state)
 	update_fields(state)
 	update_trails(state)
+	zap_walls(state)
 	var walls := []
 	for w in state.walls:
 		w.t -= 1
@@ -700,6 +721,7 @@ static func think(state, m, inp) -> void:
 	m.tx = inp.ax
 	m.ty = inp.ay
 	tick_timers(m)
+	pulse_tick(state, m)
 	var aim_to := atan2(inp.ay - m.y, inp.ax - m.x)
 	if not lancing(m):
 		m.aim = aim_to
@@ -802,7 +824,7 @@ static func advance(state, m, inp, aim_to: float) -> void:
 		m.vy *= mv.get("slide", DASH.slide)
 		if mv.has("land"):
 			land(state, m, mv.land)
-		if booster(m).trail == "magnet":
+		if booster(m).trail == "magnet" and a.move != "lunge":
 			magnetize(state, m)
 		m.act = {"k": "dash", "ph": "lag", "t": DASH.endLag}
 	else:
@@ -812,15 +834,35 @@ static func advance(state, m, inp, aim_to: float) -> void:
 
 
 static func start(state, m, inp) -> void:
+	if e_skill(m) == "cleanse" and m.buf.hook and m.cd.hook == 0:
+		m.buf.hook = 0
+		m.cd.hook = CLEANSE.cd
+		m.buffs.cleanse = CLEANSE.time
+		m.buffs.jam = 0
+		m.buffs.slow = 0
+		m.buffs.root = 0
+		m.stagger = 0
+		m.pull = null
+		state.fx.append({"k": "cleanse", "id": m.id, "x": m.x, "y": m.y, "t": 14})
 	if m.stagger > 0 or m.overheat > 0 or m.pull != null or m.buffs.jam > 0:
 		return
 	var a = m.act
 	var windup: bool = a != null and a.ph == "wind"
 	var attack_rec: bool = a != null and a.ph == "rec" and (ARM_OF.has(a.k) or a.k == "hook")
-	if m.buf.dash and m.dashes > 0 and m.buffs.slow == 0 and (a == null or windup or attack_rec):
+	if m.buf.dash and m.dashes > 0 and m.buffs.slow == 0 and m.buffs.root == 0 and (a == null or windup or attack_rec):
 		dash(state, m, inp, a if windup else null)
 		return
+	var spec = E_SPEC.get(e_skill(m))
+	if spec != null and m.buf.hook and m.cd.hook == 0:
+		m.buf.hook = 0
+		m.cd.hook = spec.cd
+		cast_e(state, m, e_skill(m), spec)
 	if a != null:
+		return
+	if e_skill(m) == "lunge" and m.buf.hook and m.cd.hook == 0:
+		m.buf.hook = 0
+		m.cd.hook = LUNGE.cd
+		lunge(state, m)
 		return
 	if m.buf.ult and m.surge >= SURGE.max:
 		m.buf.ult = 0
@@ -839,7 +881,8 @@ static func start(state, m, inp) -> void:
 			guns.append(h)
 		else:
 			order.append(h)
-	order.append("hook")
+	if e_skill(m) == "hook":
+		order.append("hook")
 	order.append_array(guns)
 	for k in order:
 		var want: bool = m.buf[k] or (k != "hook" and weapon(m, k).get("auto", false) and m.held[k])
@@ -919,12 +962,13 @@ static func update_trails(state) -> void:
 			if tr.kind == "arc" and not tr.hit:
 				tr.hit = true
 				hit(state, atk, t, floor(T.dmg * power(atk, false)), "ARMS", T.impact, frm, tr.cast)
-				t.buffs.jam = max(t.buffs.jam, T.jam)
+				if not warded(t):
+					t.buffs.jam = max(t.buffs.jam, T.jam)
 				state.fx.append({"k": "zap", "kind": "tesla", "id": atk.id, "x1": (tr.x1 + tr.x2) / 2.0, "y1": (tr.y1 + tr.y2) / 2.0, "x2": t.x, "y2": t.y, "t": 10})
 			elif tr.kind == "flame" and int(tr.t) % T.every == 0:
 				hit(state, atk, t, floor(T.dmg * power(atk, false)), "LEGS", 0, frm, tr.cast)
 				add_heat(t, T.heat)
-			elif tr.kind == "frost":
+			elif tr.kind == "frost" and not warded(t):
 				t.buffs.slow = max(t.buffs.slow, 2)
 		tr.t -= 1
 		if tr.t > 0:
@@ -953,7 +997,7 @@ static func land(state, m, L) -> void:
 		if airborne(t) or hypot(t.x - m.x, t.y - m.y) > L.r + MECH_R:
 			continue
 		hit(state, m, t, floor(L.dmg * power(m, true)), "LEGS", L.get("impact", 0), atan2(m.y - t.y, m.x - t.x), next_cast(state))
-		if not L.has("stun"):
+		if not L.has("stun") or warded(t):
 			continue
 		interrupt(t)
 		t.stagger = max(t.stagger, L.stun)
@@ -972,7 +1016,7 @@ static func fire(state, m, hand: String, follow: bool) -> void:
 	var cast := next_cast(state)
 	var jam = JAM.dmg if jammed(m, ARM_OF[hand]) else 1
 	var hot := hot_of(m)
-	var dmg = floor(p.dmg * (core(m).get("hotDmg", HEAT.hotDmg) if hot else 1) * jam * power(m, false))
+	var dmg = floor(p.dmg * (core(m).get("hotDmg", HEAT.hotDmg) if hot else 1) * jam * power(m, false) * (FOCUS.dmg if m.buffs.focus > 0 else 1))
 	var impact = g.impact + (1 if hot else 0)
 	var fx := cos(m.aim)
 	var fy := sin(m.aim)
@@ -996,9 +1040,10 @@ static func fire(state, m, hand: String, follow: bool) -> void:
 		cone_attack(state, m, dir, g, dmg, impact, cast)
 	else:
 		var spec = g
-		if core(m).has("boltSpeed"):
+		var speed_k: float = core(m).get("boltSpeed", 1) * (FOCUS.speed if m.buffs.focus > 0 else 1)
+		if speed_k != 1:
 			spec = g.duplicate()
-			spec.speed = g.speed * core(m).boltSpeed
+			spec.speed = g.speed * speed_k
 		for i in n:
 			var off: float = (i - (n - 1) / 2.0) * spread + ((rng(state) - 0.5) * 2 * g.jitter if g.jitter else 0.0)
 			spawn_shot(state, m, cast, mx, my, dir + off, spec, dmg, impact, g.shot, {"homing": g.get("homing", 0), "bounces": g.get("bounces", 0)})
@@ -1084,8 +1129,9 @@ static func fire_ult(state, m, a) -> void:
 			state.fx.append({"k": "emp", "id": m.id, "x": m.x, "y": m.y, "r": h.radius, "t": 24})
 			for t in near_foes(state, m, m.x, m.y, h.radius + MECH_R):
 				hit(state, m, t, floor(h.dmg * power(m, false)), "ARMS", 0, atan2(m.y - t.y, m.x - t.x), cast)
-				interrupt(t)
-				t.buffs.jam = h.jam
+				if not warded(t):
+					interrupt(t)
+					t.buffs.jam = h.jam
 		"orbital":
 			var p := ult_target(state, m, h.range)
 			state.lobs.append({"kind": "strike", "owner": m.id, "sx": m.x, "sy": m.y, "x": p.x, "y": p.y, "t": h.delay, "T": h.delay, "r": h.radius, "dmg": floor(h.dmg * power(m, false)), "impact": h.impact, "cast": cast})
@@ -1236,7 +1282,7 @@ static func move_shot(state, s) -> bool:
 	s.y += s.vy * DT
 	s.left -= hypot(s.vx, s.vy) * DT
 	for w in state.walls:
-		if cross_t(x0, y0, s.x, s.y, w) != null:
+		if wall_blocks(state, s.owner, w) and cross_t(x0, y0, s.x, s.y, w) != null:
 			state.fx.append({"k": "ping", "x": s.x, "y": s.y, "a": atan2(s.vy, s.vx), "t": 8})
 			return false
 	var best = null
@@ -1254,7 +1300,7 @@ static func move_shot(state, s) -> bool:
 			break
 	var pillar = null
 	for p in PILLARS:
-		if seg_dist(x0, y0, s.x, s.y, p.x, p.y) < p.r + s.r:
+		if state.mechs[s.owner].buffs.xray == 0 and seg_dist(x0, y0, s.x, s.y, p.x, p.y) < p.r + s.r:
 			pillar = p
 			break
 	if wall != null or pillar != null:
@@ -1303,7 +1349,7 @@ static func shot_hits(state, s, t) -> bool:
 			hit(state, atk, t, through, "ARMS", s.impact, frm, s.cast)
 		return false
 	hit(state, atk, t, s.dmg, "ARMS", s.impact, frm, s.cast)
-	if s.kind == "hook" and not t.ko:
+	if s.kind == "hook" and not t.ko and not warded(t):
 		interrupt(t)
 		t.pull = {"by": atk.id, "t": HOOK.pull}
 		t.stagger = max(t.stagger, HOOK.pull + HOOK.stun)
@@ -1336,12 +1382,14 @@ static func line_attack(state, m, sx: float, sy: float, angle: float, length: fl
 	var dx := cos(angle)
 	var dy := sin(angle)
 	var ln := length
-	if not guard.get("through", false):
+	if not guard.get("through", false) and m.buffs.xray == 0:
 		for p in PILLARS:
 			var d = ray_circle(sx, sy, dx, dy, p)
 			if d != null and d < ln:
 				ln = d
 		for w in state.walls:
+			if not wall_blocks(state, m.id, w):
+				continue
 			var k = cross_t(sx, sy, sx + dx * ln, sy + dy * ln, w)
 			if k != null:
 				ln *= k
@@ -1374,9 +1422,9 @@ static func cone_attack(state, m, dir: float, g, dmg, impact, cast) -> void:
 	for t in foes(state, m.id):
 		var dx: float = t.x - m.x
 		var dy: float = t.y - m.y
-		if airborne(t) or hypot(dx, dy) > g.range + MECH_R or not in_arc(dir, g.arc, dx, dy) or not clear_line(m.x, m.y, t.x, t.y):
+		if airborne(t) or hypot(dx, dy) > g.range + MECH_R or not in_arc(dir, g.arc, dx, dy) or (m.buffs.xray == 0 and not clear_line(m.x, m.y, t.x, t.y)):
 			continue
-		if state.walls.any(func(w): return cross_t(m.x, m.y, t.x, t.y, w) != null):
+		if state.walls.any(func(w): return wall_blocks(state, m.id, w) and cross_t(m.x, m.y, t.x, t.y, w) != null):
 			continue
 		if t.buffs.mirror > 0 and in_arc(t.aim, ULTS.mirror.arc, -dx, -dy):
 			continue
@@ -1421,7 +1469,7 @@ static func ray_circle(sx: float, sy: float, dx: float, dy: float, p):
 static func hit(state, atk, t, raw, tag: String, impact, frm: float, cast) -> void:
 	var rel := angle_diff(frm, t.aim)
 	var dmg = jround(raw * (HIT.rear if absf(rel) >= HIT.rearArc else 1))
-	dmg = soak(state, t, dmg)
+	dmg = soak(state, t, braced(t, dmg))
 	if dmg <= 0:
 		return
 	var front := absf(rel) <= HIT.split or absf(rel) >= PI - HIT.split
@@ -1433,12 +1481,7 @@ static func hit(state, atk, t, raw, tag: String, impact, frm: float, cast) -> vo
 	hurt(state, t, "head" if tag == "HEAD" else ("legs" if tag == "LEGS" else side), dmg)
 	var c = core(atk)
 	if c.has("leech"):
-		var keys = atk.armor.keys()
-		var worst = keys[0]
-		for p in keys:
-			if atk.armor[p] / float(atk.max[p]) < atk.armor[worst] / float(atk.max[worst]):
-				worst = p
-		atk.armor[worst] = minf(atk.max[worst], maxf(0, atk.armor[worst]) + dmg * c.leech)
+		heal_weakest(atk, dmg * c.leech)
 	var gain := surge_k(atk)
 	if atk.lastHitCast != cast:
 		atk.lastHitCast = cast
@@ -1452,6 +1495,83 @@ static func hit(state, atk, t, raw, tag: String, impact, frm: float, cast) -> vo
 	state.fx.append({"k": "hit", "id": t.id, "x": t.x, "y": t.y, "n": dmg, "head": tag == "HEAD", "from": frm, "t": 10})
 
 
+static func heal_weakest(m, n) -> void:
+	var worst = null
+	for p in m.armor:
+		if worst == null or m.armor[p] / float(m.max[p]) < m.armor[worst] / float(m.max[worst]):
+			worst = p
+	m.armor[worst] = minf(m.max[worst], maxf(0, m.armor[worst]) + n)
+
+
+static func pulse_tick(state, m) -> void:
+	if m.buffs.pulse <= 0 or m.ko:
+		return
+	heal_weakest(m, PULSE.amount / float(PULSE.time))
+	if m.buffs.pulse % 30 == 0:
+		state.fx.append({"k": "heal", "id": m.id, "x": m.x, "y": m.y, "n": PULSE.amount / 6.0, "t": 40})
+
+
+static func cast_e(state, m, skill: String, spec) -> void:
+	var at := {"x": m.x, "y": m.y}
+	match skill:
+		"frost":
+			at = ult_target(state, m, spec.range)
+			state.fields.append({"kind": "stasis", "owner": m.id, "x": at.x, "y": at.y, "r": spec.r, "t": spec.time, "T": spec.time})
+		"arcwall":
+			at = ult_target(state, m, spec.range)
+			var fx := cos(m.aim)
+			var fy := sin(m.aim)
+			state.walls.append({"owner": m.id, "zap": true, "zapped": [], "x1": at.x - (fy * spec.len) / 2.0, "y1": at.y + (fx * spec.len) / 2.0, "x2": at.x + (fy * spec.len) / 2.0, "y2": at.y - (fx * spec.len) / 2.0, "t": spec.time, "T": spec.time})
+		"trap":
+			at = clamp_arena(m.x + cos(m.aim) * spec.dist, m.y + sin(m.aim) * spec.dist, 1 + state.shrink)
+			state.mines.append({"owner": m.id, "x": at.x, "y": at.y, "arm": spec.arm, "life": spec.life, "dmg": floor(spec.dmg * power(m, false)), "cast": next_cast(state), "root": spec.root})
+		_:
+			m.buffs[skill] = spec.time
+	state.fx.append({"k": skill, "id": m.id, "x": at.x, "y": at.y, "t": 14})
+
+
+static func lunge(state, m) -> void:
+	var dx: float = m.tx - m.x
+	var dy: float = m.ty - m.y
+	var ln := hypot(dx, dy)
+	if ln == 0:
+		dx = cos(m.aim)
+		dy = sin(m.aim)
+		ln = 1.0
+	var ux := dx / ln
+	var uy := dy / ln
+	var end := clamp_arena(m.x + ux * LUNGE.dist, m.y + uy * LUNGE.dist, MECH_R + state.shrink)
+	m.act = {"k": "dash", "ph": "go", "t": LUNGE.ticks, "T": LUNGE.ticks, "move": "lunge", "dx": ux, "dy": uy, "speed": (LUNGE.dist / float(LUNGE.ticks)) * TICKS, "lx": end.x, "ly": end.y, "hit": false, "trail": null}
+	state.fx.append({"k": "dash", "id": m.id, "x": m.x, "y": m.y, "t": 6})
+
+
+static func wall_blocks(state, owner: int, w) -> bool:
+	return state.mechs[owner].buffs.xray == 0 and not (w.get("zap", false) and w.owner == owner)
+
+
+static func zap_walls(state) -> void:
+	for w in state.walls:
+		if not w.get("zap", false):
+			continue
+		for t in foes(state, w.owner):
+			if t.id in w.zapped or airborne(t) or seg_dist(w.x1, w.y1, w.x2, w.y2, t.x, t.y) >= MECH_R + 0.2:
+				continue
+			w.zapped.append(t.id)
+			if warded(t):
+				continue
+			env_hit(state, t, ARCWALL.dmg, "legs", 0, atan2((w.y1 + w.y2) / 2.0 - t.y, (w.x1 + w.x2) / 2.0 - t.x))
+			t.buffs.slow = max(t.buffs.slow, ARCWALL.slow)
+			state.fx.append({"k": "zap", "kind": "tesla", "id": w.owner, "x1": w.x1, "y1": w.y1, "x2": t.x, "y2": t.y, "t": 10})
+
+
+static func warded(t) -> bool:
+	return t.buffs.cleanse > 0
+
+
+static func braced(t, dmg):
+	return jround(dmg * BRACE.cut) if t.buffs.brace > 0 else dmg
+
+
 static func soak(state, t, dmg):
 	if not (t.buffs.bubble > 0 and t.buffs.bubbleHp > 0):
 		return dmg
@@ -1462,7 +1582,7 @@ static func soak(state, t, dmg):
 
 
 static func env_hit(state, t, raw, part: String, impact, frm: float) -> void:
-	var dmg = soak(state, t, raw)
+	var dmg = soak(state, t, braced(t, raw))
 	if dmg <= 0:
 		return
 	hurt(state, t, ("larm" if angle_diff(frm, t.aim) < 0 else "rarm") if part == "arms" else part, dmg)
@@ -1474,6 +1594,7 @@ static func env_hit(state, t, raw, part: String, impact, frm: float) -> void:
 
 
 static func hurt(state, t, part: String, n) -> void:
+	t.buffs.pulse = 0
 	if part != "head" and t.armor[part] <= 0:
 		part = "head"
 	var was = t.armor[part]
@@ -1535,8 +1656,8 @@ static func move(state, m, inp) -> void:
 			mx /= ln
 			my /= ln
 		var legs = feet(m)
-		var top: float = legs.top * speed_of(m.loadout) * (MOVE.jammed if jammed(m, "legs") else 1) * core(m).get("speed", 1) * (ULTS.berserk.speed if m.buffs.berserk > 0 else 1) * (MOVE.slow if m.buffs.slow > 0 else 1) * (ITEMS.speed.speed if m.buffs.speed > 0 else 1)
-		if m.stagger > 0 or lancing(m) or (a != null and a.k == "dash"):
+		var top: float = legs.top * speed_of(m.loadout) * (MOVE.jammed if jammed(m, "legs") else 1) * core(m).get("speed", 1) * (ULTS.berserk.speed if m.buffs.berserk > 0 else 1) * (MOVE.slow if m.buffs.slow > 0 else 1) * (ITEMS.speed.speed if m.buffs.speed > 0 else 1) * (BRACE.move if m.buffs.brace > 0 else 1) * (FOCUS.move if m.buffs.focus > 0 else 1)
+		if m.stagger > 0 or m.buffs.root > 0 or lancing(m) or (a != null and a.k == "dash"):
 			top = 0
 		elif shield_up(m):
 			top *= MOVE.shield
@@ -1588,7 +1709,9 @@ static func update_mines(state) -> void:
 			continue
 		state.fx.append({"k": "boom", "x": mi.x, "y": mi.y, "r": 1.4, "big": false, "t": 22})
 		for t in caught:
-			hit(state, state.mechs[mi.owner], t, mi.dmg, "LEGS", h.impact, atan2(mi.y - t.y, mi.x - t.x), mi.cast)
+			hit(state, state.mechs[mi.owner], t, mi.dmg, "LEGS", 0 if mi.has("root") else h.impact, atan2(mi.y - t.y, mi.x - t.x), mi.cast)
+			if mi.has("root") and not warded(t):
+				t.buffs.root = max(t.buffs.root, mi.root)
 	state.mines = keep
 
 
@@ -1600,7 +1723,8 @@ static func update_fields(state) -> void:
 			if airborne(t) or d > f.r:
 				continue
 			if f.kind != "well":
-				t.buffs.slow = max(t.buffs.slow, 2)
+				if not warded(t):
+					t.buffs.slow = max(t.buffs.slow, 2)
 			elif d > 0.3:
 				t.x += ((f.x - t.x) / d) * ULTS.well.pull * DT
 				t.y += ((f.y - t.y) / d) * ULTS.well.pull * DT

@@ -492,7 +492,7 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		n.position = Vector3((w.x1 + w.x2) / 2.0, 1.1, (w.y1 + w.y2) / 2.0)
 		n.rotation = Vector3(0, -d.angle(), 0)
 		n.scale = Vector3(d.length(), 1, 1)
-		n.material_override = Mech.glow(Mech.TEAM_LIGHT[team_of(state, w.owner)], 2.0, 0.55)
+		n.material_override = Mech.glow(Color8(255, 240, 120) if w.get("zap", false) else Mech.TEAM_LIGHT[team_of(state, w.owner)], 2.0, 0.55)
 		settle(n)
 	var keep := []
 	for n in active:
@@ -900,7 +900,7 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			Fx.emp(self, f, inside)
 		"blink":
 			Fx.blink(self, f)
-		"heal", "pickup":
+		"heal", "pickup", "pulse":
 			Fx.heal(self, f)
 			if f.k == "heal":
 				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), Color8(120, 255, 170), 60)
@@ -908,6 +908,14 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			Fx.hooked(self, f, Mech.TEAM[team_of(state, f.by)])
 		"soak":
 			Fx.soak(self, f)
+		"brace":
+			Fx.brace(self, f)
+		"cleanse":
+			Fx.cleanse(self, f)
+		"focus":
+			Fx.focused(self, f)
+		"xray", "frost", "arcwall", "trap":
+			Fx.cast(self, f)
 		"magnet":
 			Fx.magnet(self, f)
 		"crush":

@@ -404,6 +404,18 @@ func sync(m: Dictionary, tick: int, dt: float) -> void:
 		body_mat.emission = Color(1, 0.15, 0.1) * 0.6
 	elif m.buffs.overdrive > 0:
 		body_mat.emission = Color(0.7, 0.4, 1.0) * 0.5
+	elif m.buffs.brace > 0:
+		body_mat.emission = Color(1.0, 0.72, 0.25) * 0.5
+	elif m.buffs.cleanse > 0:
+		body_mat.emission = Color(0.85, 0.95, 1.0) * 0.5
+	elif m.buffs.focus > 0:
+		body_mat.emission = Color(0.3, 1.0, 0.8) * 0.5
+	elif m.buffs.xray > 0:
+		body_mat.emission = Color(0.7, 0.9, 1.0) * 0.6
+	elif m.buffs.pulse > 0:
+		body_mat.emission = Color(0.3, 1.0, 0.5) * 0.4
+	elif m.buffs.root > 0:
+		body_mat.emission = Color(1.0, 0.55, 0.2) * 0.5
 	else:
 		body_mat.emission = Color(flash, flash, flash)
 	if m.ko != dead:
