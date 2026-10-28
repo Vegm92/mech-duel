@@ -33,7 +33,7 @@ const YARD := {"rust": 0.5, "warm": 0.15, "dirt": 0.95, "tint": 0.45, "polish": 
 	"wake": 2.0, "ring": 1.6, "segs": 16, "lid": 1.17, "lift": 0.3, "lights": [[30.0, -1.0, 0.0, 1.0], [-1.0, 30.0, 1.0, 0.0], [52.0, -1.0, 0.0, 1.0], [-1.0, 54.0, 1.0, 0.0], [60.0, 80.0, 0.0, -1.0], [80.0, 60.0, -1.0, 0.0]],
 	"raid": 6,
 	"wall_top": 1.3, "crate_h": 1.24, "light": 3.0, "light_range": 16.0, "light_energy": 8.0,
-	"debris": 22, "sheet": Vector3(2.0, 0.05, 1.4), "pallet": Vector3(1.2, 0.14, 1.0), "elite": [67.0, 67.0], "crane": 85.0, "crane_y": 4.0,
+	"debris": 22, "sheet": Vector3(2.0, 0.05, 1.4), "pallet": Vector3(1.2, 0.14, 1.0), "crane": 85.0, "crane_y": 4.0,
 	"scorch": 8, "scorch_r": Vector2(1.0, 2.0), "grime": 1.2}
 const STEAM := {"amount": 40, "life": 3.0, "size": 2.4, "y": 0.4, "alpha": 0.45}
 const DOCK := {"lamps": [-1.2, -0.6, 0.0, 0.6, 1.2], "lamp": Vector2(0.9, 4.45), "on": 1.4, "off": 0.04, "beam": Vector2(1.4, 4.0)}
@@ -224,12 +224,6 @@ func build_walls() -> void:
 			lane_posts.append(Transform3D(Basis(), d * SiegeState.BLOCK + p * s * (W + SiegeState.LANE_WALL / 2.0)))
 		var holes := SiegeState.CHOKES.map(func(c): return [c - SiegeState.CHOKE_R, c + SiegeState.CHOKE_R])
 		holes += SiegeState.VENTS.map(func(v): return [v - WALL.vent, v + WALL.vent])
-		for door in (load("res://src/siege_state.gd") as Script).get_script_constant_map().get("DOORS", []).slice(i, i + 1):
-			holes.append(door)
-			for s in [-1.0, 1.0]:
-				for r in door:
-					lane_posts.append(Transform3D(Basis(), d * r + p * s * W))
-					posts.append(Transform3D(Basis(), d * r + p * s * (W + SiegeState.LANE_WALL)))
 		holes.sort_custom(func(x, y): return x[0] < y[0])
 		for s in [-1.0, 1.0]:
 			for seg in cuts(SiegeState.BLOCK, HALF, holes):
@@ -417,12 +411,12 @@ func build_yards() -> void:
 				if kind == "hulk":
 					junk(self, "light", "Chest_heavy", JUNK_MATS, Transform3D(Basis.from_euler(Vector3(PI / 2.0, rng.randf() * TAU, 0.3)).scaled(Vector3.ONE * 1.8), c + Vector3(0, h.r * 0.55, 0)))
 			keep.append([Vector2(c.x, c.z), h.r + 0.6])
-		var e := yard(q, YARD.elite[0], YARD.elite[1])
+		var e := yard(q, SiegeState.WRECK.a, SiegeState.WRECK.b)
 		var elite := junk(self, "light", "Chest_heavy", JUNK_MATS, Transform3D(Basis.from_euler(Vector3(0.5, rng.randf() * TAU, 0.9)).scaled(Vector3.ONE * 3.5), e + Vector3(0, -0.6, 0)))
 		junk(self, "cores", "reactor", JUNK_MATS.merged({"core": Look.neon(Look.PAL.orange, 1.4)}, true), Transform3D(elite.basis, elite.transform * Vector3(0.28, 1.22, 0)))
 		junk(self, "heads", "demon", JUNK_MATS, Transform3D(Basis.from_euler(Vector3(1.4, 0.7, 0)).scaled(Vector3.ONE * 3.0), e + Vector3(3.2, 0.6, -2.0)))
 		junk(self, "arms", "anvil_upper_R", JUNK_MATS, Transform3D(Basis.from_euler(Vector3(0, 2.2, 1.5)).scaled(Vector3.ONE * 3.0), e + Vector3(-3.0, 0.5, 2.4)))
-		keep.append([Vector2(e.x, e.z), 4.0])
+		keep.append([Vector2(e.x, e.z), SiegeState.WRECK.r + 0.5])
 		for s in SiegeState.STEAM:
 			var c := yard(q, s.a, s.b)
 			grates.append(Transform3D(Basis(), c))
