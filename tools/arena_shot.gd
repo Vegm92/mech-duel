@@ -29,6 +29,7 @@ func _process(_dt: float) -> bool:
 	if hidden or st == null or st.is_empty() or st.tick < tick:
 		return false
 	main.frozen = true
+	main.view.pops.clear()
 	hide_fx(main.view)
 	for mech in main.view.mechs:
 		mech.aim_line.visible = false

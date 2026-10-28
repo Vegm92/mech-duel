@@ -4,6 +4,7 @@ const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
 const Garage = preload("res://src/garage.gd")
 const Sfx = preload("res://src/sfx.gd")
+const Look = preload("res://src/look.gd")
 
 const PANEL := Color(0.04, 0.11, 0.23, 0.82)
 const EDGE := Color(0.31, 0.59, 0.9, 0.5)
@@ -15,6 +16,8 @@ const WIRE := Color8(94, 240, 232)
 const ACCENT := Color8(255, 154, 60)
 const SEG_OFF := Color(0.24, 0.35, 0.5)
 const PANEL_SIZE := Vector2(220, 142)
+const SLOT := Vector2(84, 58)
+const NUMBER := {"size": 42, "scale": {"hit": 1.0, "head": 1.2, "block": 0.75, "heal": 1.0}, "outline": 8, "glow": 24, "rise": 1.6, "life": 45, "fade": 18, "pop": 1.4, "snap": 7}
 const FIG := Transform2D(0, Vector2(0.6, 0.6), 0, Vector2(23, 5))
 const PARTS := ["head", "larm", "rarm", "legs"]
 const SHAPES := {
@@ -39,21 +42,22 @@ signal quit
 signal ui(kind: String)
 
 var state: Dictionary
+var view: Node3D
 var paused := false
 var pad := false
 var canvas: Control
 var font: Font
 var bold: FontVariation
+var heavy: FontVariation
 var top := {}
 var last := {}
 var menu: VBoxContainer
 
 
 func _ready() -> void:
-	font = ThemeDB.fallback_font
-	bold = FontVariation.new()
-	bold.base_font = font
-	bold.variation_embolden = 0.9
+	font = Look.font(Look.FONT.text)
+	bold = Look.font(Look.FONT.bold)
+	heavy = Look.font(Look.FONT.heavy, true, Look.FONT.impact)
 	canvas = Control.new()
 	canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
 	canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -109,18 +113,36 @@ func _process(_dt: float) -> void:
 	menu.visible = paused and visible
 	if menu.visible and not was:
 		menu.get_child(0).grab_focus()
+	while view != null and view.pops.size() and view.tick - view.pops[0].at >= NUMBER.life:
+		view.pops.pop_front()
 	canvas.queue_redraw()
 
 
 func plate(r: Rect2, fill := PANEL) -> void:
-	canvas.draw_rect(r, fill)
-	canvas.draw_rect(r, EDGE, false, 1.5)
+	canvas.draw_style_box(Garage.plate(fill, EDGE, 1, 8), r)
 
 
-func label(s: String, pos: Vector2, size: int, c: Color, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, outline := 0) -> void:
+func tag(r: Rect2, side: int) -> void:
+	var s := Garage.plate(Color(Mech.TEAM[side].darkened(0.6), 0.9), Mech.TEAM_LIGHT[side], 2, 0)
+	var k := int(r.size.y / 2.0)
+	if side == 0:
+		s.corner_radius_top_left = k
+		s.corner_radius_bottom_left = k
+	else:
+		s.corner_radius_top_right = k
+		s.corner_radius_bottom_right = k
+	canvas.draw_style_box(s, r)
+
+
+func label(s: String, pos: Vector2, size: int, c: Color, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, outline := 0, f: Font = null, glow := 0) -> void:
+	if f == null:
+		f = font
+	if glow > 0:
+		canvas.draw_string_outline(f, pos, s, align, width, size, glow, Color(c, 0.15 * c.a))
+		canvas.draw_string_outline(f, pos, s, align, width, size, roundi(glow * 0.6), Color(c, 0.35 * c.a))
 	if outline > 0:
-		canvas.draw_string_outline(font, pos, s, align, width, size, outline, Color(0, 0, 0, 0.85))
-	canvas.draw_string(font, pos, s, align, width, size, c)
+		canvas.draw_string_outline(f, pos, s, align, width, size, outline, Color(0, 0, 0, c.a))
+	canvas.draw_string(f, pos, s, align, width, size, c)
 
 
 func hp_color(f: float) -> Color:
@@ -135,6 +157,8 @@ func paint() -> void:
 	if state.is_empty():
 		return
 	var size := canvas.size
+	if view != null:
+		pops()
 	mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
 	mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot"))
 	clock(size)
@@ -143,8 +167,23 @@ func paint() -> void:
 	callouts(size)
 	if paused:
 		canvas.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.5))
-		label(tr("mPaused"), Vector2(0, size.y * 0.3), 72, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10)
-		label(tr("pauseHint"), Vector2(0, size.y * 0.3 + 46), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6)
+		label(tr("mPaused"), Vector2(0, size.y * 0.3), 72, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, bold)
+		label(tr("pauseHint"), Vector2(0, size.y * 0.3 + 46), 20, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6)
+
+
+func pops() -> void:
+	var cam := get_viewport().get_camera_3d()
+	for n in view.pops:
+		var t := float(view.tick - n.at)
+		var p: Vector3 = n.p + Vector3(0, NUMBER.rise * (1.0 - pow(1.0 - t / NUMBER.life, 2.0)), 0)
+		if cam.is_position_behind(p):
+			continue
+		var s := lerpf(NUMBER.pop, 1.0, minf(t / NUMBER.snap, 1.0))
+		var px := roundi(NUMBER.size * NUMBER.scale[n.k])
+		var c := Color(Look.POP[n.k], clampf((NUMBER.life - t) / (NUMBER.life - NUMBER.fade), 0.0, 1.0))
+		canvas.draw_set_transform(cam.unproject_position(p), 0.0, Vector2(s, s))
+		label(n.text, Vector2(-200, px * 0.35), px, c, HORIZONTAL_ALIGNMENT_CENTER, 400.0, NUMBER.outline, heavy, NUMBER.glow)
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 func segs(at: Vector2, w: float, n: int, frac: float, c: Color) -> void:
@@ -164,7 +203,7 @@ func mech_panel(m: Dictionary, at: Vector2, title: String) -> void:
 	var t: int = m.team
 	canvas.draw_style_box(Garage.plate(PANEL, EDGE, 1, 10), Rect2(at, PANEL_SIZE))
 	canvas.draw_rect(Rect2(at + Vector2(0, 10), Vector2(3, PANEL_SIZE.y - 20)), Mech.TEAM[t])
-	label(title, at + Vector2(12, 18), 14, Mech.TEAM_LIGHT[t])
+	label(title, at + Vector2(12, 19), 15, Mech.TEAM_LIGHT[t], HORIZONTAL_ALIGNMENT_LEFT, -1.0, 0, bold)
 	canvas.draw_line(at + Vector2(12, 25), at + Vector2(208, 25), Color(ACCENT, 0.4), 1.0)
 	canvas.draw_line(at + Vector2(75, 25), at + Vector2(145, 25), ACCENT, 2.0)
 	var fig := Transform2D(0, at) * FIG
@@ -196,18 +235,20 @@ func mech_panel(m: Dictionary, at: Vector2, title: String) -> void:
 
 
 func clock(size: Vector2) -> void:
-	var cx := size.x / 2.0
-	var r := Rect2(cx - 72, 12, 144, 70)
+	var r := Rect2(size.x / 2.0 - 60, 12, 120, 52)
+	var n: int = Sim.MATCH.wins
+	var tw := 30.0 + n * 16.0
+	for side in 2:
+		var box := Rect2(r.position.x - tw - 4 if side == 0 else r.end.x + 4, r.position.y + 6, tw, 40)
+		tag(box, side)
+		for i in n:
+			var x: float = box.end.x - 22 - i * 16 if side == 0 else box.position.x + 10 + i * 16
+			var y := box.position.y + 12
+			canvas.draw_colored_polygon(PackedVector2Array([Vector2(x + 5, y), Vector2(x + 12, y), Vector2(x + 7, y + 16), Vector2(x, y + 16)]), Mech.TEAM_LIGHT[side] if state.score[side] > i else Color(Mech.TEAM_LIGHT[side], 0.22))
 	plate(r)
 	var secs := int(ceil(maxf(0.0, state.clock) / Sim.TICKS))
-	label(str(secs), Vector2(cx - 72, 56), 40, TEXT if secs > 10 else HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, 144)
-	label(tr("round").format({"n": state.round}), Vector2(cx - 72, 76), 13, DIM, HORIZONTAL_ALIGNMENT_CENTER, 144)
-	for side in 2:
-		for i in Sim.MATCH.wins:
-			var x: float = cx - 92 - i * 22 if side == 0 else cx + 92 + i * 22
-			var on: bool = state.score[side] > i
-			canvas.draw_circle(Vector2(x, 47), 8, Mech.TEAM[side] if on else Color(0, 0, 0, 0.5))
-			canvas.draw_arc(Vector2(x, 47), 8, 0, TAU, 20, Mech.TEAM_LIGHT[side], 1.5)
+	label("%d:%02d" % [floori(secs / 60.0), secs % 60], Vector2(r.position.x, r.position.y + 33), 30, TEXT if secs > 10 else HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
+	label(tr("round").format({"n": state.round}), Vector2(r.position.x, r.position.y + 47), 11, DIM, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 
 
 func cd_frac(key: String, cur: float) -> float:
@@ -219,13 +260,13 @@ func cd_frac(key: String, cur: float) -> float:
 
 func slots(size: Vector2) -> void:
 	var m = state.mechs[0]
-	var w := 104.0
-	var gap := 8.0
+	var w := SLOT.x
+	var gap := 6.0
 	var x0 := size.x / 2.0 - (SLOTS.size() * w + (SLOTS.size() - 1) * gap) / 2.0
-	var y := size.y - w - 18
+	var y := size.y - SLOT.y - 14
 	for i in SLOTS.size():
 		var key: String = SLOTS[i][0]
-		var r := Rect2(x0 + i * (w + gap), y, w, w)
+		var r := Rect2(x0 + i * (w + gap), y, w, SLOT.y)
 		plate(r)
 		var frac := 0.0
 		var lit := false
@@ -251,20 +292,22 @@ func slots(size: Vector2) -> void:
 				lit = m.surge >= Sim.SURGE.max
 				accent = SURGE_C
 				name = tr("slotUlt")
-		canvas.draw_rect(Rect2(r.position + Vector2(0, w - 5), Vector2(w, 5)), accent)
+		canvas.draw_rect(Rect2(r.position + Vector2(8, SLOT.y - 4), Vector2(w - 16, 3)), accent)
 		if frac > 0:
-			canvas.draw_rect(Rect2(r.position, Vector2(w, w * frac)), Color(0, 0, 0, 0.6))
+			var shade := Garage.plate(Color(0, 0, 0, 0.6), Color.TRANSPARENT, 0, 8)
+			shade.corner_radius_bottom_right = 0
+			canvas.draw_style_box(shade, Rect2(r.position, Vector2(w, SLOT.y * frac)))
 		if lit:
-			canvas.draw_rect(r.grow(2), SURGE_C if key == "ult" else Color8(140, 200, 255), false, 3.0)
-		label(tr(SLOTS[i][2 if pad else 1]), r.position + Vector2(0, 30), 15, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 4)
-		var fs := 12
-		while fs > 9 and font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 8:
+			canvas.draw_style_box(Garage.plate(Color.TRANSPARENT, SURGE_C if key == "ult" else Color8(140, 200, 255), 2, 9), r.grow(2))
+		label(tr(SLOTS[i][2 if pad else 1]), r.position + Vector2(0, 22), 15, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 4, bold)
+		var fs := 11
+		while fs > 8 and font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 6:
 			fs -= 1
-		label(name, r.position + Vector2(0, 54), fs, DIM, HORIZONTAL_ALIGNMENT_CENTER, w, 3)
+		label(name, r.position + Vector2(0, 39), fs, DIM, HORIZONTAL_ALIGNMENT_CENTER, w, 3)
 		if key == "dash":
 			var n := Sim.charges(m.loadout)
 			for k in n:
-				canvas.draw_circle(r.position + Vector2(w / 2.0 + (k - (n - 1) / 2.0) * 12, 64), 3.5, TEXT if k < m.dashes else Color(1, 1, 1, 0.2))
+				canvas.draw_circle(r.position + Vector2(w / 2.0 + (k - (n - 1) / 2.0) * 10, 47), 3.0, TEXT if k < m.dashes else Color(1, 1, 1, 0.2))
 
 
 func has_fx(kind: String):
@@ -279,40 +322,45 @@ func callouts(size: Vector2) -> void:
 	var w := size.x
 	match state.phase:
 		"countdown":
-			label(tr("round").format({"n": state.round}), Vector2(0, cy - 40), 34, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 8)
+			label(tr("round").format({"n": state.round}), Vector2(0, cy - 40), 34, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 8, bold, 16)
 			if state.timer > 0:
-				label(str(int(ceil(state.timer / float(Sim.TICKS)))), Vector2(0, cy + 70), 120, Color8(255, 214, 120), HORIZONTAL_ALIGNMENT_CENTER, w, 14)
+				label(str(int(ceil(state.timer / float(Sim.TICKS)))), Vector2(0, cy + 70), 120, Color8(255, 214, 120), HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
 		"ko":
 			var title: String = tr("timeUp") if state.finalKo < 0 else tr("ko")
-			label(title, Vector2(0, cy + 30), 120, Color8(255, 214, 120), HORIZONTAL_ALIGNMENT_CENTER, w, 14)
+			label(title, Vector2(0, cy + 30), 120, Color8(255, 214, 120), HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
 			var sub: String = tr("draw") if state.winner < 0 else (tr("youWin") if state.winner == state.mechs[0].team else tr("rivalWins"))
 			var c: Color = TEXT if state.winner < 0 else Mech.TEAM_LIGHT[state.winner]
-			label(sub, Vector2(0, cy + 80), 30, c, HORIZONTAL_ALIGNMENT_CENTER, w, 8)
+			label(sub, Vector2(0, cy + 80), 30, c, HORIZONTAL_ALIGNMENT_CENTER, w, 8, bold, 14)
 		"over":
 			var won: bool = state.score[0] > state.score[1]
-			label(tr("victory") if won else tr("defeat"), Vector2(0, cy + 30), 120, Mech.TEAM_LIGHT[0] if won else Mech.TEAM_LIGHT[1], HORIZONTAL_ALIGNMENT_CENTER, w, 14)
-			label(tr("rematch"), Vector2(0, cy + 84), 26, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 8)
+			label(tr("victory") if won else tr("defeat"), Vector2(0, cy + 30), 120, Mech.TEAM_LIGHT[0] if won else Mech.TEAM_LIGHT[1], HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
+			label(tr("rematch"), Vector2(0, cy + 84), 26, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 8, bold)
 		"fight":
 			var go = has_fx("fight")
 			if go != null:
-				label(tr("go"), Vector2(0, cy + 40), 110, Color(1, 0.84, 0.47, go.t / 50.0), HORIZONTAL_ALIGNMENT_CENTER, w, 14)
-	var y := 112.0
+				label(tr("go"), Vector2(0, cy + 40), 110, Color(1, 0.84, 0.47, go.t / 50.0), HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
+	var at := [Vector2(16, 16 + PANEL_SIZE.y + 28), Vector2(size.x - 16, 16 + PANEL_SIZE.y + 28), Vector2(size.x / 2.0, 72)]
 	for f in state.fx:
 		var text := ""
 		var c := TEXT
+		var side := 2
 		match f.k:
 			"closing":
 				text = tr("closing")
-				c = HEAT_C
+				c = Look.POP.head
 			"ventsOn":
 				text = tr("ventsOn")
-				c = Color8(120, 190, 255)
+				c = Look.POP.block
 			"healUp":
 				text = tr("healReady")
-				c = Color8(90, 255, 150)
+				c = Look.POP.heal
 			"break":
 				text = tr("broke_" + f.part)
 				c = Mech.TEAM_LIGHT[state.mechs[f.id].team]
+				side = mini(f.id, 1)
 		if text != "":
-			label(text, Vector2(0, y), 24, c, HORIZONTAL_ALIGNMENT_CENTER, w, 6)
-			y += 30
+			var tw := bold.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 24.0
+			var x: float = at[side].x - [0.0, tw, tw / 2.0][side]
+			canvas.draw_style_box(Garage.plate(PANEL, c, 1, 6), Rect2(x, at[side].y, tw, 26))
+			label(text, Vector2(x, at[side].y + 19), 16, c, HORIZONTAL_ALIGNMENT_CENTER, tw, 4, bold)
+			at[side].y += 30

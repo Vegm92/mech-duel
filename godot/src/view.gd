@@ -171,6 +171,7 @@ void fragment() {
 
 const ITEM := {"size": 1.5, "lift": 1.6, "tilt": -0.9, "ring": [0.6, 0.8], "shock": 2.4}
 const MARK := {"ring": [0.9, 1.12], "y": 0.1, "dim": 0.3, "alpha": 0.9, "arrow": Vector3(0.75, 0.6, 0.05), "lift": 2.9}
+const BLOCK_GAP := 20
 const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "aisle": 0.6}
 
 var crowd: MultiMeshInstance3D
@@ -199,7 +200,7 @@ var shocks := []
 var emp_mats := [ShaderMaterial.new(), ShaderMaterial.new()]
 var cones := {}
 var muzzle_off := {}
-var labels := []
+var pops := []
 var kick := Vector3.ZERO
 var reticle: MeshInstance3D
 var danger: MeshInstance3D
@@ -302,7 +303,7 @@ func build() -> void:
 	danger.mesh = danger_mesh
 	danger.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(danger)
-	reticle = Mech.add(self, Mech.ring(0.35, 0.45), Mech.glow(Mech.TEAM_LIGHT[0], 3.0, 0.8))
+	reticle = Mech.add(self, Mech.ring(0.35, 0.45), Mech.flat(Color(Mech.TEAM_LIGHT[0], 0.8)))
 
 
 func build_floor(corners: Array) -> void:
@@ -457,6 +458,7 @@ func react(state: Dictionary, fresh: Array) -> void:
 
 
 func reset(state: Dictionary) -> void:
+	pops.clear()
 	for m in mechs:
 		for g in m.get_meta("ghosts", []):
 			g.queue_free()
@@ -638,6 +640,9 @@ func guard(m: Dictionary, node) -> void:
 	var got: float = m.act.get("absorbed", 0.0) if Sim.shield_up(m) else 0.0
 	if got > was:
 		Fx.ripple(self, node.shield.global_transform, got - was, false)
+		if tick - node.get_meta("blocked", -BLOCK_GAP) >= BLOCK_GAP:
+			node.set_meta("blocked", tick)
+			number(Vector3(m.x, 2.3, m.y), tr("blocked"), "block")
 	elif was > 0.0 and m.act == null and m.cd.shield > Sim.SHIELD.cd:
 		Fx.ripple(self, node.shield.global_transform, was, true)
 	node.set_meta("soaked", got)
@@ -939,26 +944,8 @@ func item_color(kind: String) -> Color:
 
 
 
-func number(p: Vector3, text: String, c: Color, size: int) -> void:
-	var l := Fx.take(labels) as Label3D
-	if l == null:
-		l = Label3D.new()
-		l.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-		l.outline_size = 14
-		l.outline_modulate = Color(0, 0, 0, 0.85)
-		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		l.no_depth_test = true
-		l.pixel_size = 0.012
-	Fx.place(l, self)
-	l.text = text
-	l.font_size = size
-	l.modulate = c
-	l.transparency = 0.0
-	l.position = p
-	var tw := l.create_tween().set_parallel()
-	tw.tween_property(l, "position:y", p.y + 1.6, 0.75).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	tw.tween_property(l, "transparency", 1.0, 0.45).set_delay(0.3)
-	tw.chain().tween_callback(Fx.park.bind(l, labels))
+func number(p: Vector3, text: String, kind: String) -> void:
+	pops.append({"p": p, "text": text, "k": kind, "at": tick})
 
 
 
@@ -971,7 +958,7 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 		"hit":
 			var head: bool = f.get("head", false)
 			Fx.hit(self, f, shooter_color(state, f))
-			number(p + Vector3(0, 1.3, 0), str(int(f.n)), Color8(255, 230, 120) if head else Color.WHITE, 80 if head else 60)
+			number(p + Vector3(0, 1.3, 0), str(int(f.n)), "head" if head else "hit")
 			var push := Fx.kick_of(f)
 			if push == Vector3.ZERO:
 				shake = maxf(shake, Fx.shake_of(f))
@@ -1038,7 +1025,7 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 		"heal", "pickup":
 			Fx.heal(self, f)
 			if f.k == "heal":
-				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), Color8(120, 255, 170), 60)
+				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), "heal")
 		"hooked":
 			Fx.hooked(self, f, Mech.TEAM[team_of(state, f.by)])
 		"soak":

@@ -45,6 +45,10 @@ const FLOOR := {
 
 const NEON := {"cyan": 0.75, "orange": 0.75}
 
+const FONT := {"family": "saira", "impact": "exo2", "width": 87.5, "text": 600, "bold": 800, "heavy": 900}
+
+const POP := {"hit": Color("#ffffff"), "head": Color("#ff8c28"), "block": Color("#2ba7ff"), "heal": Color("#2dd66b")}
+
 const HAZARD := {"paint": PAL.hazard, "black": PAL.void, "metal": FAMILY.hazard[0], "rough": FAMILY.hazard[1], "width": 0.16, "wear": 0.3, "warn_color": PAL.warn}
 
 const NOISE := """
@@ -126,6 +130,27 @@ static var ARENA := {
 	"seat_n": paint("painted", PAL.steel),
 	"led_a": Mech.glow(Mech.TEAM[0], 1.5), "led_b": Mech.glow(Mech.TEAM[1], 1.5), "led_n": Mech.glow(PAL.cyan, 1.2),
 }
+
+
+static var _fonts := {}
+
+
+## A UI typeface at `weight` (100–900): `FONT.family` for the HUD and the garage, `FONT.impact` for in-game feedback. Digits are tabular.
+static func font(weight: int, italic := false, family: String = FONT.family) -> FontVariation:
+	var key := "%s%d%s" % [family, weight, "i" if italic else ""]
+	if not _fonts.has(key):
+		var f := FontVariation.new()
+		f.base_font = load("res://assets/fonts/%s/%s%s.ttf" % [family, family, "-italic" if italic else ""])
+		f.variation_opentype = {"weight": weight, "width": FONT.width}
+		f.opentype_features = {"tnum": 1}
+		_fonts[key] = f
+	return _fonts[key]
+
+
+## Makes `font(FONT.text)` the default font of every Control and Label3D.
+static func ui() -> void:
+	ThemeDB.fallback_font = font(FONT.text)
+	ThemeDB.get_default_theme().default_font = font(FONT.text)
 
 
 static func paint(family: String, c: Color) -> StandardMaterial3D:
