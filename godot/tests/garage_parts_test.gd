@@ -4,6 +4,9 @@ const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
 const PartView = preload("res://src/part_view.gd")
 const Garage = preload("res://src/garage.gd")
+const Progress = preload("res://src/progress.gd")
+
+const FLOW := "user://progress_flow_test.cfg"
 
 var failed := 0
 
@@ -14,6 +17,9 @@ func _initialize() -> void:
 	await run("match_flow_comes_back_to_the_garage", test_match_flow_comes_back_to_the_garage)
 	await run("pad_moves_aims_acts_and_pauses", test_pad_moves_aims_acts_and_pauses)
 	await run("garage_works_with_a_pad", test_garage_works_with_a_pad)
+	await run("garage_locks_parts_you_have_not_won", test_garage_locks_parts_you_have_not_won)
+	await run("winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part", test_winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part)
+	await run("losing_a_match_gives_no_claim", test_losing_a_match_gives_no_claim)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -252,6 +258,80 @@ func test_garage_works_with_a_pad() -> int:
 	await mouse(Vector2(5, 5))
 	bad += ensure(not g.pad and focused_card(g) == null, "moving the mouse hides the pad cursor")
 	g.queue_free()
+	await process_frame
+	return int(bad > 0)
+
+
+func test_garage_locks_parts_you_have_not_won() -> int:
+	var p := Progress.new()
+	p.unlock_all = false
+	p.path = ""
+	var g = Garage.new()
+	g.progress = p
+	root.add_child(g)
+	g.open(Sim.DEFAULT_LOADOUT)
+	await process_frame
+	var demon := {"slot": "head", "key": "demon"}
+	await mouse(card_at(g, demon), true)
+	var bad := ensure(g.loadout.head == "rookie" and g.locked(demon), "clicking a locked part does not equip it")
+	g.select_tab(7)
+	await process_frame
+	await mouse(card_at(g, {"set": "brawler"}), true)
+	bad += ensure(g.loadout == Sim.DEFAULT_LOADOUT, "clicking a set with locked parts does nothing")
+	p.claim("head", "demon")
+	g.select_tab(0)
+	await process_frame
+	await mouse(card_at(g, demon), true)
+	bad += ensure(g.loadout.head == "demon" and not g.locked(demon), "once claimed the part equips")
+	g.queue_free()
+	return int(bad > 0)
+
+
+func wipe_flow() -> void:
+	if FileAccess.file_exists(FLOW):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(FLOW))
+
+
+func over(score: Array) -> Node:
+	wipe_flow()
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	m.progress_arg = FLOW
+	root.add_child(m)
+	await process_frame
+	m.state.score = score
+	m.state.phase = "over"
+	return m
+
+
+func test_winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part() -> int:
+	var m = await over([3, 0])
+	var bad := ensure(m.rival_key == "duelist" and not m.progress.unlock_all, "a real run starts against the first rival with parts locked")
+	m.broke = ["legs"]
+	m.foe_ko = true
+	await physics_frame
+	await physics_frame
+	bad += ensure(m.claim.visible and m.claim.items.size() == 4, "a win with a K.O. and a broken leg offers four parts")
+	var at: int = m.claim.items.find_custom(func(d): return d.key == "horn")
+	m.claim.pick(at)
+	bad += ensure(m.progress.has("head", "horn") and m.progress.beaten.get("duelist", 0) == 1, "the pick is owned and the rival is beaten")
+	bad += ensure(m.garage.visible and m.loadout.head == "horn" and not m.claim.visible, "the garage opens with the stolen part bolted on")
+	bad += ensure(FileAccess.file_exists(FLOW) and m.progress.next_rival() == "sniper", "progress is saved and the next rival is the next on the ladder")
+	m.queue_free()
+	wipe_flow()
+	await process_frame
+	return int(bad > 0)
+
+
+func test_losing_a_match_gives_no_claim() -> int:
+	var m = await over([1, 3])
+	m.broke = ["legs"]
+	m.foe_ko = true
+	await physics_frame
+	await physics_frame
+	var bad := ensure(not m.claim.visible and m.progress.beaten.is_empty(), "a loss offers nothing and beats no rival")
+	m.queue_free()
+	wipe_flow()
 	await process_frame
 	return int(bad > 0)
 

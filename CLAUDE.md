@@ -20,6 +20,7 @@ $G --path godot                                                # play
 $G --headless --path godot -s res://tests/sim_rules_test.gd     # sim tests (golden hash, determinism, FFA)
 $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow; gamepad in match + garage
 $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon has a sound, banks load, synth + music bake, volume settings
+$G --headless --path godot -s res://tests/progress_test.gd     # Salvage: owned parts, claims, levels, rival ladder, save file
 ```
 
 Same in PowerShell (Victor runs commands there; works from any folder):
@@ -32,6 +33,8 @@ $P = "C:\Users\victo\Proyectos\Claude-Code-Game-Studios\games\mech-duel\godot"
 & $G --headless --path $P -s res://tests/sim_rules_test.gd      # sim tests
 & $G --headless --path $P -s res://tests/garage_parts_test.gd   # garage, parts, flow, gamepad tests
 & $G --headless --path $P -s res://tests/sound_test.gd          # sound tests
+& $G --headless --path $P -s res://tests/progress_test.gd       # Salvage tests
+& $G --path $P -- --unlock-all                                  # dev mode: every part open, nothing saved
 ```
 
 ## Godot (`godot/`)
@@ -124,6 +127,21 @@ $P = "C:\Users\victo\Proyectos\Claude-Code-Game-Studios\games\mech-duel\godot"
   move, A presses (main adds A to `ui_accept`; Godot 4.7 leaves it out). Garage with a pad: see
   Garage. Not built yet: a second local player, rumble. Evidence:
   `godot-gamepad-hud-2026-10-26.png`, `godot-gamepad-pause-2026-10-26.png`.
+- **Salvage** (Victor 2026-10-28, issue #12): parts are locked until you win them. `progress.gd`
+  holds what you own (`user://progress.cfg`, separate from `loadout.cfg`): a level 1..3 per part
+  (`Sim.MAX_LEVEL`; both hands share one weapon level), plus how often each rival was beaten.
+  Lock logic lives in `garage.gd` and `main.gd`, never in the sim rules. Real play fights the
+  `LADDER` (12 `SETS`, least-beaten first); rematches wear Mk 2/3 parts and a `BOSS` swap (the 6
+  cores and the fist no set carries, so every part can be won; `progress_test` checks it). While
+  you fight, `main.track` collects the rival's broken parts (`break` fx) and K.O.s; on a match
+  win `settle` opens `claim.gd` with `Progress.pool`: broken leg = legs, broken arm = arms + that
+  hand's weapon, any K.O. = head, core, booster; a part you own is offered as a level up, a maxed
+  one is not. The pick is auto-equipped, the win is saved, the garage opens. Levels: a loadout may
+  carry `lv` (slot → level), `Sim.tuned` applies one small twist per slot (`TWIST`) once at
+  `make_mech` into `m.rows`; level 1 adds no key, so the golden hash holds. Dev flags: `--unlock-all`
+  (everything open, nothing saved, also on for `--autopilot`, `--shot` and `--sandbox`),
+  `--progress=<abs path>` (use that file and lock parts even in look checks), `--claim` (open the
+  claim screen for the first rival; look check). Not built: stakes, coop, PvP, the nemesis.
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
