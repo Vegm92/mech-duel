@@ -16,12 +16,56 @@ const AIR := [[-74.0, -74.0], [74.0, -74.0], [74.0, 74.0], [-74.0, 74.0]]
 const CORE := {"r": 2.5, "hp": 4000, "repair": 5.0, "rings": [0.75, 0.5, 0.25, 0.0]}
 const GATE := {"hp": 1500, "depth": 1.5}
 const KINDS := ["scout", "swarm", "spider", "flyer", "turret", "walker", "tripod", "quadheavy", "heavy", "jugg"]
-const ACTS := ["walk", "idle", "attack", "windup", "roll", "plant", "hit", "die"]
+const ACTS := ["walk", "idle", "attack", "windup", "roll", "plant", "hit", "die", "dormant", "wake"]
+const LANE_WALL := 1.5
+const YARD_IN := 27.5
+const ARCH := 6.0
+const QUADS := [{"name": "NE", "sx": 1, "sy": -1}, {"name": "SE", "sx": 1, "sy": 1}, {"name": "SW", "sx": -1, "sy": 1}, {"name": "NW", "sx": -1, "sy": -1}]
+const CAMP_TIERS := {"small": {"scrap": 10}, "medium": {"scrap": 25}, "big": {"scrap": 45}, "elite": {"scrap": 120, "token": 1}}
+const CAMPS := [
+	{"tier": "small", "a": 36.0, "b": 16.0, "bots": [["swarm", 1]]},
+	{"tier": "small", "a": 16.0, "b": 36.0, "bots": [["scout", 2]]},
+	{"tier": "medium", "a": 48.0, "b": 28.0, "bots": [["turret", 1], ["spider", 2]]},
+	{"tier": "big", "a": 28.0, "b": 50.0, "bots": [["walker", 1]]},
+	{"tier": "elite", "a": 58.0, "b": 58.0, "bots": [["heavy", 1]]},
+]
+const CRATES := [[26.0, 26.0], [56.0, 14.0], [14.0, 56.0]]
+const CRATE := {"secs": 3, "scrap": 15, "reach": 2.0}
+const HEAPS := [{"a": 36.0, "b": 34.0, "r": 2.5}, {"a": 62.0, "b": 40.0, "r": 2.0}, {"a": 40.0, "b": 64.0, "r": 2.0}]
+const STEAM := [{"a": 44.0, "b": 44.0, "r": 4.0}]
+const YARD_HAZARDS := [{"kind": "crush", "a": 50.0, "b": 50.0, "half": 1.5}, {"kind": "emp", "a": 68.0, "b": 26.0, "r": 3.0}, {"kind": "emp", "a": 26.0, "b": 68.0, "r": 3.0}]
+const GARRISON_DOCK := {"x": 9.0, "y": 9.0, "face": -2.356}
+const GARRISON_TIERS := 5
 
 
 static func at(lane: int, d: float, side := 0.0) -> Dictionary:
 	var l: Dictionary = LANES[lane]
 	return {"x": l.dx * d - l.dy * side, "y": l.dy * d + l.dx * side}
+
+
+static func yard_at(q: int, a: float, b: float) -> Dictionary:
+	var Q: Dictionary = QUADS[q]
+	return {"x": Q.sx * a, "y": Q.sy * b}
+
+
+static func yards() -> Array:
+	var out := []
+	for q in QUADS.size():
+		var camps := []
+		for i in CAMPS.size():
+			var c: Dictionary = CAMPS[i]
+			var p := yard_at(q, c.a, c.b)
+			camps.append({"id": q * CAMPS.size() + i, "tier": c.tier, "x": p.x, "y": p.y, "alive": true, "respawn_in": 0})
+		var crates := []
+		for c in CRATES:
+			var p := yard_at(q, c[0], c[1])
+			crates.append({"x": p.x, "y": p.y, "progress": 0.0, "taken": false})
+		out.append({"quadrant": QUADS[q].name, "camps": camps, "crates": crates})
+	return out
+
+
+static func garrison() -> Dictionary:
+	return {"tier": 0, "hp": 0.0, "max": 0.0, "x": GARRISON_DOCK.x, "y": GARRISON_DOCK.y, "face": GARRISON_DOCK.face, "act": "idle", "respawn_in": 0}
 
 
 static func ring_hp(rings_left: int) -> Array:
@@ -56,9 +100,10 @@ static func stub(rings_left := 4) -> Dictionary:
 		gates.append(gate(lane))
 	for i in KINDS.size():
 		var p := at(0, 24.0 + i * 5.0)
-		enemies.append({"id": i, "kind": KINDS[i], "lane": 0, "x": p.x, "y": p.y, "face": PI / 2.0, "hp": 100, "max": 100, "act": "walk", "t": 0, "mk": 1})
+		enemies.append({"id": i, "kind": KINDS[i], "lane": 0, "x": p.x, "y": p.y, "face": PI / 2.0, "hp": 100, "max": 100, "act": "walk", "t": 0, "mk": 1, "neutral": false})
 	return {
 		"tick": 0, "wave": {"n": 1, "next_in": 480, "lanes_open": [true, false, false, false]},
 		"core": {"x": 0.0, "y": 0.0, "hp": hp, "max": CORE.hp, "rings": rings, "repairing": false},
-		"gates": gates, "pads": pads(), "enemies": enemies,
+		"gates": gates, "pads": pads(), "enemies": enemies, "yards": yards(),
+		"fund": 0, "wallets": [0], "tokens": [0], "garrison": garrison(),
 	}

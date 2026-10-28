@@ -61,12 +61,39 @@ siege = {
   core:  {x, y, hp, max, rings: [hp x4], repairing: bool},
   gates: [{lane, x, y, hp, max}],
   pads:  [{lane, x, y, module: ""}],
-  enemies: [{id, kind, lane, x, y, face, hp, max, act, t, mk}],
+  enemies: [{id, kind, lane, x, y, face, hp, max, act, t, mk, neutral}],
+  yards: [{quadrant, camps: [{id, tier, x, y, alive, respawn_in}], crates: [{x, y, progress, taken}]}],
+  fund, wallets: [int per player], tokens: [int per player],
+  garrison: {tier, hp, max, x, y, face, act, respawn_in},
 }
 ```
 
 `kind` is one of the 10 bot ids below, `face` is radians in the sim plane, `act` is one of
-`walk, idle, attack, windup, roll, plant, hit, die`, `t` ticks in that act, `mk` is 1..3.
+`walk, idle, attack, windup, roll, plant, hit, die, dormant, wake`, `t` ticks in that act, `mk` is
+1..3. `neutral` = a scrapyard camp bot (sleeps as `dormant`, plays `wake` once when a player comes
+close). All shapes come from `godot/src/siege_state.gd` (`stub()` builds a full fake state).
+
+### Scrapyard (2026-10-28, Victor)
+
+The 4 corner blocks become walkable junkyards (`QUADS` NE, SE, SW, NW; `yard_at(q, a, b)` maps
+quadrant-local (a, b) to world). What changes in the arena, numbers in `siege_state.gd`:
+- The block between two lanes is no longer solid. Each lane keeps a wall on both sides, `LANE_WALL`
+  1.5 m thick (from 5 to 6.5 off the lane axis), from the ring road out to the border. Side vents
+  stay in those walls (spiders pop out into the lane and into the yard).
+- The ring road keeps its outer wall from `BLOCK` 26 to `YARD_IN` 27.5, with the 4 lane gaps plus
+  one yard arch per quadrant on the 45° diagonal, `ARCH` 6 m wide (no door).
+- In each yard: 5 camps (`CAMPS`, tier small/medium/big/elite; the bots are existing kinds),
+  3 salvage crates (`CRATES`), scrap heaps you can hide behind (`HEAPS`, solid circles), a steam
+  patch that hides a mech (`STEAM`), a crush plate and 2 EMP zones (`YARD_HAZARDS`, they hit bots
+  too). The crowd and floodlight towers need a new home (yard edges along the border, or on the
+  lane walls); the air entries (`AIR`) are now inside the yards.
+
+### Garrison (2026-10-28, Victor)
+
+One allied defender for the core, built from player parts (`Mech.build` + `SETS`, no new model).
+`GARRISON_DOCK` is its dock in the plaza (x 9, y 9, facing the core). `garrison.tier` 0 = not
+built, 1..5 = bought tiers; `act` uses the mech acts (`idle`, `walk`, `attack`, `die`, `dock`).
+
 
 ## Bot models (`bots.glb`)
 
