@@ -97,6 +97,7 @@ var replay_at := -1
 var siege := false
 var team_n := 2
 var wave_arg := 1
+var spawn_arg := ""
 var allies := []
 var siege_view: Node3D
 var siege_bots: Node3D
@@ -163,6 +164,8 @@ func _ready() -> void:
 			auto_ult = true
 		elif a == "--siege":
 			siege = true
+		elif a.begins_with("--spawn="):
+			spawn_arg = a.substr(8)
 		elif a.begins_with("--wave="):
 			wave_arg = maxi(1, a.substr(7).to_int())
 		elif a.begins_with("--team="):
@@ -324,6 +327,8 @@ func new_match() -> void:
 			allies.append(Bot.create_brain(s + 10 + i))
 		state = Siege.create(los, s)
 		state.siege.wave.n = wave_arg - 1
+		if Siege.BOTS.has(spawn_arg):
+			Siege.look(state, spawn_arg)
 	else:
 		state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
 	if sandbox:

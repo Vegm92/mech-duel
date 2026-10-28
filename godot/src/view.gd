@@ -468,6 +468,8 @@ func reset(state: Dictionary) -> void:
 		m.queue_free()
 	mechs.clear()
 	for m in state.mechs:
+		if m.has("bot"):
+			continue
 		var node := Mech.new()
 		add_child(node)
 		node.build(m.loadout, m.team)

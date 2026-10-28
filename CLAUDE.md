@@ -195,8 +195,13 @@ $P = "$R\godot"
   special case; dead bodies are recycled (`gone`). Arena shape lives in `state.geo` (walls,
   pillars, solids, `boxes` with optional `only` team + `hp` = gates, `rings` with lane `gaps`);
   `Sim.geo(state)` falls back to the duel arena, so the duel and its `GOLDEN` are untouched.
-  Fortress has no auto-aim: only traps and player-aimed guns. Not built yet: the other 9 bots,
-  waves as data, scrap shop, full HUD, progression, VS (design only).
+  Fortress has no auto-aim: only traps and player-aimed guns. Bots are data rows in `Siege.BOTS`
+  (attack `bolt`, `bite`, `lunge`, `claw` + `gun`, `rail`, `salvo`, `cannon`, `ram`; flags `fly`,
+  `vent`, `plant`, `hunt`, `keep`, `first`, `dodge`, `pack`; size `r` read by `Sim.rad`), Mk 1..3
+  scale through `MK`. Bot shells reuse `state.lobs` (`shell_land` hurts gates and the core), the
+  Tripod's rail is `Sim.line_attack` after a `sight` fx. `--spawn=<bot id>` puts 3 of one bot on
+  the north lane and stops the waves (look check). Not built yet: waves as data, scrap shop,
+  full HUD, progression, VS (design only).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

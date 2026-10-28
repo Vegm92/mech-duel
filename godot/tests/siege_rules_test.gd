@@ -5,7 +5,7 @@ const Bot = preload("res://src/bot.gd")
 const Siege = preload("res://src/siege.gd")
 const S = preload("res://src/siege_state.gd")
 
-const GOLDEN := 907870899
+const GOLDEN := 568555732
 
 var failed := 0
 var filter := ""
@@ -27,6 +27,18 @@ func _init() -> void:
 	run("rings_break_in_order_and_core_at_zero_loses", test_rings_break_in_order_and_core_at_zero_loses)
 	run("repair_stops_at_the_lowest_intact_ring", test_repair_stops_at_the_lowest_intact_ring)
 	run("downed_player_respawns_at_the_core", test_downed_player_respawns_at_the_core)
+	run("swarm_cube_blows_up_on_the_gate_without_scrap", test_swarm_cube_blows_up_on_the_gate_without_scrap)
+	run("spider_pops_out_of_a_vent_and_bites_a_player", test_spider_pops_out_of_a_vent_and_bites_a_player)
+	run("flyer_crosses_the_wall_to_the_core", test_flyer_crosses_the_wall_to_the_core)
+	run("blades_miss_a_flyer_but_bolts_hit_it", test_blades_miss_a_flyer_but_bolts_hit_it)
+	run("turret_plants_shoots_the_gate_and_takes_half_damage", test_turret_plants_shoots_the_gate_and_takes_half_damage)
+	run("walker_claws_the_gate", test_walker_claws_the_gate)
+	run("tripod_aims_two_seconds_before_the_rail_hits", test_tripod_aims_two_seconds_before_the_rail_hits)
+	run("stepping_aside_after_the_tripod_locks_dodges_the_rail", test_stepping_aside_after_the_tripod_locks_dodges_the_rail)
+	run("quad_heavy_shells_the_core_from_beyond_the_wall", test_quad_heavy_shells_the_core_from_beyond_the_wall)
+	run("heavy_cannon_splashes_a_player_and_shrugs_off_a_rivet", test_heavy_cannon_splashes_a_player_and_shrugs_off_a_rivet)
+	run("juggernaut_is_untouchable_rolling_and_open_after_a_ram", test_juggernaut_is_untouchable_rolling_and_open_after_a_ram)
+	run("juggernaut_hits_a_gate_three_times_as_hard", test_juggernaut_hits_a_gate_three_times_as_hard)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -94,7 +106,7 @@ func test_same_seed_gives_same_siege_hash() -> int:
 
 func test_first_wave_warns_eight_seconds_ahead_then_spawns_scouts() -> int:
 	var s := Siege.create([{}], 3)
-	park(s, -20, 20)
+	park(s, -15, 15)
 	var warned := -1
 	for i in Siege.RUN.first - 1:
 		Siege.step(s, [idle()])
@@ -109,7 +121,7 @@ func test_first_wave_warns_eight_seconds_ahead_then_spawns_scouts() -> int:
 func test_scout_walks_its_lane_and_shoots_the_gate() -> int:
 	var s := Siege.create([{}], 3)
 	s.siege.wave.next_in = 99999
-	park(s, -20, 20)
+	park(s, -15, 15)
 	var e := Siege.spawn(s, "scout", 0, 0.0)
 	var y0: float = e.y
 	steps(s, 60 * 12)
@@ -138,7 +150,7 @@ func test_gate_stops_bots_but_lets_players_through() -> int:
 func test_scouts_break_the_gate_and_reach_the_core() -> int:
 	var s := Siege.create([{}], 3)
 	s.siege.wave.next_in = 99999
-	park(s, -20, 20)
+	park(s, -15, 15)
 	s.siege.gates[0].hp = 30.0
 	for i in 4:
 		Siege.spawn(s, "scout", 0, (i - 1.5) * 1.5)
@@ -202,10 +214,164 @@ func test_repair_stops_at_the_lowest_intact_ring() -> int:
 func test_downed_player_respawns_at_the_core() -> int:
 	var s := Siege.create([{}], 3)
 	s.siege.wave.next_in = 99999
-	park(s, -20, 20)
+	park(s, -15, 15)
 	s.mechs[0].armor.head = 0
 	steps(s, 2)
 	var down: bool = s.mechs[0].ko
 	steps(s, Siege.RUN.respawn + 2)
 	var m: Dictionary = s.mechs[0]
 	return ensure(down, "the player went down") or ensure(not m.ko and m.armor.head == m.max.head, "back up with full armor") or ensure(Sim.hypot(m.x, m.y) < 8, "at the core")
+
+
+func lab(lo := {}) -> Dictionary:
+	var s := Siege.create([lo], 3)
+	s.siege.wave.next_in = 999999
+	park(s, -15, 15)
+	return s
+
+
+func until(s: Dictionary, most: int, done: Callable) -> int:
+	for i in most:
+		Siege.step(s, [idle()])
+		if done.call():
+			return i + 1
+	return -1
+
+
+func test_swarm_cube_blows_up_on_the_gate_without_scrap() -> int:
+	var s := lab()
+	Siege.spawn(s, "swarm", 0, 0.0)
+	var cubes: int = s.siege.enemies.size()
+	var g: Dictionary = s.siege.gates[0]
+	var t := until(s, 60 * 20, func(): return g.hp < g.max)
+	return ensure(cubes == 3, "a swarm is 3 cubes") or ensure(t > 0, "a cube reached the gate") or ensure(g.max - g.hp >= Siege.BOTS.swarm.boom.dmg, "the gate lost %d" % (g.max - g.hp)) or ensure(s.siege.scrap == 0, "blowing up gives no scrap")
+
+
+func test_spider_pops_out_of_a_vent_and_bites_a_player() -> int:
+	var s := lab()
+	park(s, 0, -36)
+	var e := Siege.spawn(s, "spider", 0, 1.0)
+	var at := Vector2(e.x, e.y)
+	var me: Dictionary = s.mechs[0]
+	var t := until(s, 60 * 10, func(): return me.armor.legs < me.max.legs)
+	return ensure(absf(at.y + S.VENTS[0]) < 2.0 and absf(at.x) > 3.0, "spawned at the vent, at %s" % at) or ensure(t > 0, "it bit the player")
+
+
+func test_flyer_crosses_the_wall_to_the_core() -> int:
+	var s := lab()
+	var e := Siege.spawn(s, "flyer", 0, 0.0)
+	var c: Dictionary = s.siege.core
+	var t := until(s, 60 * 30, func(): return c.hp < c.max)
+	return ensure(Sim.hypot(e.x, e.y) < S.RING_IN, "inside the fortress at %.1f" % Sim.hypot(e.x, e.y)) or ensure(t > 0, "it shot the core")
+
+
+func test_blades_miss_a_flyer_but_bolts_hit_it() -> int:
+	var s := lab({"left": "rivet", "right": "saw"})
+	var e := Siege.spawn(s, "flyer", 0, 0.0)
+	var b: Dictionary = s.mechs[e.m]
+	var me: Dictionary = s.mechs[0]
+	b.x = me.x + 1.5
+	b.y = me.y
+	me.aim = 0.0
+	Sim.swing(s, me, "right", false)
+	var cut: float = b.armor.head
+	Sim.spawn_shot(s, me, 99, me.x + 0.5, me.y, 0.0, Sim.WEAPONS.rivet, 65, 1, "bolt")
+	Sim.move_shots(s)
+	return ensure(cut == b.max.head, "the saw missed") or ensure(b.armor.head < b.max.head, "the bolt hit")
+
+
+func test_turret_plants_shoots_the_gate_and_takes_half_damage() -> int:
+	var s := lab()
+	var e := Siege.spawn(s, "turret", 0, 0.0)
+	var g: Dictionary = s.siege.gates[0]
+	var t := until(s, 60 * 40, func(): return g.hp < g.max)
+	var b: Dictionary = s.mechs[e.m]
+	var was: float = b.armor.head
+	Sim.env_hit(s, b, 100, "head", 0, 0.0)
+	return ensure(t > 0, "it shot the gate") or ensure(e.rooted >= Siege.BOTS.turret.plant, "it planted first") or ensure(was - b.armor.head == 50, "planted, it took %d of 100" % (was - b.armor.head))
+
+
+func test_walker_claws_the_gate() -> int:
+	var s := lab()
+	var e := Siege.spawn(s, "walker", 0, 0.0)
+	var g: Dictionary = s.siege.gates[0]
+	var t := until(s, 60 * 40, func(): return g.hp <= g.max - Siege.BOTS.walker.dmg)
+	return ensure(t > 0, "the gate lost a claw's worth") or ensure(absf(e.y) < S.RING_OUT + 4.0, "in claw reach at %.1f" % e.y)
+
+
+func rail_test(step_aside_at: int) -> Dictionary:
+	var s := lab()
+	park(s, 0, -50)
+	Siege.spawn(s, "tripod", 0, 0.0)
+	var me: Dictionary = s.mechs[0]
+	var seen := -1
+	var hurt := -1
+	for i in 60 * 12:
+		Siege.step(s, [idle()])
+		me.x = 0.0 if seen < 0 or s.tick - seen < step_aside_at else 4.0
+		me.y = -50.0
+		for f in s.fx:
+			if f.k == "sight" and seen < 0:
+				seen = s.tick
+		if hurt < 0 and me.armor.larm + me.armor.rarm < me.max.larm + me.max.rarm:
+			hurt = s.tick
+	return {"seen": seen, "hurt": hurt}
+
+
+func test_tripod_aims_two_seconds_before_the_rail_hits() -> int:
+	var r := rail_test(99999)
+	return ensure(r.seen > 0 and r.hurt > 0, "it aimed and hit (%d, %d)" % [r.seen, r.hurt]) or ensure(r.hurt - r.seen >= Siege.BOTS.tripod.windup - 1, "warning lasted %d ticks" % (r.hurt - r.seen))
+
+
+func test_stepping_aside_after_the_tripod_locks_dodges_the_rail() -> int:
+	var lock: int = Siege.BOTS.tripod.windup - Siege.BOTS.tripod.lock
+	var r := rail_test(lock + 5)
+	return ensure(r.seen > 0, "it aimed") or ensure(r.hurt < 0 or r.hurt - r.seen > Siege.BOTS.tripod.windup + 5, "the first rail missed (hurt at +%d)" % (r.hurt - r.seen))
+
+
+func test_quad_heavy_shells_the_core_from_beyond_the_wall() -> int:
+	var s := lab()
+	var e := Siege.spawn(s, "quadheavy", 0, 0.0)
+	var c: Dictionary = s.siege.core
+	var seen := {"marked": false}
+	var t := until(s, 60 * 40, func():
+		for l in s.lobs:
+			if l.T == Siege.BOTS.quadheavy.delay:
+				seen.marked = true
+		return c.hp < c.max)
+	return ensure(t > 0, "shells hit the core") or ensure(seen.marked, "landing spots were marked") or ensure(absf(e.y) > S.RING_OUT + 3.0, "it stayed outside at %.1f" % e.y)
+
+
+func test_heavy_cannon_splashes_a_player_and_shrugs_off_a_rivet() -> int:
+	var s := lab()
+	park(s, 0, -45)
+	var e := Siege.spawn(s, "heavy", 0, 0.0)
+	var me: Dictionary = s.mechs[0]
+	var t := until(s, 60 * 30, func(): return me.armor.legs < me.max.legs)
+	var b: Dictionary = s.mechs[e.m]
+	Sim.hit(s, me, b, 65, "ARMS", Sim.WEAPONS.rivet.impact, 0.0, 77)
+	return ensure(t > 0, "the cannon hit the player") or ensure(me.max.legs - me.armor.legs >= Siege.BOTS.heavy.dmg, "splash did %d" % (me.max.legs - me.armor.legs)) or ensure(b.stagger == 0, "a rivet does not stagger it")
+
+
+func test_juggernaut_is_untouchable_rolling_and_open_after_a_ram() -> int:
+	var s := lab()
+	park(s, 0, -40)
+	var e := Siege.spawn(s, "jugg", 0, 0.0)
+	var b: Dictionary = s.mechs[e.m]
+	var me: Dictionary = s.mechs[0]
+	Siege.step(s, [idle()])
+	Sim.hit(s, me, b, 200, "ARMS", 1, 0.0, 70)
+	var rolling: float = b.armor.head
+	var whole := Sim.total_armor(me)
+	var t := until(s, 60 * 10, func(): return e.mode == "open")
+	steps(s, 30)
+	Sim.hit(s, me, b, 200, "ARMS", 1, 0.0, 71)
+	return ensure(rolling == b.max.head, "no damage while rolling") or ensure(t > 0, "it rammed and opened") or ensure(Sim.total_armor(me) < whole, "the player was hit") or ensure(absf(me.y + 40.0) > 2.0, "the player was pushed to %.1f" % me.y) or ensure(b.armor.head < b.max.head, "open, it takes damage")
+
+
+func test_juggernaut_hits_a_gate_three_times_as_hard() -> int:
+	var s := lab()
+	Siege.spawn(s, "jugg", 0, 0.0)
+	var g: Dictionary = s.siege.gates[0]
+	var t := until(s, 60 * 15, func(): return g.hp < g.max)
+	return ensure(t > 0, "it hit the gate") or ensure(g.max - g.hp == Siege.BOTS.jugg.dmg * Siege.BOTS.jugg.gateK, "gate lost %d" % (g.max - g.hp))
