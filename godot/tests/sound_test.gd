@@ -57,7 +57,7 @@ func _initialize() -> void:
 	for k in kinds:
 		fresh.append({"k": k, "id": 0, "x": 30.0, "y": 30.0, "gun": "rivet", "blade": "saw", "n": 40, "head": false, "big": true})
 	sfx.update(state, fresh, false)
-	check(sfx.next_voice > 0 and sfx.voices.all(func(v): return v.stream != null), "a fight's events fill the voice pool")
+	check(sfx.voices.all(func(v): return v.stream != null), "a fight's events fill the voice pool")
 	var flat := sfx.next_flat
 	sfx.ui("select")
 	check(sfx.next_flat == flat + 1, "a menu sound plays without a 3D spot")

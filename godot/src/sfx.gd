@@ -135,6 +135,7 @@ const RECIPES := {
 	"laserWarn": [{"bank": "whine", "vol": 0.12, "rate": 1.6, "dur": 0.9}],
 	"milestone": [{"bank": "launch", "vol": 0.3, "rate": 1.2, "dur": 0.5}, {"synth": {"wave": "sine", "f": 1047.0, "dur": 0.4}, "vol": 0.05, "at": 0.1}, {"synth": {"wave": "sine", "f": 1319.0, "dur": 0.5}, "vol": 0.05, "at": 0.25}],
 	"mutator": [{"bank": "whine", "vol": 0.2, "rate": 0.6, "dur": 1.2}, {"bank": "rumble", "vol": 0.4, "dur": 0.8}],
+	"recall": [{"bank": "field", "vol": 0.35, "rate": 1.4, "dur": 0.6}, {"synth": {"wave": "sine", "f": 523.0, "to": 1568.0, "dur": 0.5}, "vol": 0.05}],
 	"loot": [{"bank": "clank", "vol": 0.3, "rate": 1.4}, {"bank": "ting", "vol": 0.2, "rate": 1.2, "at": 0.05}, {"bank": "ting", "vol": 0.15, "rate": 1.6, "at": 0.12}],
 	"donate": [{"bank": "ting", "vol": 0.12, "rate": 1.8}],
 	"wake": [{"bank": "whine", "vol": 0.15, "rate": 0.7, "dur": 0.5}, {"bank": "thud", "vol": 0.3, "rate": 0.8}],

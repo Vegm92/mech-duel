@@ -38,8 +38,8 @@ const READOUT := {
 	"legs": [Vector2(85, 99), 50.0, Vector2(80, 120), HORIZONTAL_ALIGNMENT_CENTER],
 }
 const SHOP := ["gate", "rebuild", "ring", "wall", "mine", "laser", "post", "garrison"]
-const WALLET := ["repair", "upgrade", "reinforce", "revive"]
-const WALLET_KEYS := ["9", "0", "-", "="]
+const WALLET := ["kit", "coolant", "surge", "reinforce", "revive"]
+const TIER_ROWS := ["left", "right", "head", "arms", "legs", "booster", "core"]
 const SLOTS := [["left", "capLmb", "capLt"], ["right", "capRmb", "capRt"], ["shield", "capQ", "capRb"], ["hook", "capE", "capL3"], ["dash", "capSpace", "capLb"], ["ult", "capR", "capR3"]]
 
 signal resume
@@ -173,14 +173,13 @@ func paint() -> void:
 		replay_bars(size)
 	elif state.has("siege"):
 		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
+		siege_tiers(Vector2(16, 16 + PANEL_SIZE.y + 10))
 		siege_top(size)
 		siege_marks(size)
 		if not paused:
 			slots(size)
 			if not state.siege.wave.live and state.phase != "over":
 				siege_shop(size)
-			elif Sim.hypot(state.mechs[0].x, state.mechs[0].y) <= 14.0 and state.phase != "over":
-				siege_wallet(size, size.y - SLOT.y - 14 - 74)
 			siege_crate(size)
 		if state.phase != "over":
 			siege_calls(size)
@@ -318,42 +317,71 @@ func siege_top(size: Vector2) -> void:
 
 func siege_shop(size: Vector2) -> void:
 	var sg: Dictionary = state.siege
-	var w := 96.0
-	var gap := 6.0
-	var x0 := size.x / 2.0 - (SHOP.size() * w + (SHOP.size() - 1) * gap) / 2.0
-	var y := size.y - SLOT.y - 14 - 74
-	label(tr("siegeShop"), Vector2(x0, y - 8), 14, ACCENT, HORIZONTAL_ALIGNMENT_LEFT, -1, 4, bold)
+	var y := size.y - SLOT.y - 14 - 30
 	var left: int = int(ceil(maxf(0, sg.wave.next_in - 480) / float(Sim.TICKS)))
+	var line: String = tr("siegeShop")
 	if left > 0 and left < 600:
-		label(tr("siegeCall").format({"n": 2 * left}), Vector2(x0, y - 8), 13, DIM, HORIZONTAL_ALIGNMENT_RIGHT, SHOP.size() * (w + gap) - gap, 4)
-	label(tr("siegeUse"), Vector2(x0, y + 70), 12, DIM, HORIZONTAL_ALIGNMENT_LEFT, -1, 4)
-	for i in SHOP.size():
-		var k: String = SHOP[i]
-		var cost: int = Siege.next_cost(sg) if k == "garrison" else Siege.SHOP[k]
-		var name: String = tr("shop_garrison").format({"t": sg.garrison.tier + 1}) if k == "garrison" and cost >= 0 else tr("shop_" + k)
-		cell(Rect2(x0 + i * (w + gap), y, w, 52), str(i + 1), name if cost >= 0 else tr("shop_garrisonMax"), maxi(cost, 0), cost >= 0 and sg.fund >= cost, WIRE)
-	siege_wallet(size, y - 64)
+		line += "   ·   " + tr("siegeCall").format({"n": 2 * left})
+	label(line, Vector2(0, y - 22), 15, ACCENT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4, bold)
+	label(tr("siegeKeys") + "   ·   " + tr("siegeUse"), Vector2(0, y), 12, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4)
 
 
-func cell(r: Rect2, key: String, name: String, cost: int, can: bool, c: Color) -> void:
-	plate(r)
-	label(key, Vector2(r.position.x + 6, r.position.y + 16), 13, ACCENT if can else SEG_OFF, HORIZONTAL_ALIGNMENT_LEFT, -1, 0, bold)
-	label(name, Vector2(r.position.x, r.position.y + 30), 12, TEXT if can else SEG_OFF, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
-	label(str(cost), Vector2(r.position.x, r.position.y + 46), 12, c if can else SEG_OFF, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
-
-
-func siege_wallet(size: Vector2, y: float) -> void:
+func shop_menu(i: int) -> Array:
 	var sg: Dictionary = state.siege
-	var m: Dictionary = state.mechs[0]
-	var w := 96.0
-	var gap := 6.0
-	var x0 := size.x / 2.0 - (WALLET.size() * w + (WALLET.size() - 1) * gap) / 2.0
-	label(tr("siegeWalletShop").format({"n": sg.wallets[0]}), Vector2(x0, y - 8), 13, SURGE_C, HORIZONTAL_ALIGNMENT_LEFT, -1, 4, bold)
-	for i in WALLET.size():
-		var k: String = WALLET[i]
-		var cost: int = Siege.WALLET[k] * ((Siege.level_of(m, Siege.low_slot(m)) + 1) if k == "upgrade" and Siege.low_slot(m) != "" else 1)
-		var can: bool = sg.wallets[0] >= cost or (k == "reinforce" and sg.tokens[0] > 0)
-		cell(Rect2(x0 + i * (w + gap), y, w, 52), WALLET_KEYS[i], tr("shop_" + k), cost, can, SURGE_C)
+	var m: Dictionary = state.mechs[i]
+	var w: int = sg.wallets[i]
+	var tier := func(slot: String) -> Dictionary:
+		var c := Siege.price_of(sg, m, "tier:" + slot)
+		var t: int = sg.tiers[i][slot]
+		var note: String = tr("noteMax") if c < 0 else tr("noteTier").format({"a": t, "b": t + 1}) + " · " + tr("fx_" + ("hand" if slot in ["left", "right"] else slot))
+		return {"id": "tier:" + slot, "label_key": "tier_" + slot, "cost": c, "enabled": c >= 0 and w >= c, "sub": [], "note": note}
+	var wallet := func(id: String) -> Dictionary:
+		var c := Siege.price_of(sg, m, id)
+		return {"id": id, "label_key": "shop_" + id, "cost": c, "enabled": w >= c or (id == "reinforce" and sg.tokens[i] > 0), "sub": [], "note": ""}
+	var parts := []
+	for slot in Siege.S.PART_SLOTS:
+		var keys := []
+		for key in Sim.CATALOG[slot]:
+			var c := Siege.price_of(sg, m, "swap:%s:%s" % [slot, key])
+			if c >= 0:
+				keys.append({"id": "swap:%s:%s" % [slot, key], "label_key": "p_" + key, "cost": c, "enabled": w >= c, "sub": [], "note": tr("noteLevel").format({"n": Siege.owned_level(sg, i, slot, key)})})
+		if not keys.is_empty():
+			parts.append({"id": "parts:" + slot, "label_key": "tierShort_" + slot, "cost": -1, "enabled": true, "sub": keys.slice(0, 8), "note": ""})
+	var team := []
+	for k in ["gate", "rebuild", "ring", "wall", "mine", "laser", "post", "garrison"]:
+		var c: int = Siege.next_cost(sg) if k == "garrison" else Siege.SHOP[k]
+		team.append({"id": k, "label_key": "shop_" + k, "cost": c, "enabled": c >= 0 and not sg.wave.live and sg.fund >= c, "sub": [], "note": tr("noteFund").format({"n": sg.fund}) if k == "gate" else ""})
+	var group := func(id: String, key: String, sub: Array) -> Dictionary:
+		return {"id": id, "label_key": key, "cost": -1, "enabled": true, "sub": sub, "note": ""}
+	return [
+		group.call("weapons", "radialWeapons", [tier.call("left"), tier.call("right")]),
+		group.call("plating", "radialPlating", [tier.call("head"), tier.call("arms"), tier.call("legs")]),
+		group.call("engine", "radialEngine", [tier.call("legs"), tier.call("booster")]),
+		group.call("core", "radialCore", [tier.call("core")]),
+		group.call("heal", "radialHeal", [wallet.call("kit"), wallet.call("coolant"), wallet.call("surge")]),
+		group.call("parts", "radialParts", parts),
+		group.call("team", "radialTeam", team),
+		wallet.call("reinforce"),
+		wallet.call("revive"),
+	]
+
+
+func siege_tiers(at: Vector2) -> void:
+	var t: Dictionary = state.siege.tiers[0]
+	plate(Rect2(at, Vector2(PANEL_SIZE.x, 18 + TIER_ROWS.size() * 15)))
+	label(tr("siegeTiers"), at + Vector2(10, 14), 11, DIM)
+	for r in TIER_ROWS.size():
+		var y: float = at.y + 30 + r * 15
+		label(tr("tierShort_" + TIER_ROWS[r]), Vector2(at.x + 10, y), 11, TEXT)
+		for k in 5:
+			canvas.draw_rect(Rect2(at.x + 96 + k * 22, y - 9, 18, 8), ACCENT if k < t[TIER_ROWS[r]] else SEG_OFF)
+	var rc = null
+	for c in state.siege.recall:
+		if c.player == 0:
+			rc = c
+	if rc != null:
+		label(tr("siegeRecall"), at + Vector2(0, 30 + TIER_ROWS.size() * 15 + 12), 13, WIRE, HORIZONTAL_ALIGNMENT_LEFT, -1, 4, bold)
+		canvas.draw_rect(Rect2(at + Vector2(0, 30 + TIER_ROWS.size() * 15 + 18), Vector2(PANEL_SIZE.x * rc.t / float(rc.max), 6)), WIRE)
 
 
 func siege_crate(size: Vector2) -> void:

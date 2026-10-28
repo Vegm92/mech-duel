@@ -7,11 +7,19 @@ const S = preload("res://src/siege_state.gd")
 const RUN := {
 	"first": 10 * Sim.TICKS, "build": 25 * Sim.TICKS, "warn": 8 * Sim.TICKS, "cap": 90 * Sim.TICKS, "gap": 30,
 	"respawn": 8 * Sim.TICKS, "respawnWave": 30, "repairDelay": Sim.TICKS, "repair": 25.0 / Sim.TICKS,
-	"buildLate": 15 * Sim.TICKS, "late": 20, "ranged": 5 * Sim.TICKS, "call": 2, "clear": 0.2,
+	"buildLate": 15 * Sim.TICKS, "gateSoak": 0.5, "late": 20, "ranged": 5 * Sim.TICKS, "call": 2, "clear": 0.2,
 	"scrap": 3, "aggro": 6.0, "post": 21.0, "leash": 14.0, "corpse": 90, "spawnRing": 7.0, "players": 0.4,
 }
 const SHOP := {"gate": 40, "rebuild": 120, "ring": 200, "wall": 60, "mine": 80, "laser": 150, "post": 120, "garrison": 0}
-const WALLET := {"repair": 30, "upgrade": 80, "reinforce": 100, "revive": 50}
+const WALLET := {"kit": 40, "coolant": 20, "surge": 60, "reinforce": 100, "revive": 50}
+const TIER := {
+	"base": {"left": 40, "right": 40, "head": 35, "arms": 35, "legs": 35, "booster": 30, "core": 45},
+	"hand": {"dmg": 0.25, "cd": -0.06}, "head": {"armor": 0.15, "surge": 0.08}, "arms": {"armor": 0.15, "handling": -0.04},
+	"legs": {"armor": 0.15, "top": 0.05}, "booster": {"dashCd": -0.1}, "core": {"surgeGain": 0.15, "dmg": 0.06},
+	"wallet": 120, "share": 2, "surge": 50,
+}
+const AI_SHOP := {"order": ["left", "right", "arms", "head", "legs", "booster", "core"], "recallAt": 0.35, "kitAt": 0.6, "rich": 300}
+const SWAP := {"light": 60, "standard": 150, "heavy": 300, "loads": [14, 18]}
 const YARD := {"wake": 8.0, "leash": 18.0, "wakeTime": 30, "pay": 25.0, "elite": 5, "raidFrom": 15, "raid": ["scoutPack", "ambush"],
 	"reinforce": 1.15, "donate": 10, "donateEvery": 15, "crush": {"every": 360, "warn": 60, "dmg": 60}, "emp": {"every": 480, "on": 120, "tick": 30, "dmg": 10, "slow": 40},
 	"farmLeash": 22.0, "raidAt": [72.0, 48.0]}
@@ -71,19 +79,19 @@ const MK := [{"hp": 1.0, "dmg": 1.0, "speed": 1.0}, {"hp": 1.5, "dmg": 1.25, "sp
 const BOTS := {
 	"scout": {"cost": 1, "hp": 60, "speed": 7.5, "r": 0.6, "poise": 1, "attack": "bolt", "range": 12.0, "dmg": 10, "impact": 0, "cd": 60, "windup": 12, "shot": {"speed": 30, "radius": 0.25, "range": 14}, "dodge": 0.35},
 	"swarm": {"cost": 2, "pack": 3, "hp": 40, "speed": 6.5, "r": 0.4, "poise": 0, "attack": "bite", "range": 1.0, "dmg": 6, "impact": 0, "cd": 40, "windup": 8, "boom": {"dmg": 40, "r": 2.5}},
-	"spider": {"cost": 2, "hp": 170, "speed": 6.5, "r": 0.7, "poise": 1, "attack": "lunge", "range": 4.5, "dmg": 25, "impact": 2, "cd": 90, "windup": 18, "lunge": 5.0, "hunt": 30.0, "vent": true},
-	"flyer": {"cost": 3, "hp": 170, "speed": 7.0, "r": 0.6, "poise": 1, "attack": "bolt", "range": 10.0, "dmg": 15, "impact": 0, "cd": 30, "windup": 6, "shot": {"speed": 34, "radius": 0.25, "range": 12}, "fly": true, "first": "mech", "halt": false},
-	"turret": {"cost": 4, "hp": 480, "speed": 3.5, "r": 1.0, "poise": 3, "attack": "bolt", "range": 22.0, "dmg": 30, "impact": 1, "cd": 90, "windup": 20, "shot": {"speed": 36, "radius": 0.35, "range": 24}, "plant": 45, "first": "mech"},
-	"walker": {"cost": 5, "hp": 670, "speed": 4.0, "r": 1.2, "poise": 3, "attack": "claw", "range": 2.4, "dmg": 45, "impact": 2, "cd": 70, "windup": 16, "gun": {"range": 12.0, "dmg": 20, "cd": 80, "impact": 0, "shot": {"speed": 32, "radius": 0.3, "range": 14}}},
-	"tripod": {"cost": 5, "hp": 310, "speed": 3.5, "r": 1.0, "poise": 2, "attack": "rail", "range": 34.0, "dmg": 90, "impact": 2, "cd": 180, "windup": 120, "lock": 30, "hunt": 40.0, "keep": 24.0, "first": "mech"},
-	"quadheavy": {"cost": 8, "hp": 1110, "speed": 3.0, "r": 1.5, "poise": 4, "attack": "salvo", "range": 45.0, "dmg": 35, "impact": 1, "cd": 300, "windup": 40, "shells": 4, "spread": 2.5, "splash": 2.0, "delay": 90, "first": "core"},
-	"heavy": {"cost": 9, "hp": 1620, "speed": 2.8, "r": 1.6, "poise": 5, "attack": "cannon", "range": 18.0, "dmg": 80, "impact": 3, "cd": 150, "windup": 30, "splash": 2.5, "delay": 30, "first": "mech"},
-	"jugg": {"cost": 9, "hp": 1360, "speed": 3.0, "r": 1.4, "poise": 5, "attack": "ram", "range": 2.4, "dmg": 120, "impact": 4, "cd": 0, "windup": 40, "roll": 11.0, "rollTime": 480, "exposed": 240, "push": 6.0, "gateK": 3},
+	"spider": {"cost": 2, "hp": 130, "speed": 6.5, "r": 0.7, "poise": 1, "attack": "lunge", "range": 4.5, "dmg": 25, "impact": 2, "cd": 90, "windup": 18, "lunge": 5.0, "hunt": 30.0, "vent": true},
+	"flyer": {"cost": 3, "hp": 120, "speed": 7.0, "r": 0.6, "poise": 1, "attack": "bolt", "range": 10.0, "dmg": 10, "impact": 0, "cd": 40, "windup": 6, "shot": {"speed": 34, "radius": 0.25, "range": 12}, "fly": true, "first": "mech", "halt": false},
+	"turret": {"cost": 4, "hp": 320, "speed": 3.5, "r": 1.0, "poise": 3, "attack": "bolt", "range": 22.0, "dmg": 24, "impact": 1, "cd": 90, "windup": 20, "shot": {"speed": 36, "radius": 0.35, "range": 24}, "plant": 45, "first": "mech"},
+	"walker": {"cost": 5, "hp": 420, "speed": 4.0, "r": 1.2, "poise": 3, "attack": "claw", "range": 2.4, "dmg": 35, "impact": 2, "cd": 70, "windup": 16, "gun": {"range": 12.0, "dmg": 20, "cd": 80, "impact": 0, "shot": {"speed": 32, "radius": 0.3, "range": 14}}},
+	"tripod": {"cost": 5, "hp": 240, "speed": 3.5, "r": 1.0, "poise": 2, "attack": "rail", "range": 34.0, "dmg": 90, "impact": 2, "cd": 180, "windup": 120, "lock": 30, "hunt": 40.0, "keep": 24.0, "first": "mech"},
+	"quadheavy": {"cost": 8, "hp": 800, "speed": 3.0, "r": 1.5, "poise": 4, "attack": "salvo", "range": 45.0, "dmg": 35, "impact": 1, "cd": 300, "windup": 40, "shells": 4, "spread": 2.5, "splash": 2.0, "delay": 90, "first": "core"},
+	"heavy": {"cost": 9, "hp": 1150, "speed": 2.8, "r": 1.6, "poise": 5, "attack": "cannon", "range": 18.0, "dmg": 80, "impact": 3, "cd": 150, "windup": 30, "splash": 2.5, "delay": 30, "first": "mech"},
+	"jugg": {"cost": 9, "hp": 1000, "speed": 3.0, "r": 1.4, "poise": 5, "attack": "ram", "range": 2.4, "dmg": 120, "impact": 4, "cd": 0, "windup": 40, "roll": 11.0, "rollTime": 480, "exposed": 240, "push": 6.0, "gateK": 3},
 }
 
 
 static func budget(n: int, team: int) -> float:
-	return (3 + 2.5 * n + 0.18 * n * n) * (1 + RUN.players * (team - 1))
+	return (3 + 2.2 * n + 0.16 * n * n) * (1 + RUN.players * (team - 1))
 
 
 static func geo_of(sg: Dictionary) -> Dictionary:
@@ -146,7 +154,7 @@ static func gate_box(lane: int) -> Dictionary:
 	var half: float = S.LANE_W / 2.0
 	var depth: float = (S.RING_OUT - S.RING_IN) / 2.0
 	var a := box(g.x - l.dy * half - l.dx * depth, g.y + l.dx * half - l.dy * depth, g.x + l.dy * half + l.dx * depth, g.y - l.dx * half + l.dy * depth)
-	return g.merged(a).merged({"only": 1})
+	return g.merged(a).merged({"only": 1, "soak": RUN.gateSoak})
 
 
 static func create(loadouts: Array, seed := 1) -> Dictionary:
@@ -171,12 +179,21 @@ static func create(loadouts: Array, seed := 1) -> Dictionary:
 		"core": core, "gates": gates, "pads": S.pads(), "enemies": [], "queue": [], "fund": 0, "next": 0,
 		"lost": false, "down": {}, "calm": {}, "was": {}, "team": loadouts.size(), "earned": 0, "mutators": [],
 		"yards": S.yards(), "wallets": [], "tokens": [], "boost": [], "opening": {}, "raid": -1,
-		"garrison": S.garrison(), "guard": loadouts.size(), "gbrain": Bot.create_brain(seed + 99),
+		"garrison": S.garrison(), "guard": loadouts.size(), "gbrain": Bot.create_brain(seed + 99), "buys": 0, "kills": 0,
 	}
+	state.siege.tiers = []
+	state.siege.recall = []
+	state.siege.shop_open = []
+	state.siege.recall_cd = []
+	state.siege.owned = []
 	for i in loadouts.size():
-		state.siege.wallets.append(0)
+		state.siege.wallets.append(TIER.wallet)
 		state.siege.tokens.append(0)
 		state.siege.boost.append(0)
+		state.siege.tiers.append(S.tiers())
+		state.siege.shop_open.append(false)
+		state.siege.recall_cd.append(0)
+		state.siege.owned.append(null)
 	state.geo = geo_of(state.siege)
 	for q in S.QUADS.size():
 		for i in S.CAMPS.size():
@@ -221,6 +238,8 @@ static func step(state, inputs: Array):
 			if inp.get("post", false):
 				fire_post(state, sg, state.mechs[i])
 			use(state, sg, i, inp.get("use", false))
+		recall(state, sg, i, inp.get("recall", false))
+		sg.shop_open[i] = inp.get("shop", false)
 		if inp.get("call", false):
 			call_wave(state, sg)
 	modules(state, sg)
@@ -262,11 +281,13 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 		post = {"x": c.x, "y": c.y}
 		leash = S.RING_OUT + 4.0
 	var mend: bool = not sg.wave.live and c.hp < c.max * (4 - c.broken) / 4.0
-	if mend:
+	if mend or (not sg.wave.live and next_buy(sg, m) != ""):
 		post = S.at(id % 4, S.CORE.repair - 1.5)
 	var o = Bot.pick(state, brain, m)
 	if farmer and not mend and not Sim.foes(state, id).any(func(t): return t.team == 1 and Sim.hypot(t.x, t.y) < S.RING_OUT + 2.0):
-		return farm(state, sg, m, o, inp)
+		var f := farm(state, sg, m, o, inp)
+		ai_wallet(state, sg, m, f)
+		return f
 	var camp_bot: bool = o.team == 2 or o.team == m.team
 	if mend or camp_bot or o.ko or o.team == m.team or Sim.hypot(o.x - post.x, o.y - post.y) > leash or not open_line(state, m.x, m.y, o.x, o.y):
 		var dx: float = post.x - m.x
@@ -278,6 +299,7 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 		if mend or camp_bot:
 			for k in ["left", "right", "hook", "shield", "ult"]:
 				inp[k] = false
+	ai_wallet(state, sg, m, inp)
 	if not sg.wave.live:
 		for item in ["ring", "rebuild", "gate"]:
 			if sg.fund >= SHOP[item] and (c.broken > 0 if item == "ring" else sg.gates.any(func(g): return g.hp <= 0 if item == "rebuild" else g.hp > 0 and g.hp < g.max * 0.6)):
@@ -286,13 +308,43 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 	return inp
 
 
+static func ai_wallet(state, sg: Dictionary, m: Dictionary, inp: Dictionary) -> void:
+	var i: int = m.id
+	var home: bool = Sim.hypot(m.x - sg.core.x, m.y - sg.core.y) <= S.PLAZA
+	var hurt: bool = Sim.total_armor(m) < Sim.total_armor({"armor": m.max}) * AI_SHOP.recallAt
+	if not home and (hurt or sg.wallets[i] > AI_SHOP.rich) and sg.recall_cd[i] == 0:
+		inp.recall = true
+		if sg.recall.any(func(c): return c.player == i):
+			for k in ["mx", "my"]:
+				inp[k] = 0.0
+			for k in ["left", "right", "hook", "shield", "ult", "dash"]:
+				inp[k] = false
+		return
+	if not home or sg.wave.live:
+		return
+	if Sim.total_armor(m) < Sim.total_armor({"armor": m.max}) * AI_SHOP.kitAt and sg.wallets[i] >= WALLET.kit:
+		inp.buy = "kit"
+		return
+	var want := next_buy(sg, m)
+	if want != "":
+		inp.buy = want
+
+
+static func next_buy(sg: Dictionary, m: Dictionary) -> String:
+	var i: int = m.id
+	var best := ""
+	for slot in AI_SHOP.order:
+		if sg.tiers[i][slot] < S.RUN_TIERS and (best == "" or sg.tiers[i][slot] < sg.tiers[i][best]):
+			best = slot
+	if best != "" and price_of(sg, m, "tier:" + best) <= sg.wallets[i]:
+		return "tier:" + best
+	return ""
+
+
 static func farm(state, sg: Dictionary, m: Dictionary, o, inp: Dictionary) -> Dictionary:
 	var goal = null
 	var hold := false
-	if sg.wallets[m.id] >= 100 and not sg.wave.live:
-		goal = {"x": 0.0, "y": S.CORE.repair - 1.5}
-		hold = true
-	else:
+	if sg.wave.live or sg.wallets[m.id] < AI_SHOP.rich:
 		for y in sg.yards:
 			for c in y.camps:
 				if c.alive and (goal == null or Sim.hypot(c.x - m.x, c.y - m.y) < Sim.hypot(goal.x - m.x, goal.y - m.y)):
@@ -358,14 +410,12 @@ static func waypoint(m: Dictionary, goal: Dictionary) -> Dictionary:
 		return S.yard_at(q, 15.0, 15.0) if lined else S.yard_at(q, 22.0, 22.0)
 	if in_lane(m):
 		return S.at(lane_near(m), 21.0)
-	if rm < S.RING_OUT + 0.5:
+	if rm < (S.RING_IN + S.RING_OUT) / 2.0:
 		if rg < S.RING_IN:
 			return goal
 		var lane := lane_near(goal)
 		var side: float = absf(m.x) if lane % 2 == 0 else absf(m.y)
-		if rm < S.RING_IN - 0.5 and side > 3.0:
-			return S.at(lane, 12.0)
-		return S.at(lane, 21.0)
+		return S.at(lane, 12.0) if side > 3.0 else S.at(lane, 21.0)
 	if rg < S.RING_OUT:
 		var lane := lane_near(m)
 		var side: float = absf(m.x) if lane % 2 == 0 else absf(m.y)
@@ -642,7 +692,7 @@ static func shoot(state, e: Dictionary, b: Dictionary, k: Dictionary, tgt: Dicti
 
 
 static func harm(state, s: Dictionary, dmg: float, b: Dictionary) -> void:
-	s.hp = maxf(0.0, s.hp - dmg)
+	s.hp = maxf(0.0, s.hp - dmg * s.get("soak", 1.0))
 	state.fx.append({"k": "ping", "x": s.x + (b.x - s.x) * 0.2, "y": s.y + (b.y - s.y) * 0.2, "a": atan2(s.y - b.y, s.x - b.x), "t": 8})
 
 
@@ -820,7 +870,12 @@ static func settle(state, sg: Dictionary) -> void:
 				var gain := int(ceil(BOTS[e.kind].cost * RUN.scrap / float(BOTS[e.kind].get("pack", 1))))
 				sg.fund += gain
 				sg.earned += gain
+				sg.kills += 1
 				state.fx.append({"k": "scrap", "x": b.x, "y": b.y, "n": gain, "t": 40})
+				var share := int(ceil(BOTS[e.kind].cost * TIER.share / float(BOTS[e.kind].get("pack", 1))))
+				for i in sg.team:
+					if not state.mechs[i].ko:
+						sg.wallets[i] += share
 			act(e, "die")
 		elif e.act == "die":
 			e.t += 1
@@ -851,7 +906,7 @@ static func settle(state, sg: Dictionary) -> void:
 				fresh.held = m.held
 				place(fresh, i)
 				state.mechs[i] = fresh
-				toughen(fresh, sg.boost[i])
+				outfit(fresh, sg.tiers[i], sg.boost[i])
 	guard_settle(state, sg)
 	repair(state, sg)
 	rings(state, sg)
@@ -1046,7 +1101,7 @@ static func pad_at(sg: Dictionary, m: Dictionary, reach: float):
 
 
 static func buy(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
-	if WALLET.has(item):
+	if WALLET.has(item) or item.begins_with("tier:") or item.begins_with("swap:"):
 		return spend(state, sg, item, m)
 	if item == "garrison":
 		return raise_guard(state, sg, m)
@@ -1078,41 +1133,53 @@ static func buy(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
 				return false
 			build(state, pd, item)
 	sg.fund -= SHOP[item]
+	sg.buys += 1
 	state.fx.append({"k": "build", "item": item, "x": m.x, "y": m.y, "t": 30})
 	return true
 
 
 static func spend(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
 	var i: int = m.id
-	var price: int = WALLET[item]
-	if item == "upgrade":
-		var slot := low_slot(m)
-		if slot == "":
-			return false
-		price = WALLET.upgrade * (level_of(m, slot) + 1)
+	var price := price_of(sg, m, item)
 	var token: bool = item == "reinforce" and sg.tokens[i] > 0
-	if not token and sg.wallets[i] < price:
+	if price < 0 or (not token and sg.wallets[i] < price):
 		return false
 	if item != "revive" and Sim.hypot(m.x - sg.core.x, m.y - sg.core.y) > S.PLAZA:
 		return false
-	match item:
-		"repair":
+	var bits := item.split(":")
+	match bits[0]:
+		"tier":
+			sg.tiers[i][bits[1]] += 1
+			outfit(m, sg.tiers[i], sg.boost[i])
+		"swap":
+			m.loadout[bits[1]] = bits[2]
+			var lv: Dictionary = m.loadout.get("lv", {})
+			var n := owned_level(sg, i, bits[1], bits[2])
+			if n > 1:
+				lv[bits[1]] = n
+			else:
+				lv.erase(bits[1])
+			if lv.is_empty():
+				m.loadout.erase("lv")
+			else:
+				m.loadout.lv = lv
+			outfit(m, sg.tiers[i], sg.boost[i])
+		"kit":
 			if Sim.total_armor(m) >= Sim.total_armor({"armor": m.max}):
 				return false
 			Sim.repair(m, 1e6)
-		"upgrade":
-			var slot := low_slot(m)
-			var lo: Dictionary = m.loadout
-			var lv: Dictionary = lo.get("lv", {}).duplicate()
-			lv[slot] = level_of(m, slot) + 1
-			lo.lv = lv
-			var rows := {}
-			for s2 in Sim.DEFAULT_LOADOUT:
-				rows[s2] = Sim.tuned(s2, lo[s2], lv.get(s2, 1))
-			m.rows = rows
+		"coolant":
+			if m.heat <= 0 and m.overheat <= 0:
+				return false
+			m.heat = 0.0
+			m.overheat = 0
+		"surge":
+			if m.surge >= Sim.SURGE.max:
+				return false
+			m.surge = minf(Sim.SURGE.max, m.surge + TIER.surge)
 		"reinforce":
 			sg.boost[i] += 1
-			toughen(m, 1)
+			outfit(m, sg.tiers[i], sg.boost[i])
 		"revive":
 			var down := -1
 			for d in sg.down:
@@ -1125,27 +1192,89 @@ static func spend(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
 		sg.tokens[i] -= 1
 	else:
 		sg.wallets[i] -= price
+	sg.buys += 1
 	state.fx.append({"k": "build", "item": item, "x": m.x, "y": m.y, "t": 30})
 	return true
 
 
-static func level_of(m: Dictionary, slot: String) -> int:
-	return m.loadout.get("lv", {}).get(slot, 1)
+static func price_of(sg: Dictionary, m: Dictionary, item: String) -> int:
+	var bits := item.split(":")
+	match bits[0]:
+		"tier":
+			var t: int = sg.tiers[m.id].get(bits[1], S.RUN_TIERS)
+			return -1 if t >= S.RUN_TIERS else TIER.base[bits[1]] * (t + 1) * (t + 1)
+		"swap":
+			if bits.size() != 3 or not Sim.CATALOG.has(bits[1]) or not Sim.CATALOG[bits[1]].has(bits[2]) or m.loadout[bits[1]] == bits[2] or owned_level(sg, m.id, bits[1], bits[2]) == 0:
+				return -1
+			return swap_price(bits[1], bits[2])
+	return WALLET.get(item, -1)
 
 
-static func low_slot(m: Dictionary) -> String:
-	var best := ""
+static func swap_price(slot: String, key: String) -> int:
+	var row: Dictionary = Sim.CATALOG[slot][key]
+	if row.has("series"):
+		return SWAP[row.series]
+	var load: int = row.get("load", 0)
+	return SWAP.light if load <= SWAP.loads[0] else (SWAP.standard if load <= SWAP.loads[1] else SWAP.heavy)
+
+
+static func owned_level(sg: Dictionary, i: int, slot: String, key: String) -> int:
+	var own = sg.owned[i]
+	if own == null:
+		return 1
+	return own.get(slot, {}).get(key, 0)
+
+
+static func outfit(m: Dictionary, tiers: Dictionary, boost: int) -> void:
+	var lo: Dictionary = m.loadout
+	var lv: Dictionary = lo.get("lv", {})
+	var rows := {}
 	for slot in Sim.DEFAULT_LOADOUT:
-		if level_of(m, slot) < Sim.MAX_LEVEL and (best == "" or level_of(m, slot) < level_of(m, best)):
-			best = slot
-	return best
+		var row := Sim.tuned(slot, lo[slot], lv.get(slot, 1)).duplicate()
+		var t: int = tiers.get(slot, 0)
+		var fx: Dictionary = TIER.hand if Sim.HANDS.has(slot) else TIER[slot]
+		for key in fx:
+			if key != "armor" and (row.has(key) or key in ["dmg", "surgeGain"]):
+				row[key] = row.get(key, 1.0) * (1.0 + fx[key] * t)
+		rows[slot] = row
+	m.rows = rows
+	var mx := Sim.max_armor(lo)
+	var grow := {"head": tiers.head * TIER.head.armor, "rarm": tiers.arms * TIER.arms.armor, "larm": tiers.arms * TIER.arms.armor, "legs": tiers.legs * TIER.legs.armor}
+	for p in mx:
+		var full: float = floor(mx[p] * (1.0 + grow[p]) * pow(YARD.reinforce, boost))
+		var frac: float = clampf(m.armor[p] / float(m.max[p]), 0.0, 1.0) if m.max[p] > 0 else 1.0
+		m.max[p] = full
+		m.armor[p] = floor(full * frac)
 
 
-static func toughen(m: Dictionary, n: int) -> void:
-	for p in m.max:
-		var add: float = floor(m.max[p] * (pow(YARD.reinforce, n) - 1.0))
-		m.max[p] += add
-		m.armor[p] += add
+static func recall(state, sg: Dictionary, i: int, held: bool) -> void:
+	var m = state.mechs[i]
+	sg.recall_cd[i] = maxi(0, sg.recall_cd[i] - 1)
+	var r = null
+	for c in sg.recall:
+		if c.player == i:
+			r = c
+	if r == null:
+		if held and not m.ko and sg.recall_cd[i] == 0 and Sim.hypot(m.x - sg.core.x, m.y - sg.core.y) > S.PLAZA:
+			sg.recall.append({"player": i, "t": 0, "max": S.RECALL.secs * Sim.TICKS, "x": m.x, "y": m.y, "armor": Sim.total_armor(m)})
+		return
+	if not held or m.ko or Sim.total_armor(m) < r.armor:
+		sg.recall.erase(r)
+		if held:
+			sg.recall_cd[i] = Sim.TICKS / 2
+		return
+	r.t += 1
+	r.x = m.x
+	r.y = m.y
+	if r.t < r.max:
+		return
+	sg.recall.erase(r)
+	sg.recall_cd[i] = S.RECALL.cd * Sim.TICKS
+	state.fx.append({"k": "recall", "id": i, "x": m.x, "y": m.y, "t": 30})
+	place(m, i)
+	m.vx = 0.0
+	m.vy = 0.0
+	m.act = null
 
 
 static func guard_body(id: int, tier: int) -> Dictionary:
@@ -1169,6 +1298,7 @@ static func raise_guard(state, sg: Dictionary, m: Dictionary) -> bool:
 	if sg.wave.live or price < 0 or sg.fund < price:
 		return false
 	sg.fund -= price
+	sg.buys += 1
 	sg.garrison.tier += 1
 	var g := guard_body(sg.guard, sg.garrison.tier)
 	state.mechs[sg.guard] = g

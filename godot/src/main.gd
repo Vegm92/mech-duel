@@ -17,6 +17,7 @@ const Look = preload("res://src/look.gd")
 const Siege = preload("res://src/siege.gd")
 const SiegeView = preload("res://src/siege_view.gd")
 const SiegeBots = preload("res://src/siege_bots.gd")
+const Radial = preload("res://src/radial.gd")
 const SIEGE_CAM := {"dist": 48.0, "edge": 62.0, "near": 36.0, "far": 64.0, "top": 205.0}
 
 const PITCH := deg_to_rad(60.0)
@@ -104,11 +105,13 @@ var modules_arg := false
 var top_arg := false
 var guard_arg := 0
 var farm_arg := false
+var shop_arg := false
 var core_arg_pct := -1.0
 var shot_on := ""
 var allies := []
 var siege_view: Node3D
 var siege_bots: Node3D
+var shop: Control
 
 
 func _ready() -> void:
@@ -172,6 +175,8 @@ func _ready() -> void:
 			auto_ult = true
 		elif a == "--siege":
 			siege = true
+		elif a == "--shop":
+			shop_arg = true
 		elif a == "--farm":
 			farm_arg = true
 		elif a.begins_with("--guard="):
@@ -216,6 +221,12 @@ func _ready() -> void:
 	add_child(sfx)
 	hud = Hud.new()
 	add_child(hud)
+	shop_action()
+	shop = Radial.new()
+	hud.add_child(shop)
+	shop.confirm_on_release = true
+	shop.hold_action = &"siege_shop"
+	shop.picked.connect(func(path: PackedStringArray): tapped.buy = path[-1])
 	make_view()
 	loadout = flag_loadout()
 	garage = Garage.new()
@@ -241,6 +252,19 @@ func _ready() -> void:
 		new_match()
 		if claim_arg:
 			claim.open(progress.pool(["larm", "legs"], rival_lo, true), rival_key, progress.tier(rival_key), progress)
+
+
+func shop_action() -> void:
+	if InputMap.has_action(&"siege_shop"):
+		return
+	InputMap.add_action(&"siege_shop")
+	var k := InputEventKey.new()
+	k.physical_keycode = KEY_SHIFT
+	InputMap.action_add_event(&"siege_shop", k)
+	var b := InputEventJoypadButton.new()
+	b.device = -1
+	b.button_index = JOY_BUTTON_Y
+	InputMap.action_add_event(&"siege_shop", b)
 
 
 func make_view() -> void:
@@ -356,12 +380,21 @@ func new_match() -> void:
 		loadout.left = Sim.WEAPONS.keys()[gun]
 		loadout.right = loadout.left
 	if siege:
+		shop.close()
 		var los := [progress.with_levels(loadout.duplicate())]
 		allies = [null]
 		for i in range(1, team_n):
 			los.append(Sim.SETS.values()[(s + i) % Sim.SETS.size()])
 			allies.append(Bot.create_brain(s + 10 + i))
 		state = Siege.create(los, s)
+		if not progress.unlock_all:
+			var own := {}
+			for slot in Siege.S.PART_SLOTS:
+				own[slot] = {}
+				for key in Sim.CATALOG[slot]:
+					if progress.has(slot, key):
+						own[slot][key] = progress.level(slot, key)
+			state.siege.owned[0] = own
 		state.siege.wave.n = wave_arg - 1
 		for t in guard_arg:
 			state.siege.fund += Siege.GARRISON.cost[t]
@@ -435,8 +468,15 @@ func player_input() -> Dictionary:
 		"buy": tapped.get("buy", ""),
 		"call": tapped.has("call"),
 		"post": tapped.has("post"),
-		"use": key(KEY_V),
+		"use": key(KEY_V) or (siege and Input.is_joy_button_pressed(pad_id, JOY_BUTTON_A)),
+		"recall": key(KEY_B) or (siege and Input.is_joy_button_pressed(pad_id, JOY_BUTTON_X)),
+		"shop": shop.visible,
 	}
+	if shop.visible:
+		for k in ["left", "right", "hook", "ult", "dash", "shield"]:
+			inp[k] = false
+		inp.ax = state.mechs[0].tx
+		inp.ay = state.mechs[0].ty
 	tapped.clear()
 	return inp
 
@@ -493,14 +533,10 @@ func _input(event: InputEvent) -> void:
 					get_viewport().set_input_as_handled()
 			KEY_L:
 				I18n.toggle()
-			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8:
-				if siege:
-					tapped.buy = Hud.SHOP[event.physical_keycode - KEY_1]
-			KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL:
-				if siege:
-					tapped.buy = Hud.WALLET[[KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL].find(event.physical_keycode)]
 			KEY_X:
 				tapped.post = true
+			KEY_SHIFT:
+				open_shop()
 			KEY_F:
 				frozen = not frozen
 				tapped.clear()
@@ -537,7 +573,9 @@ func _input(event: InputEvent) -> void:
 			zoom = minf(zoom * 1.1, 3.0)
 	elif event is InputEventJoypadButton and event.pressed:
 		var k = PAD.find_key(event.button_index)
-		if k:
+		if event.button_index == JOY_BUTTON_Y:
+			open_shop()
+		elif k:
 			tapped[k] = true
 		elif event.button_index == JOY_BUTTON_START:
 			paused = not paused
@@ -547,6 +585,14 @@ func _input(event: InputEvent) -> void:
 		var k = TRIGGER.find_key(event.axis)
 		if k:
 			tapped[k] = true
+
+
+func open_shop() -> void:
+	if not siege or shop.visible or paused or state.phase == "over" or state.mechs[0].ko:
+		return
+	if Sim.hypot(state.mechs[0].x, state.mechs[0].y) > Siege.S.PLAZA:
+		return
+	shop.open(hud.shop_menu(0))
 
 
 func _notification(what: int) -> void:
@@ -604,6 +650,15 @@ func _physics_process(delta: float) -> void:
 			Sim.step(state, [me, foe])
 		if not siege and Killcam.wants(state, rec):
 			start_replay()
+	if siege and shop_arg and state.tick == 60:
+		state.siege.fund += 2000
+		state.siege.wallets[0] += 600
+		open_shop()
+	if siege and shop.visible:
+		if state.mechs[0].ko or Sim.hypot(state.mechs[0].x, state.mechs[0].y) > Siege.S.PLAZA:
+			shop.close()
+		elif state.tick % 10 == 0:
+			shop.refresh(hud.shop_menu(0))
 	if not frozen and not held:
 		view.sync(state, aim, delta)
 		if siege:

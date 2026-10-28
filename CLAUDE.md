@@ -241,8 +241,25 @@ $P = "$R\godot"
   fund, shop key 8), `guard_input` = `bot.gd` leashed 14 m to the core, back to `GARRISON_DOCK`
   when hurt, R only from tier 4; it rebuilds free after 20 s × tier. `view.remake` rebuilds its
   model when the tier changes and adds a cyan halo. Tests check a tier-5 Garrison alone still
-  loses at waves 15 and 25. Not built yet: gamepad shop, a second local player, netcode, VS
-  (design only).
+  loses at waves 15 and 25.
+  **In-run upgrades** (Victor 2026-10-28, after playing to wave 6): `siege.tiers[i][slot]` 0..5 for
+  the 7 slots, bought from the wallet in the plaza (`TIER.base` × tier²); `outfit` rebuilds
+  `m.rows` from `Sim.tuned` + the tier effects (`TIER`) and scales `m.max` (plating tiers, reinforce
+  `boost`), also on respawn. `swap:<slot>:<key>` puts an owned part in a slot (`SWAP` prices,
+  `siege.owned[i]` from `progress`, `null` = all owned), `kit`/`coolant`/`surge`/`reinforce`/
+  `revive` are instant (`WALLET`). Wallets start at `TIER.wallet` and every lane kill pays each
+  player `TIER.share` × cost. Recall: hold B (pad X) 3 s, a hit breaks it (`recall`,
+  `siege.recall`, 25 s cooldown). **Radial shop**: `radial.gd` (owned by `siege-bots`), opened by
+  main.gd `open_shop` on the `siege_shop` action (physical Shift, pad Y) in the plaza only; entries
+  from `hud.shop_menu`, a pick sets `tapped.buy`; while open, fire and aim are off and the sim
+  keeps running; it closes when you leave the plaza. No punctuation keys are bound (a Spanish
+  layout moves them). V / pad A = crates and donating. `siege.buys` counts purchases (arena buy
+  pulse). AI teammates (`ai_wallet`, `next_buy`, `AI_SHOP`) walk in between waves to buy tiers in
+  order hands → plating → engine → core, buy a kit when hurt, recall when hurt or rich.
+  Balance tool: `tools/siege_balance.gd` (`-s <abs path> -- --from=<wave> --waves=<n> --team=<n>
+  --tiers=<0..5> --guard=<0..5> --seeds=a,b`), one BALANCE line per seed. Look flags: `--shop`
+  (opens the radial with scrap), `--farm` (your autopilot farms), `--guard=<tier>`.
+  Not built yet: a second local player, netcode, VS (design only).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

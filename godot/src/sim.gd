@@ -341,7 +341,7 @@ static func struck(state, g: Dictionary, s) -> bool:
 		if s.x < b.x0 - s.r or s.x > b.x1 + s.r or s.y < b.y0 - s.r or s.y > b.y1 + s.r:
 			continue
 		if b.has("hp"):
-			b.hp = maxf(0, b.hp - s.dmg)
+			b.hp = maxf(0, b.hp - s.dmg * b.get("soak", 1.0))
 		state.fx.append({"k": "ping", "x": s.x, "y": s.y, "a": atan2(s.vy, s.vx), "t": 8})
 		return true
 	for p in g.pillars:
