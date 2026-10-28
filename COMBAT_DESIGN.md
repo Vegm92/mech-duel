@@ -344,7 +344,7 @@ buff runs) and each has its own `fx` kind and sound.
 | Electric Wall (Tri-Antenna) | A 4 m wall at the cursor up to 8 m away, 2.5 s. It stops the rival's bolts, missiles, beams and cones like the Bastion wall; your own shots pass. A rival touching it takes 10 to the legs and is slowed 1.5 s, once per wall. | 12 s |
 | Trap (Mine Hatch) | A mine 2 m ahead, armed after 0.5 s, lives 12 s. A rival stepping on it takes 35 and is rooted 1.5 s: `buffs.root` stops walking and dashing, shooting still works. Cleanse removes root and the ward blocks it. | 9 s |
 | X-Ray (Radar Dish) | 1.5 s in which your bolts, missiles, beams and cones ignore pillars and placed walls (yours and theirs). Mechs still block them. | 16 s |
-| Lunge (Rhino Horn) | A 6 m dash toward the cursor (`DASH_MOVES.lunge`, 15 ticks) that hits the first mech in the way for 40, impact 2, and stops there. Costs no dash charge and gives the usual dash-swing afterburn. | 7 s |
+| Lunge (Rhino Horn) | A 6 m dash toward the cursor (`DASH_MOVES.lunge`, 15 ticks) that hits the first mech in the way for 70, impact 2, and stops there. Costs no dash charge and gives the usual dash-swing afterburn. | 7 s |
 
 Bot rules (`wants_e` in `bot.gd`): Pulse when under 70% health, no shot incoming and the rival is over 8 m away; Frost
 Field when it sees the rival 4 to 9 m away; Electric Wall when a shot is incoming; Trap when the rival is 2.5 to 8 m
@@ -416,6 +416,8 @@ Rules:
 ---
 
 ## 3. Sample kit — CHR-01 "Cinderhorn"
+
+*Sample kit numbers below are the v0 draft. Live weapon and part numbers are in §5; the 2026-10-28 balance pass cut the Rivet Cannon to 42 damage.*
 
 Mid-range beetle-type gunner. Biped, medium weight. Plays the heat line: stay hot for damage, never
 overheat, cash the heat out with R.
@@ -591,31 +593,31 @@ Guns:
 
 | Part | Kind | Damage | Range | Cooldown | Notes |
 |---|---|---|---|---|---|
-| Rivet Cannon | bolt | 65 | 40 m | 0.8 s | Fast bolts across the whole arena. Good at everything. |
-| Needle Rifle | bolt | 115 | 40 m | 1.6 s | Slow to fire, but every shot hits hard and flies fastest. |
-| Scatter Gun | bolt | 5 × 26 | 12 m | 0.9 s | 5 pellets, short range. Brutal up close. |
-| Buzz Gatling | bolt | 12 | 30 m | 0.17 s | Tiny bullets, nonstop. Hold the button. |
-| Blaze Thrower | bolt (flame) | 2 × 8 | 6.5 m | 0.13 s | Short cone of fire. Hold the button. Shields put it out. |
-| Hornet Pod | bolt (missile) | 2 × 42 | 40 m | 1.8 s | Two missiles that chase the target. Enemy bullets and beams shoot them down. |
-| Thump Mortar | lob | 110 | 16 m | 1.8 s | Lobs a shell at the cursor. Lands later, over shields and pillars. |
-| Prism Laser | ray | 40 | 18 m | 0.67 s | Instant beam. Hits the moment you fire. |
-| Arc Coil | cone | 62 | 7 m | 0.9 s | Short zap that jumps to whatever is in front of you. |
-| Bounce Rifle | bolt | 55 | 40 m | 0.87 s | Bolts bounce off walls and pillars twice. |
+| Rivet Cannon | bolt | 42 | 40 m | 0.8 s | Fast bolts across the whole arena. Good at everything. |
+| Needle Rifle | bolt | 69 | 40 m | 1.6 s | Slow to fire, but every shot hits hard and flies fastest. |
+| Scatter Gun | bolt | 5 × 21 | 12 m | 0.9 s | 5 pellets, short range. Brutal up close. |
+| Buzz Gatling | bolt | 11 | 30 m | 0.17 s | Tiny bullets, nonstop. Hold the button. |
+| Blaze Thrower | bolt (flame) | 2 × 11 | 6.5 m | 0.13 s | Short cone of fire. Hold the button. Shields put it out. |
+| Hornet Pod | bolt (missile) | 2 × 34 | 40 m | 1.8 s | Two missiles that chase the target. Enemy bullets and beams shoot them down. |
+| Thump Mortar | lob | 154 | 16 m | 1.8 s | Lobs a shell at the cursor. Lands later, over shields and pillars. |
+| Prism Laser | ray | 26 | 18 m | 0.67 s | Instant beam. Hits the moment you fire. |
+| Arc Coil | cone | 71 | 7 m | 0.9 s | Short zap that jumps to whatever is in front of you. |
+| Bounce Rifle | bolt | 44 | 40 m | 0.87 s | Bolts bounce off walls and pillars twice. |
 
 Melee (hits Legs, goes under shields):
 
 | Part | Damage | Reach | Arc | Windup | Cooldown | Impact | Notes |
 |---|---|---|---|---|---|---|---|
-| Gyro Saw | 70 | 2.8 m | 120° | 8t | 0.7 s | 2 | Quick, wide slash. |
-| Drill Lance | 105 | 4.2 m | 48° | 10t | 1 s | 3 | Long, narrow thrust. Big damage. |
-| Shock Hammer | 65 | 2.5 m | 170° | 14t | 1.2 s | 4 | Slow and wide. Sends them flying. |
-| Rake Claws | 2 × 38 | 2.3 m | 100° | 6t | 0.57 s | 1 | Two fast slashes per swing. |
-| Chain Lash | 80 | 5 m | 52° | 8t | 0.8 s | 2 | Longest reach. Yanks them toward you. |
-| Piston Spike | 150 | 1.9 m | 60° | 16t | 1.67 s | 4 | Slow and short. Huge damage. |
-| Ion Blade | 56 | 3 m | 140° | 6t | 0.57 s | 2 | Fast, wide energy cut. |
-| Riot Plate | 54 | 2.2 m | 190° | 10t | 0.83 s | 3 | Shield bash. Wide, staggers hard. |
-| Rocket Fist | 90 | 4.4 m | 68° | 9t | 1.1 s | 3 | Rockets you forward into a punch. |
-| Wrecking Flail | 72 | 3.4 m | 360° | 9t | 1.1 s | 2 | Spins all around you. Hits every side. |
+| Gyro Saw | 77 | 2.8 m | 120° | 8t | 0.7 s | 2 | Quick, wide slash. |
+| Drill Lance | 116 | 4.2 m | 48° | 10t | 1 s | 3 | Long, narrow thrust. Big damage. |
+| Shock Hammer | 84 | 2.5 m | 170° | 14t | 1.2 s | 4 | Slow and wide. Sends them flying. |
+| Rake Claws | 2 × 40 | 2.3 m | 100° | 6t | 0.57 s | 1 | Two fast slashes per swing. |
+| Chain Lash | 108 | 5 m | 52° | 8t | 0.8 s | 2 | Longest reach. Yanks them toward you. |
+| Piston Spike | 168 | 1.9 m | 60° | 16t | 1.67 s | 4 | Slow and short. Huge damage. |
+| Ion Blade | 63 | 3 m | 140° | 6t | 0.57 s | 2 | Fast, wide energy cut. |
+| Riot Plate | 65 | 2.2 m | 190° | 10t | 0.83 s | 3 | Shield bash. Wide, staggers hard. |
+| Rocket Fist | 112 | 4.4 m | 68° | 9t | 1.1 s | 3 | Rockets you forward into a punch. |
+| Wrecking Flail | 86 | 3.4 m | 360° | 9t | 1.1 s | 2 | Spins all around you. Hits every side. |
 
 #### Arms (armor of both arms, hand speed)
 
@@ -635,15 +637,15 @@ Hand speed multiplies windup, recovery and cooldown of both hands' weapons.
 | Part | Series | Top speed | Accel | Poise | Armor | Dash move |
 |---|---|---|---|---|---|---|
 | Thruster Greaves | Standard | 6.5 m/s | 0.12 s | 2 | 190 | Dash: straight burst |
-| Hover Skirt | Light | 8 m/s | 0.22 s | 1 | 175 | Glide: ×1.4 distance, ×1.6 time, steerable |
+| Hover Skirt | Light | 8 m/s | 0.22 s | 2 | 175 | Glide: ×1.4 distance, ×1.6 time, steerable |
 | Crawler Treads | Heavy | 5.2 m/s | 0.1 s | 3 | 235 | Ram: contact 45 dmg, impact 3, pushes 2.5 m, stops |
 | Skitter Legs | Standard | 6.8 m/s | 0.07 s | 2 | 185 | Skitter: 2 charges, ×0.6 distance, ×0.65 recharge |
-| Twin Wheels | Light | 9 m/s | 0.35 s | 1 | 185 | Drift: ×1.1 distance, steerable, keeps 85% speed |
+| Twin Wheels | Light | 9 m/s | 0.35 s | 2 | 185 | Drift: ×1.1 distance, steerable, keeps 85% speed |
 | Jet Boots | Light | 7.6 m/s | 0.16 s | 1 | 180 | Leap: airborne, landing 2.2 m: 20 dmg + 0.5 s stun + lift |
-| Quake Stompers | Heavy | 4.6 m/s | 0.12 s | 4 | 270 | Slam: short airborne hop, landing 3 m: 30 dmg + 0.6 s stun |
-| Rail Skates | Light | 8.5 m/s | 0.3 s | 1 | 190 | Double: 2 charges, ×0.85 distance |
-| Quad Strider | Standard | 7.4 m/s | 0.1 s | 2 | 195 | Pounce: airborne to the cursor, landing 1.6 m: 40 dmg, impact 4 |
-| Unicycle | Standard | 7.8 m/s | 0.22 s | 1 | 185 | Roll: contact 35 dmg, impact 2, goes through |
+| Quake Stompers | Heavy | 4.6 m/s | 0.12 s | 4 | 255 | Slam: short airborne hop, landing 3 m: 30 dmg + 0.6 s stun |
+| Rail Skates | Light | 8.5 m/s | 0.3 s | 2 | 190 | Double: 2 charges, ×0.85 distance |
+| Quad Strider | Standard | 7.4 m/s | 0.1 s | 2 | 182 | Pounce: airborne to the cursor, landing 1.6 m: 28 dmg, impact 3 |
+| Unicycle | Standard | 7.8 m/s | 0.22 s | 2 | 195 | Roll: contact 35 dmg, impact 2, goes through |
 
 #### Booster (Space dash + trail)
 
@@ -667,16 +669,16 @@ never presses it. Shockwave was parked: it duplicates the Stompers Slam and the 
 | Part | Series | Armor | R charge | E skill |
 |---|---|---|---|---|
 | Rookie Helm (default) | Standard | 305 | ×1 | none |
-| Rhino Horn | Standard | 300 | ×1 | Lunge |
+| Rhino Horn | Standard | 310 | ×1 | Lunge |
 | Stag Pincers | Standard | 292 | ×1.08 | Chain Hook |
-| Sun Crest | Light | 285 | ×1.3 | Cleanse |
+| Sun Crest | Light | 295 | ×1.3 | Cleanse |
 | Radar Dish | Standard | 296 | ×1.04 | X-Ray |
-| Sniper Visor | Light | 278 | ×1.4 | Focus |
-| Medic Dome | Heavy | 325 | ×0.86 | Repair Pulse |
+| Sniper Visor | Light | 288 | ×1.4 | Focus |
+| Medic Dome | Heavy | 310 | ×0.86 | Repair Pulse |
 | Ward Orb | Standard | 308 | ×0.92 | Frost Field |
 | Tri-Antenna | Standard | 290 | ×1.12 | Electric Wall |
 | Mine Hatch | Standard | 304 | ×0.94 | Trap |
-| Oni Horns | Heavy | 325 | ×0.8 | Brace |
+| Oni Horns | Heavy | 305 | ×0.8 | Brace |
 
 Bot check, 2026-10-28 (each head on a build vs the same build with the Rookie Helm; three builds: default, brawler set,
 sniper set; both sides; draws did not occur). First run, 60 matches per head, wins: Rookie mirror 20, Lunge 21, Trap 24,
@@ -693,27 +695,29 @@ numbers against Hook, not against 50%.
 
 | Part | Series | R skill | Windup | Skill effect | Passive |
 |---|---|---|---|---|---|
-| Furnace Core | Standard | Lance | 36t | aimed laser lance at the head. Hotter = stronger. | heat damage bonus from 45 heat instead of 60 |
-| Coolant Core | Standard | Stasis | 12t | field at the cursor. Hurts, then slows and blocks dashes inside. | skills make 40% less heat, cools twice as fast |
-| Surge Reactor | Standard | Overdrive | 6t | 9 s of double-speed cooldowns and no heat. | R meter fills 80% faster, starts at 60 |
-| Leech Core | Standard | Repair | 18t | repairs every part and clears your heat. | 8% of damage dealt repairs your weakest part |
-| Titan Core | Heavy | Mines | 14t | drops a ring of 6 mines around you. | +18% armor, 8% slower |
-| Volt Core | Light | EMP | 24t | pulse around you. Hurts and locks their skills for 2 s. | dash recharges twice as fast, 30% farther, dumps heat |
-| Fury Core | Standard | Berserk | 6t | 6 s of harder, faster melee and more speed. | up to +50% damage as your head gets low |
-| Flywheel Core | Light | Swarm | 12t | 8 homing missiles in a fan. | up to +20% damage at full speed |
-| Aegis Core | Heavy | Bubble | 6t | bubble that soaks the next 180 damage for 4 s. | shield recharges twice as fast, holds 260, +5% armor |
-| Glass Core | Light | Orbital | 10t | huge strike at the cursor after a short delay. | +15% damage, -20% armor |
-| Phantom Core | Light | Blink | 6t | teleport to the cursor (9 m); the afterimage explodes 0.6 s later (2.2 m, 70) | after-dash power move lasts twice as long |
-| Gravity Core | Standard | Gravity Well | 12t | field at the cursor (5 m, 4 s): 40 dmg, pulls 4 m/s toward the center | hook reaches 40% farther |
+| Furnace Core | Standard | Lance | 36t | aimed laser lance at the head. Hotter = stronger. | heat damage bonus from 50 heat instead of 60 |
+| Coolant Core | Standard | Stasis | 12t | field at the cursor. Hurts, then slows and blocks dashes inside. | skills make 40% less heat, cools twice as fast, +4% armor |
+| Surge Reactor | Standard | Overdrive | 6t | 12 s of double-speed cooldowns and no heat. | R meter fills 100% faster, starts at 60 |
+| Leech Core | Standard | Repair | 18t | repairs every part by 50 and clears your heat. | 3% of damage dealt repairs your weakest part |
+| Titan Core | Heavy | Mines | 14t | drops a ring of 6 mines around you. | +14% armor, 8% slower |
+| Volt Core | Light | EMP | 24t | pulse around you. Hurts (75) and locks their skills for 2 s. | dash recharges twice as fast, 30% farther, dumps heat |
+| Fury Core | Standard | Berserk | 6t | 6 s of harder, faster melee and more speed. | up to +25% damage as your head gets low |
+| Flywheel Core | Light | Swarm | 12t | 8 homing missiles in a fan. | up to +12% damage at full speed |
+| Aegis Core | Heavy | Bubble | 6t | bubble that soaks the next 180 damage for 4 s. | shield recharges twice as fast, holds 190, +5% armor |
+| Glass Core | Light | Orbital | 10t | huge strike at the cursor after a short delay. | +15% damage, -12% armor |
+| Phantom Core | Light | Blink | 6t | teleport to the cursor (9 m); the afterimage explodes 0.6 s later (2.2 m, 70) | after-dash power move lasts twice as long, +8% armor |
+| Gravity Core | Standard | Gravity Well | 12t | field at the cursor (5 m, 4 s): 40 dmg, pulls 4 m/s toward the center | hook reaches 60% farther |
 | Bastion Core | Heavy | Bastion | 8t | 4 m wall 2.5 m ahead blocks every shot and beam for 4 s | shield holds 210, +8% armor |
 | Meltdown Core | Standard | Meltdown | 10t | blast around you (3.5 m): 40 + 1.4 × heat, impact 3; heat to 0 | running hot gives +50% damage instead of +30% |
 | Deflector Core | Standard | Deflect | 6t | 3 s: enemy shots within 3 m bend away from you | Perfect Guard window 50% wider |
-| Mirror Core | Standard | Mirror | 4t | 2 s: every shot hitting your front 140° bounces back; beams are blocked | reflected shots hit 30% harder |
-| Rail Core | Standard | Rail Shot | 30t | 40 m beam through pillars: 130, impact 3 | bullets fly 15% faster |
-| Shroud Core | Light | Shroud | 6t | 4 m smoke cloud around you for 4 s | moves 8% faster |
+| Mirror Core | Standard | Mirror | 4t | 2 s: every shot hitting your front 140° bounces back; beams are blocked | reflected shots hit 15% harder |
+| Rail Core | Standard | Rail Shot | 30t | 40 m beam through pillars: 130, impact 3 | bullets fly 15% faster, +6% armor |
+| Shroud Core | Light | Shroud | 6t | 4 m smoke cloud around you for 4 s | moves 12% faster, +12% armor |
 
 Balance (bots, 40 matches each, a part vs a random part in the same slot, rest equal, 2026-10-22):
 cores 39–65%, legs 38–62%, boosters 49–57%, heads 42–60%. Bots, not people: re-tune from playtests.
+
+**Balance pass (2026-10-28, Victor: balance as much as possible without making the weight types pointless).** About 13,000 bot-vs-bot matches of random mixed builds (4 in 5 parts picked from one series for half the builds, so weights 5 to 15 are all covered), fitted with a logistic model that scores each part against the rest of the build. Before: weapons won 23% to 78%, cores 31% to 73%, legs 37% to 61%, heads 40% to 61%; a weight-5 build won 41% and a weight-15 build 58%. After this pass (last round 2,635 matches): weapons 31% to 61%, cores 38% to 63%, legs 45% to 59%, heads 41% to 57%; weights 6 to 13 sit at 46% to 54%, weight 15 at 55%. Arms and boosters were already within 47% to 54% and are untouched. What moved: guns cut (Rivet 65 to 42, Needle 115 to 69, Laser 40 to 26, Hornet, Scatter, Bounce Rifle), melee up (Whip, Fist, Hammer, Flail, Flamer, Bash most), Leech, Aegis, Mirror, Fury, Furnace, Flywheel trimmed; Rail, Reactor, Shroud, Phantom, Gravity, Coolant lifted; heavy heads trimmed and light heads lifted; Quad Strider and Quake Stompers trimmed; Light and Unicycle legs poise 1 to 2 (poise 1 was staggered by every bolt). Raising `WEIGHT.speed` from 0.025 to 0.04 made no measurable difference, so weight matters through part stats, not speed. Known limits: bots, not people (they play guns better than melee and dodge the mortar, so Mortar numbers are a guess); the guns still lead melee by about 5 to 10 points; heavy builds keep a 3 to 5 point edge; Rail Core is still the weakest core. Re-tune from playtests.
 
 ### Sketch (not built)
 
