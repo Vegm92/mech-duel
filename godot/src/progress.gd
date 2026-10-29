@@ -3,8 +3,7 @@ extends RefCounted
 const Sim = preload("res://src/sim.gd")
 
 const SAVE := "user://progress.cfg"
-const LADDER := ["duelist", "sniper", "speedster", "assassin", "glasscannon", "vampire", "controller", "pyro", "reflector", "artillery", "brawler", "tank"]
-const BOSS := [["core", "reactor"], ["core", "titan"], ["core", "flywheel"], ["core", "bastion"], ["core", "deflector"], ["core", "shroud"], ["right", "fist"]]
+const LADDER := ["duelist", "sniper", "speedster", "hornet", "assassin", "glasscannon", "vampire", "overclock", "controller", "riposte", "wraith", "pyro", "reflector", "rampart", "artillery", "brawler", "juggernaut", "tank"]
 const KO_DROPS := ["head", "core", "booster"]
 const BREAK_DROPS := {"larm": ["arms", "left"], "rarm": ["arms", "right"], "legs": ["legs"]}
 const SIEGE_SPOILS := {10: "tank", 20: "artillery", 30: "reflector"}
@@ -124,8 +123,6 @@ func rival(set_key: String) -> Dictionary:
 	var t := tier(set_key)
 	if t == 1:
 		return lo
-	var swap: Array = BOSS[LADDER.find(set_key) % BOSS.size()]
-	lo[swap[0]] = swap[1]
 	var lv := {}
 	for slot in Sim.DEFAULT_LOADOUT:
 		lv[slot] = t

@@ -126,9 +126,7 @@ func test_every_part_can_be_won() -> int:
 	for set_key in Sim.SETS:
 		for slot in Sim.DEFAULT_LOADOUT:
 			reach[Progress.id(slot, Sim.SETS[set_key][slot])] = true
-	for swap in Progress.BOSS:
-		reach[Progress.id(swap[0], swap[1])] = true
-	var bad := 0
+	var bad := ensure(Progress.LADDER.size() == Sim.SETS.size() and Sim.SETS.keys().all(func(k): return Progress.LADDER.has(k)), "every set is on the ladder")
 	for slot in Sim.CATALOG:
 		for key in Sim.CATALOG[slot]:
 			bad += ensure(reach.has(Progress.id(slot, key)), "%s/%s can be won" % [slot, key])
@@ -145,7 +143,7 @@ func test_rivals_cycle_the_ladder_then_come_back_stronger() -> int:
 	var bad := ensure(seen.size() == Progress.LADDER.size(), "every rival is met once before any repeats")
 	bad += ensure(p.next_rival() == Progress.LADDER[0] and p.tier("duelist") == 2, "the first rival comes back at tier 2")
 	var back := p.rival("duelist")
-	bad += ensure(back.lv.head == 2 and back.core != Sim.SETS.duelist.core, "the rematch wears Mk 2 parts and a boss core")
+	bad += ensure(back.lv.head == 2 and Sim.set_of(back) == "duelist", "the rematch is the same set at Mk 2, set bonus on")
 	bad += ensure(Sim.normalize(back) == back, "the rematch build is a valid loadout")
 	bad += ensure(locked().rival("sniper") == Sim.SETS.sniper, "the first meeting is the plain set")
 	p.win("duelist")
