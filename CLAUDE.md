@@ -5,7 +5,7 @@ no auto-targeting. Mechs are built Exteel-style from five body parts (Head = R u
 passive, Arms, Legs = movement, Booster = Space dash) plus two hands that each hold any weapon
 (left click = left hand, right click = right hand). Inspired by Medabots and Exteel.
 
-Stage: playable prototype, you vs an AI rival (or training dummies), 63 parts in the garage. The spec is `COMBAT_DESIGN.md`.
+Stage: playable prototype, you vs an AI rival (or training dummies), 71 parts and 18 sets in the garage. The spec is `COMBAT_DESIGN.md`.
 
 ## Stack and run
 
@@ -120,7 +120,17 @@ $P = "$R\godot"
   `--arms=<id>` your arms (pair it with `--hands=laser,ricochet` so both forearms show), `--legs=<id>`
   your legs, `--booster=<id>` your booster (pair it with `--cam=3`, the back view), `--set=<id>` a
   whole ready-made build (`SETS`; the part flags still override single parts). The rival is always
-  one of the 6 `SETS`, picked by the seed (`s % 6`); you get `DEFAULT_LOADOUT` without `--set`.
+  one of the 18 `SETS`, picked by the seed (`s % SETS.size()`); you get `DEFAULT_LOADOUT` without `--set`.
+  **Set bonus (Victor 2026-10-29, spec `SET_BONUS_DESIGN.md`, numbers in `COMBAT_DESIGN.md` §5):**
+  wearing all 7 parts of a set (hands in either order, any Mk) turns on its `SET_BONUS` row: one
+  existing stat × a small multiplier, keyed by body slot or weapon id. `Sim.set_of(lo)` finds the
+  set, `Sim.rows_of(lo)` builds the part rows (level twist + bonus) that `make_mech`, siege
+  `outfit` and the garage `sheet` all use; `max_armor` reads the bonus core armor; `m.set` holds the
+  set id (no key without a set). Text: `sb_`/`sbd_` (bonus name / one line). Garage: each set card
+  shows its bonus, MECH INFO shows `SET · <set> · <bonus>` when the build (or hover) completes one;
+  HUD: `<set> SET` under the mech's plate. Balance: `tools/set_robin.gd` (`-s <abs path> --
+  --seeds=1,2 --shard=i/N --only=<set,...>`), every set vs every set with bonuses off and on; RAW
+  lines sum across shards. Evidence: `production/qa/evidence/set-bonus-*-2026-10-29.png`.
   **Sets (Victor 2026-10-26: "pick the parts that make sense for those roles"):** sniper uses the
   Rail core (rail-shot R + faster bolts for the needle), artillery the heavy Bulwark arms and the
   Coolant core (stasis holds them still while the mortar lands). Evidence:
@@ -214,8 +224,9 @@ $P = "$R\godot"
   holds what you own (`user://progress.cfg`, separate from `loadout.cfg`): a level 1..3 per part
   (`Sim.MAX_LEVEL`; both hands share one weapon level), plus how often each rival was beaten.
   Lock logic lives in `garage.gd` and `main.gd`, never in the sim rules. Real play fights the
-  `LADDER` (12 `SETS`, least-beaten first); rematches wear Mk 2/3 parts and a `BOSS` swap (the 6
-  cores and the fist no set carries, so every part can be won; `progress_test` checks it). While
+  `LADDER` (all 18 `SETS`, least-beaten first); rematches are the same set at Mk 2/3, bonus still on
+  (every part but the starter Rookie Helm is in some set, so every part can be won; `progress_test`
+  checks it; the old `BOSS` swaps are gone). While
   you fight, `main.track` collects the rival's broken parts (`break` fx) and K.O.s; on a match
   win `settle` opens `claim.gd` with `Progress.pool`: broken leg = legs, broken arm = arms + that
   hand's weapon, any K.O. = head, core, booster; a part you own is offered as a level up, a maxed
@@ -541,7 +552,7 @@ $P = "$R\godot"
   `left` (left click) and `right` (right click) each hold any of the 20 `WEAPONS` (a gun `kind` or
   `kind: 'melee'`); action, cooldown, buffer and fx keys are the hand names. `SETS` are ready-made
   full builds (garage SETS tab). Player text: `u_`/`ud_` (skills), `dm_` (dash moves), `tr_`
-  (trails), `set_`/`sd_` (sets). Every body part has a `series` (light/standard/heavy) whose `SERIES` weight
+  (trails), `set_`/`sd_` (sets), `sb_`/`sbd_` (set bonus). Every body part has a `series` (light/standard/heavy) whose `SERIES` weight
   sets top speed (`speed_of`). Armor pools stay `head`/`rarm`/`larm`/`legs` (`ARM_OF` maps a hand
   to its arm). Shield (Q) is the fixed kit; the E skill comes from the head (`HEADS[id].e`, read through `e_skill(m)`; Victor 2026-10-28). The default head `rookie` (Rookie Helm, a plain cube head, `heads_build.py`) has none (`e` is `""`): the HUD E slot stays blank, `start` queues nothing and the bot never presses E. Every other head has one skill, in `E_SPEC` (brace, focus, pulse, xray, frost, arcwall, trap; each has `cd` and a `time`, a buff `m.buffs[skill]`, or a placed object) cast by `cast_e` from `start` (and its fx kind of the same name, with a `RECIPES` row in sfx.gd); `hook` (Stag Pincers) is the old claw, `cleanse` (Sun Crest) runs first in `start` so it works while stunned (`warded()` blocks new slow, jam, root, hook and landing stuns for 2 s) and `lunge` (Rhino Horn) is a dash act with `DASH_MOVES.lunge`. `e_active(m)` lights the HUD slot; `wants_e` in bot.gd is the bot's rule for each. Root is `buffs.root`; Electric Wall is a `state.walls` entry with `zap`; Trap is a `state.mines` entry with `root`; `wall_blocks()` decides what walls stop (X-Ray and the owner's own Electric Wall pass). Catalogs: `HEADS`, `CORES`, `ARMS`,
   `LEG_PARTS`, `BOOSTERS`, `WEAPONS` (all in `CATALOG`) in `godot/src/sim.gd`; a mech reads its parts
