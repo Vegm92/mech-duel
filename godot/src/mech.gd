@@ -9,6 +9,7 @@ static var EYES := [Color8(255, 214, 120), Color8(150, 235, 255), Color8(215, 25
 static var BOOST_C := {"arc": Color8(150, 205, 255), "flame": Color8(255, 150, 60), "frost": Color8(170, 240, 255), "smoke": Color8(190, 190, 200), "magnet": Color8(205, 125, 255), "clean": Color8(255, 232, 170)}
 static var STEEL := Color8(170, 180, 198)
 static var DARK := Color8(44, 48, 58)
+static var EDGE := Color8(215, 220, 230)
 static var CORE_C := {"furnace": Color8(255, 150, 60), "coolant": Color8(110, 230, 255), "reactor": Color8(190, 255, 90), "leech": Color8(225, 40, 80), "titan": Color8(190, 202, 220), "volt": Color8(255, 230, 70), "fury": Color8(255, 64, 48), "flywheel": Color8(228, 232, 242), "aegis": Color8(90, 150, 255), "glass": Color8(255, 140, 210), "phantom": Color8(200, 220, 255), "gravity": Color8(150, 90, 255), "bastion": Color8(255, 210, 90), "meltdown": Color8(255, 90, 40), "deflector": Color8(90, 255, 230), "mirror": Color8(235, 245, 255), "rail": Color8(90, 200, 255), "shroud": Color8(160, 160, 175)}
 static var SHOULDER := {"light": 0.41, "standard": 0.46, "heavy": 0.52}
 static var BACK := {"light": 0.279, "standard": 0.313, "heavy": 0.349}
@@ -27,7 +28,7 @@ const TAIL := 1.6
 const TIP := {"drill": 1.4, "bunker": 1.25, "fist": 0.72}
 const WHIP := {"links": 16, "len": 3.95, "coil": 2.2, "back": 2.4, "crack": 2.5}
 const TRAIL_LIFE := 0.16
-const SKIN := {"body": [0.35, 0.4], "trim": [0.75, 0.35], "joint": [0.6, 0.55], "accent": 0.9, "aim": Color(1.0, 0.75, 0.35, 0.7)}
+const SKIN := {"body": [0.35, 0.4], "trim": [0.75, 0.35], "joint": [0.6, 0.55], "edge": [0.45, 0.3], "accent": 0.9, "aim": Color(1.0, 0.75, 0.35, 0.7)}
 const AURA := {"overdrive": Color8(205, 125, 255), "berserk": Color8(255, 64, 48), "deflect": Color8(90, 255, 230), "mirror": Color8(235, 245, 255), "shield": Color8(110, 220, 255), "alpha": 0.7, "spin": 3.0, "pulse": 14.0, "slats": 5}
 
 var team := 0
@@ -184,7 +185,10 @@ static func add_part(parent: Node3D, part: String, mats: Dictionary, file := "li
 	var mi := MeshInstance3D.new()
 	mi.mesh = models(file)[part][0]
 	for i in mi.mesh.get_surface_count():
-		mi.set_surface_override_material(i, mats[mi.mesh.surface_get_material(i).resource_name])
+		var slot := mi.mesh.surface_get_material(i).resource_name
+		if slot == "edge" and not mats.has(slot):
+			slot = "trim"
+		mi.set_surface_override_material(i, mats[slot])
 	parent.add_child(mi)
 	return mi
 
@@ -234,7 +238,7 @@ static func paints(lo: Dictionary, t: int) -> Dictionary:
 	boost.albedo_color = bc
 	boost.emission_enabled = true
 	boost.emission = bc
-	return {"body": body, "trim": mat(STEEL, 0.0, SKIN.trim[0], SKIN.trim[1]), "joint": mat(DARK, 0.0, SKIN.joint[0], SKIN.joint[1]), "gem": gem, "boost": boost, "core": glow(CORE_C[lo.core], 3.0), "heal": glow(Color8(90, 255, 150), 3.0), "glow": accent, "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)}
+	return {"body": body, "trim": mat(STEEL, 0.0, SKIN.trim[0], SKIN.trim[1]), "joint": mat(DARK, 0.0, SKIN.joint[0], SKIN.joint[1]), "edge": mat(EDGE, 0.0, SKIN.edge[0], SKIN.edge[1]), "gem": gem, "boost": boost, "core": glow(CORE_C[lo.core], 3.0), "heal": glow(Color8(90, 255, 150), 3.0), "glow": accent, "flame": glow(Color8(255, 150, 60), 5.0), "laser": glow(Color8(255, 80, 120), 6.0), "arc": glow(Color8(170, 210, 255), 4.0), "bounce": glow(Color8(120, 255, 150), 4.0)}
 
 
 static func arm(p: Node3D, kind: String, s: String, parts: Dictionary) -> MeshInstance3D:
