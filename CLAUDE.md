@@ -286,6 +286,21 @@ $P = "$R\godot"
   UpperArm_L/R (pivot at the shoulder) + Forearm_L/R (pivot at the elbow, incl. the fist), both modeled hanging down, Leg_L/R (pivot at the hip). The light `Head`,
   `UpperArm_*`, `Forearm_*` and `Leg_*` objects are no longer loaded: heads come from `heads.glb`,
   arms from `arms.glb`, legs from `legs.glb` (below).
+  **Chassis + shells (Victor 2026-10-29: "too blocky, a robot with its basic chassis that we customize
+  with parts that have their own visual aspect").** Two layers. The chassis is the dark `joint` frame
+  every mech shares, built into `Chest_*` (neck column with a steel ring, dark inner core under the
+  plates; `Hips` stay as they were, Victor 2026-10-29: hidden detail is not worth the triangles) and
+  into each arm/leg object (elbow, knee and ankle balls with trim caps, dark tubes inside the limb). Parts are armor shells over it: tapered (wider at the
+  top), `segs=2` bevels, a visible dark gap or joint between shell and frame, a few vents and bolts.
+  Pass 1 restyled the default build only (chests, hips, rookie head, furnace pad, frame arms, greaves,
+  thruster); the other parts follow the same recipe in later passes. Evidence:
+  `production/qa/evidence/model-polish-*-2026-10-29.png`.
+  **Parts redesign (Victor 2026-10-29: "each part should have its own design").** `PARTS_LOOK.md`
+  holds one look per part, drawn from what it does in the game; every part group was restyled to it.
+  Victor's rule from the review (he loved the cores pass): keep the old model's shape and add a few
+  pieces that say the part's job; evolve, don't replace. Heads stay the old cube style with small
+  upgrades (Victor's pick); Chain Lash is built in code (`WHIP`), not in `guns.blend`. Evidence:
+  `production/qa/evidence/redesign-*-2026-10-29.png`.
   **Braced arm pose (Victor 2026-10-26: "readiness to tank the recoil", elbow bent, not stretched
   out):** `build` tilts the upper arm `ARM_UP` (0.2 rad) forward and puts the forearm level at
   `ELBOW`, fist at `FIST` (mech.gd consts, in the shoulder pivot's space).
