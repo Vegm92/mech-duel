@@ -51,7 +51,8 @@ var state: Dictionary
 var view: Node3D
 var paused := false
 var pad := false
-var level := ""
+## Per mech: the bot level shown on its plate ("" = none).
+var levels := []
 ## How many of the mechs (the first ones) are people.
 var humans := 1
 var canvas: Control
@@ -215,9 +216,8 @@ func corner(i: int, size: Vector2) -> Vector2:
 func name_of(i: int) -> String:
 	if i < humans:
 		return tr("you") if humans == 1 else tr("playerN").format({"n": i + 1})
-	if humans == 1 and i == 1 and not state.has("siege"):
-		return tr("rivalBot") + ("  ·  " + tr("lv_" + level) if level != "" else "")
-	return tr("rivalBot")
+	var lv: String = levels[i] if i < levels.size() else ""
+	return tr("rivalBot") + ("  ·  " + tr("lv_" + lv) if lv != "" else "")
 
 
 ## The text for a win by `team`: You win / Rival wins alone, the winner's name with more people.

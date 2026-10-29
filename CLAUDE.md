@@ -162,6 +162,16 @@ $P = "$R\godot"
   player. Extra aim rings: `view.sync(..., more)`. The radial shop belongs to the player who opened
   it (`shop_seat`, `radial.device`). Look flag: `--players=<n>` (keyboard + pads 0..n-2; with no
   `--at` the shot is the join screen). Evidence: `players-*-2026-10-29.png`.
+- **Duel setup** (Victor 2026-10-29: "parts and bots selector for each player", rogue-like option for
+  PvE). `menu.gd` page `duel` after Duel: format (`TEAMS`: 1v1, 2v2 = slots 0-1 vs 2-3, ffa), one slot
+  per mech (`setup.slots`: `who` = player index or -1 = bot, `level`), Free match / Ladder (`pve`: all
+  players on one team and a bot on another). main.gd: `duel` (the setup; empty = the old lineup for look
+  checks), `lineup_of` (humans first, then bots, with team and level), `who` (seat → player), garage
+  turns (`garage_turn`, `built`, `garage.who` / `garage.last`), per-player mechs (`lo_of`, `set_lo`,
+  `loadout_p<n>` in `loadout.cfg`, `[setup] duel`) and saves (`profile`: P1 = `progress.cfg`, others
+  `progress_p<n>.cfg`; `prog` = a shared all-open `free` in a free match). The ladder rival is the first
+  bot (`rival_id`), drawn from P1's ladder; a win queues a claim per player (`settle`, `next_claim`,
+  `claim.open(..., who)`). The garage has no difficulty button any more.
 - **Flow:** the game opens on the join screen, then the mode menu (`menu.gd`: Duel, Core Siege, Back;
   Victor 2026-10-29). A mode opens the garage in that mode (`garage.mode`; siege hides the difficulty
   button and FIGHT reads START SIEGE); BACK, Esc or pad B goes back to the menu. FIGHT saves your bot to

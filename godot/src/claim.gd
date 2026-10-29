@@ -38,10 +38,11 @@ func _init() -> void:
 	add_child(root)
 
 
-func open(list: Array, set_key: String, fought: int, progress) -> void:
+## `who` names the player picking ("P2") when several do, one after another.
+func open(list: Array, set_key: String, fought: int, progress, who := "") -> void:
 	items = list
 	clear()
-	label(root, tr("claimTitle"), Rect2(0, 70, SIZE.x, 64), 56, Garage.GUN, true, HORIZONTAL_ALIGNMENT_CENTER)
+	label(root, (who + " · " if who != "" else "") + tr("claimTitle"), Rect2(0, 70, SIZE.x, 64), 56, Garage.GUN, true, HORIZONTAL_ALIGNMENT_CENTER)
 	label(root, tr("claimFrom").format({"name": tr("set_" + set_key), "n": fought}), Rect2(0, 140, SIZE.x, 30), 20, Garage.TEXT, false, HORIZONTAL_ALIGNMENT_CENTER)
 	label(root, tr("claimHint"), Rect2(0, 640, SIZE.x, 24), 15, Garage.DIM, false, HORIZONTAL_ALIGNMENT_CENTER)
 	var cols := mini(COLS, items.size())

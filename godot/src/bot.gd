@@ -3,7 +3,7 @@ extends RefCounted
 const Sim = preload("res://src/sim.gd")
 
 const SKILL := {"skilled": {"aimError": 0.3, "reaction": 0.15, "dodge": 0.5}, "average": {"aimError": 0.9, "reaction": 0.3, "dodge": 0.25}, "weak": {"aimError": 1.6, "reaction": 0.5, "dodge": 0.1}}
-## Duel rival difficulty, picked in the garage. Merged into the rival's brain; any key left out uses BOT.
+## Duel bot difficulty, picked per bot slot in the Duel setup (menu.gd). Merged into the rival's brain; any key left out uses BOT.
 ## block = chance to shield an incoming shot, lead = how far ahead it aims at a moving target (0 = where you are now), move = top speed share,
 ## pause = extra ticks between shots, rhythm = random extra delay cap, heatCap = heat it stops firing at,
 ## juke = ticks between strafe flips (long = predictable). Check with tests/difficulty_test.gd.

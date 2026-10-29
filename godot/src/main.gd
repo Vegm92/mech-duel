@@ -78,6 +78,20 @@ var parts_arg := ""
 var garage_arg := -1
 var hover_arg := ""
 var loadout: Dictionary
+## The Duel setup from the menu ({format, slots, ladder}); empty = the old lineup (look checks, --garage).
+var duel := {}
+## Per seat: the player number it belongs to (0 = P1, who keeps the old save files).
+var who := [0]
+var loadouts := [{}]
+var profiles := {}
+var free := Progress.new()
+var turn := 0
+var claims := []
+var claimer := 0
+var bot_level := "normal"
+## Per mech: {seat (-1 = bot), team, level}.
+var lineup := []
+var rival_id := 1
 var garage: CanvasLayer
 var menu: CanvasLayer
 var first_help := false
@@ -262,15 +276,17 @@ func _ready() -> void:
 	var saved := ConfigFile.new()
 	saved.load(SAVE)
 	var d := str(saved.get_value("garage", "difficulty", "normal"))
-	garage.difficulty = d if Bot.LEVELS.has(d) else "normal"
+	bot_level = d if Bot.LEVELS.has(d) else "normal"
 	add_child(garage)
 	claim = Claim.new()
 	add_child(claim)
 	claim.picked.connect(claimed)
 	claim.ui.connect(sfx.ui)
-	garage.fight.connect(func(lo: Dictionary) -> void: start(lo, garage.mode == "siege"))
-	garage.back.connect(to_menu)
+	garage.fight.connect(built)
+	garage.back.connect(func() -> void: to_menu("duel" if garage.mode == "duel" else "modes"))
 	menu = Menu.new()
+	menu.bot_level = bot_level
+	menu.setup = saved.get_value("setup", "duel", {})
 	add_child(menu)
 	menu.picked.connect(pick_mode)
 	menu.ui.connect(sfx.ui)
@@ -347,17 +363,64 @@ func flag_loadout() -> Dictionary:
 	return mine
 
 
-func saved_loadout() -> Dictionary:
+static func lo_key(p: int) -> String:
+	return "loadout" if p == 0 else "loadout_p%d" % (p + 1)
+
+
+func saved_loadout(p := 0) -> Dictionary:
 	var cfg := ConfigFile.new()
 	cfg.load(SAVE)
-	return progress.fit(cfg.get_value("garage", "loadout", {}))
+	return progress.fit(cfg.get_value("garage", lo_key(p), {}))
 
 
+## Saves every seat's mech (P1 under the old key) and the Duel setup.
 func save_loadout() -> void:
 	var cfg := ConfigFile.new()
-	cfg.set_value("garage", "loadout", loadout)
-	cfg.set_value("garage", "difficulty", garage.difficulty)
+	cfg.load(SAVE)
+	for t in seats.size():
+		cfg.set_value("garage", lo_key(who[t]), lo_of(t))
+	cfg.set_value("garage", "difficulty", bot_level)
+	if not duel.is_empty():
+		cfg.set_value("setup", "duel", duel)
 	cfg.save(SAVE)
+
+
+func lo_of(t: int) -> Dictionary:
+	return loadout if t == 0 else loadouts[t]
+
+
+func set_lo(t: int, lo: Dictionary) -> void:
+	if t == 0:
+		loadout = lo
+	else:
+		loadouts[t] = lo
+
+
+## Player p's ladder save: P1 keeps progress.cfg, the others get progress_p<n>.cfg next to it.
+func profile(p: int) -> Progress:
+	if p == 0:
+		return progress
+	if not profiles.has(p):
+		var pr := Progress.new()
+		pr.unlock_all = progress.unlock_all
+		pr.path = progress.path.get_basename() + "_p%d.cfg" % (p + 1)
+		if not pr.unlock_all:
+			pr.load_file()
+		profiles[p] = pr
+	return profiles[p]
+
+
+## The parts seat t may use: all of them in a free match, else that player's own unlocks.
+func prog(t: int) -> Progress:
+	if not siege and not duel.is_empty() and not duel.ladder:
+		return free
+	return profile(who[t])
+
+
+func ladder_on() -> bool:
+	if duel.is_empty():
+		return not progress.unlock_all and seats.size() == 1
+	return duel.ladder and not progress.unlock_all
 
 
 func resume() -> void:
@@ -376,10 +439,10 @@ func leave_match() -> void:
 	get_viewport().disable_3d = true
 
 
-func to_menu() -> void:
+func to_menu(at := "") -> void:
 	leave_match()
 	garage.visible = false
-	menu.open()
+	menu.open(at)
 	if not join_arg.is_empty():
 		menu.players = join_arg.duplicate()
 		menu.page = "players"
@@ -400,13 +463,23 @@ static func seat(dev: int) -> Dictionary:
 
 
 ## One seat per joined device; a single player keeps every device.
-func set_players(devs: Array) -> void:
+func set_players(devs: Array, ids := []) -> void:
 	seats = [seat(-2)] if devs.size() <= 1 else devs.map(func(d): return seat(d))
+	who = ids if ids.size() == devs.size() and not ids.is_empty() else range(maxi(1, devs.size()))
+	loadouts = [loadout]
+	for t in range(1, seats.size()):
+		loadouts.append(saved_loadout(who[t]) if not (autopilot or shot_path != "") else loadout.duplicate())
 
 
 func pick_mode(mode: String) -> void:
-	set_players(menu.players)
+	duel = menu.setup.duplicate(true) if mode == "duel" else {}
+	if duel.is_empty():
+		set_players(menu.players)
+	else:
+		var ids: Array = duel.slots.map(func(sl): return sl.who).filter(func(w): return w >= 0)
+		set_players(ids.map(func(w): return menu.players[w]), ids)
 	garage.mode = mode
+	loadout = prog(0).fit(loadout)
 	to_garage()
 	if first_help:
 		first_help = false
@@ -414,9 +487,33 @@ func pick_mode(mode: String) -> void:
 
 
 func to_garage() -> void:
+	garage_turn(0)
+	if hover_arg != "" or shot_path != "":
+		look_garage()
+
+
+## Opens the garage for seat t: its player's name, unlocks and mech.
+func garage_turn(t: int) -> void:
 	leave_match()
 	menu.visible = false
-	garage.open(loadout, garage_arg)
+	claim.visible = false
+	turn = t
+	garage.progress = prog(t)
+	garage.who = tr("playerN").format({"n": who[t] + 1}) if seats.size() > 1 and garage.mode == "duel" else ""
+	garage.last = garage.mode == "siege" or t == seats.size() - 1
+	garage.open(lo_of(t), garage_arg)
+
+
+## FIGHT in the garage: keep this seat's mech, then the next seat builds or the match starts.
+func built(lo: Dictionary) -> void:
+	set_lo(turn, lo)
+	if not garage.last:
+		garage_turn(turn + 1)
+		return
+	start(loadout, garage.mode == "siege")
+
+
+func look_garage() -> void:
 	if hover_arg != "":
 		garage.set_hover({"set": hover_arg} if garage.SLOTS[garage.tab] == "set" else {"slot": garage.SLOTS[garage.tab], "key": hover_arg})
 	if shot_path != "":
@@ -430,6 +527,8 @@ func start(lo: Dictionary, mode := false) -> void:
 		siege = mode
 		make_view()
 	loadout = lo
+	if loadouts.size() > 0:
+		loadouts[0] = lo
 	if not autopilot and shot_path == "":
 		save_loadout()
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
@@ -448,14 +547,8 @@ func new_match() -> void:
 	clear_taps()
 	rec = Killcam.recorder()
 	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
-	var rival: Dictionary
-	if progress.unlock_all:
-		rival_key = ""
-		rival = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
-	else:
-		rival_key = progress.next_rival()
-		rival = progress.rival(rival_key)
-	rival_lo = rival
+	rival_key = ""
+	rival_id = -1
 	broke = []
 	foe_ko = false
 	settled = false
@@ -494,26 +587,40 @@ func new_match() -> void:
 				Siege.build(state, state.siege.pads[b[0]], b[1])
 		if Siege.BOTS.has(spawn_arg):
 			Siege.look(state, spawn_arg)
-	elif seats.size() == 1:
-		state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
 	else:
-		rival_key = ""
+		lineup = lineup_of()
 		var los := []
-		for i in 2 if seats.size() == 2 else 4:
-			los.append(progress.with_levels(loadout.duplicate()) if i < seats.size() else Sim.SETS.values()[(s + i) % Sim.SETS.size()])
-		state = Sim.create_state(los, Sim.FORMATS["1v1" if los.size() == 2 else "ffa"])
+		var teams := []
+		for k in lineup.size():
+			var e: Dictionary = lineup[k]
+			teams.append(e.team)
+			if e.seat >= 0:
+				los.append(prog(e.seat).with_levels(lo_of(e.seat).duplicate()))
+				continue
+			var lo: Dictionary
+			if rival_id < 0 and ladder_on():
+				rival_key = prog(0).next_rival()
+				lo = prog(0).rival(rival_key)
+			else:
+				lo = Sim.SETS.values()[(s + (0 if rival_id < 0 else k)) % Sim.SETS.size()].duplicate()
+			if rival_id < 0:
+				rival_id = k
+				rival_lo = lo
+			los.append(lo)
+		state = Sim.create_state(los, teams)
 	if sandbox:
 		pin()
 	brain = Bot.create_brain(s + 1)
-	hud.level = "" if autopilot or sandbox or siege else garage.difficulty
-	if hud.level != "":
-		brain.merge(Bot.LEVELS[hud.level], true)
 	pilot = Bot.create_brain(s + 2)
 	brains = [pilot, brain]
 	for i in range(2, state.mechs.size()):
 		brains.append(Bot.create_brain(s + 10 + i))
-		if hud.level != "":
-			brains[i].merge(Bot.LEVELS[hud.level], true)
+	hud.levels = []
+	for i in state.mechs.size():
+		var lv: String = lineup[i].level if not siege and i < lineup.size() and lineup[i].seat < 0 else ""
+		hud.levels.append(lv)
+		if lv != "":
+			brains[i].merge(Bot.LEVELS[lv], true)
 	hud.humans = seats.size()
 	if farm_arg:
 		pilot.farm = true
@@ -527,6 +634,24 @@ func new_match() -> void:
 			Sim.step(state, ins)
 		if Killcam.wants(state, rec):
 			start_replay()
+
+
+## Who fights in a duel: humans first (seat order), then bots, each with its team and level.
+func lineup_of() -> Array:
+	var out := []
+	if duel.is_empty():
+		var lv := "" if autopilot or sandbox else bot_level
+		for i in 2 if seats.size() <= 2 else 4:
+			out.append({"seat": i if i < seats.size() else -1, "team": i, "level": lv})
+		return out
+	var teams: Array = Menu.TEAMS[duel.format]
+	for k in duel.slots.size():
+		if duel.slots[k].who >= 0:
+			out.append({"seat": who.find(duel.slots[k].who), "team": teams[k], "level": ""})
+	for k in duel.slots.size():
+		if duel.slots[k].who < 0:
+			out.append({"seat": -1, "team": teams[k], "level": duel.slots[k].level})
+	return out
 
 
 ## Where the camera keeps in view: every human in Core Siege, every mech in a duel.
@@ -647,10 +772,10 @@ func _input(event: InputEvent) -> void:
 		Sfx.toggle("muted" if event.physical_keycode == KEY_M else "music_on")
 	if garage.visible or claim.visible or menu.visible:
 		return
-	var who := seat_of(event)
-	var tap: Dictionary = seats[who].tap if who >= 0 else {}
-	if event is InputEventMouseMotion and who >= 0:
-		seats[who].pad = false
+	var sid := seat_of(event)
+	var tap: Dictionary = seats[sid].tap if sid >= 0 else {}
+	if event is InputEventMouseMotion and sid >= 0:
+		seats[sid].pad = false
 	if seats.size() == 1 and (event is InputEventJoypadButton or event is InputEventJoypadMotion):
 		pad_id = event.device
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -678,7 +803,7 @@ func _input(event: InputEvent) -> void:
 			KEY_X:
 				tap.post = true
 			KEY_SHIFT:
-				open_shop(who)
+				open_shop(sid)
 			KEY_F:
 				frozen = not frozen
 				clear_taps()
@@ -716,7 +841,7 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventJoypadButton and event.pressed:
 		var k = PAD.find_key(event.button_index)
 		if event.button_index == JOY_BUTTON_Y:
-			open_shop(who)
+			open_shop(sid)
 		elif k:
 			tap[k] = true
 		elif event.button_index == JOY_BUTTON_START:
@@ -873,25 +998,40 @@ func track() -> void:
 		hud.best = progress.best
 		return
 	for f in view.fresh_fx:
-		if f.k == "break" and f.id == 1 and not broke.has(f.part):
+		if f.k == "break" and f.id == rival_id and not broke.has(f.part):
 			broke.append(f.part)
-		elif f.k == "ko" and f.id == 1:
+		elif f.k == "ko" and f.id == rival_id:
 			foe_ko = true
 	if state.phase == "over" and not settled:
 		settle()
 
 
+## A ladder win: every player beats the rival and, when it broke something new for them, picks a part.
 func settle() -> void:
 	settled = true
-	if progress.unlock_all or rival_key == "" or state.score[0] <= state.score[1]:
+	if progress.unlock_all or rival_key == "":
 		return
-	var drops := progress.pool(broke, rival_lo, foe_ko)
-	if drops.is_empty():
-		progress.win(rival_key)
-		progress.save_file()
+	var team: int = state.mechs[0].team
+	for t in state.score.size():
+		if t != team and state.score[t] >= state.score[team]:
+			return
+	claims = []
+	for t in seats.size():
+		if prog(t).pool(broke, rival_lo, foe_ko).is_empty():
+			prog(t).win(rival_key)
+			prog(t).save_file()
+		else:
+			claims.append(t)
+	next_claim()
+
+
+func next_claim() -> void:
+	if claims.is_empty():
 		return
+	claimer = claims.pop_front()
+	var p := prog(claimer)
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
-	claim.open(drops, rival_key, progress.tier(rival_key), progress)
+	claim.open(p.pool(broke, rival_lo, foe_ko), rival_key, p.tier(rival_key), p, tr("playerN").format({"n": who[claimer] + 1}) if seats.size() > 1 else "")
 
 
 func claimed(slot: String, key: String) -> void:
@@ -900,13 +1040,17 @@ func claimed(slot: String, key: String) -> void:
 		progress.save_file()
 		Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 		return
-	progress.claim(slot, key)
-	progress.win(rival_key)
-	progress.save_file()
-	loadout = Sim.normalize(loadout.merged({slot: key}, true))
+	var p := prog(claimer)
+	p.claim(slot, key)
+	p.win(rival_key)
+	p.save_file()
+	set_lo(claimer, Sim.normalize(lo_of(claimer).merged({slot: key}, true)))
 	if not autopilot and shot_path == "":
 		save_loadout()
-	to_garage()
+	if claims.is_empty():
+		to_garage()
+	else:
+		next_claim()
 
 
 func pin() -> void:

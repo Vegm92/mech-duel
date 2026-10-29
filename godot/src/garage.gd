@@ -21,7 +21,6 @@ const SLOTS := ["head", "core", "arms", "legs", "booster", "left", "right", "set
 const TITLES := ["gHead", "gCore", "gArms", "gLegs", "gBooster", "gLeftHand", "gRightHand", "gSets"]
 const MAIN := [["mainParts", 0, 4], ["mainWeapons", 5, 6], ["mainSets", 7, 7]]
 const HELP := [["hkMove", "hpMove", "haMove"], ["hkAim", "hpAim", "haAim"], ["hkLeft", "LT", "haLeft"], ["hkRight", "RT", "haRight"], ["Q", "RB", "haShield"], ["E", "L3", "haE"], ["hkSpace", "LB", "haDash"], ["R", "R3", "haUlt"], ["Esc", "Start", "haPause"], ["M / N / L", "", "haMisc"]]
-const DIFFICULTY := ["easy", "normal", "hard"]
 const UNIT := {"siSpeed": "vMs", "siDash": "vM", "siDashCd": "vS", "siHandling": "vPct", "siCharge": "vPct", "siVent": "vPs"}
 
 static var SERIES_C := {"light": Color("7ef0ff"), "standard": Color("c6d4e8"), "heavy": Color("ffb45f")}
@@ -63,8 +62,10 @@ var about_desc: Label
 var about_skill: Label
 var mode := "duel"
 var help: Control
-var difficulty := "normal"
-var diff_label: Label
+## Whose turn it is ("P2"), empty with one player.
+var who := ""
+## False while more players still build after this one: FIGHT then reads NEXT PLAYER.
+var last := true
 
 
 func _init() -> void:
@@ -105,7 +106,7 @@ func build() -> void:
 		c.queue_free()
 	left = null
 	var head := panel(root, Rect2(PAD, 12, 220, 42), Color8(14, 40, 80, 242), HI, 10)
-	var title := text(head, tr("garage"), Vector2(0, 0), 26, TEXT, 220, true, HORIZONTAL_ALIGNMENT_CENTER, 42)
+	var title := text(head, (who + " · " if who != "" else "") + tr("garage"), Vector2(0, 0), 26, TEXT, 220, true, HORIZONTAL_ALIGNMENT_CENTER, 42)
 	title.add_theme_color_override("font_shadow_color", Color(HOLO, 0.8))
 	title.add_theme_constant_override("shadow_outline_size", 8)
 	title.add_theme_constant_override("shadow_offset_x", 0)
@@ -169,19 +170,6 @@ func show_help() -> void:
 	text(box, tr("helpSiege"), Vector2(36, 428), 12, HOLO, 648, true)
 	para(box, tr("helpSiegeText"), Rect2(36, 450, 648, 84), 12, TEXT, 4)
 	text(box, tr("helpClose"), Vector2(0, tall - 38), 12, LABEL, 720, false, HORIZONTAL_ALIGNMENT_CENTER)
-
-
-func next_difficulty() -> void:
-	difficulty = DIFFICULTY[(DIFFICULTY.find(difficulty) + 1) % DIFFICULTY.size()]
-	ui.emit("tab")
-	paint_difficulty()
-
-
-func paint_difficulty() -> void:
-	if diff_label == null:
-		return
-	diff_label.text = tr("lv_" + difficulty)
-	diff_label.add_theme_color_override("font_color", {"easy": GOOD, "normal": TEXT, "hard": BAD}[difficulty])
 
 
 func go_back() -> void:
@@ -345,25 +333,9 @@ func build_right() -> void:
 	about_title = text(ab, "", Vector2(14, 8), 15, HI, RW - 28, true)
 	about_desc = para(ab, "", Rect2(14, 34, RW - 28, 68), 12, DIM, 4)
 	about_skill = para(ab, "", Rect2(14, 106, RW - 28, 48), 12, SKILL, 3)
-	var dw := 120.0 if mode == "duel" else 0.0
-	var db := Button.new()
-	db.position = Vector2(RX, 646)
-	db.size = Vector2(dw, 54)
-	db.focus_mode = Control.FOCUS_NONE
-	db.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	db.add_theme_stylebox_override("normal", plate(CARD, LINE_HOV, 2, 12))
-	for s in ["hover", "pressed", "hover_pressed"]:
-		db.add_theme_stylebox_override(s, plate(HOV, HI, 2, 12))
-	db.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	db.pressed.connect(next_difficulty)
-	db.visible = mode == "duel"
-	root.add_child(db)
-	text(db, tr("diffLabel"), Vector2(0, 8), 10, DIM, dw, true, HORIZONTAL_ALIGNMENT_CENTER)
-	diff_label = text(db, "", Vector2(0, 22), 18, TEXT, dw, true, HORIZONTAL_ALIGNMENT_CENTER)
-	paint_difficulty()
 	var f := Button.new()
-	f.position = Vector2(RX + (dw + 8 if dw > 0 else 0.0), 646)
-	f.size = Vector2(RW - (dw + 8 if dw > 0 else 0.0), 54)
+	f.position = Vector2(RX, 646)
+	f.size = Vector2(RW, 54)
 	f.focus_mode = Control.FOCUS_NONE
 	f.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var glow := Color(1.0, 0.48, 0.18, 0.9)
@@ -373,7 +345,7 @@ func build_right() -> void:
 	f.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	f.pressed.connect(go)
 	root.add_child(f)
-	fit(text(f, tr("fightBtn" if mode == "duel" else "siegeGo"), Vector2.ZERO, 20, Color("1a0d05"), f.size.x, true, HORIZONTAL_ALIGNMENT_CENTER, 54), 20, f.size.x - 16, 12)
+	fit(text(f, tr("siegeGo" if mode == "siege" else ("fightBtn" if last else "nextBtn")), Vector2.ZERO, 20, Color("1a0d05"), f.size.x, true, HORIZONTAL_ALIGNMENT_CENTER, 54), 20, f.size.x - 16, 12)
 
 
 func refresh() -> void:
@@ -528,9 +500,6 @@ func _unhandled_input(e: InputEvent) -> void:
 			select_tab((tab + 1) % SLOTS.size())
 		JOY_BUTTON_START:
 			go()
-		JOY_BUTTON_BACK:
-			if mode == "duel":
-				next_difficulty()
 		JOY_BUTTON_B:
 			go_back()
 		_:
