@@ -6,7 +6,7 @@ const Siege = preload("res://src/siege.gd")
 const S = preload("res://src/siege_state.gd")
 const Progress = preload("res://src/progress.gd")
 
-const GOLDEN := 404460410
+const GOLDEN := 3495780470
 
 var failed := 0
 var filter := ""

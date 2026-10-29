@@ -3,7 +3,7 @@ extends SceneTree
 const Sim = preload("res://src/sim.gd")
 const Bot = preload("res://src/bot.gd")
 
-const GOLDEN := 2885851157
+const GOLDEN := 2780911182
 
 var failed := 0
 var filter := ""
@@ -35,6 +35,7 @@ func _init() -> void:
 	run("frost_field_slows_only_inside", test_frost_field_slows_only_inside)
 	run("lunge_flies_six_metres", test_lunge_flies_six_metres)
 	run("lunge_hits_the_first_mech_in_the_way", test_lunge_hits_the_first_mech_in_the_way)
+	run("set_bonus_needs_the_whole_set", test_set_bonus_needs_the_whole_set)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -370,3 +371,28 @@ func test_ffa_bot_match_ends_with_a_winner() -> int:
 	var r := bot_match(lo, teams, 400)
 	var s: Dictionary = r.state
 	return ensure(s.phase == "over", "phase == over after %d ticks" % r.ticks) or ensure(s.score.max() == Sim.MATCH.wins, "a team won %d rounds" % Sim.MATCH.wins)
+
+
+func test_set_bonus_needs_the_whole_set() -> int:
+	var at := {"x": 10, "y": 10, "aim": 0}
+	var bad := ensure(Sim.SET_BONUS.keys() == Sim.SETS.keys(), "every set has a bonus")
+	for key in Sim.SETS:
+		var lo: Dictionary = Sim.SETS[key]
+		var flip := lo.merged({"left": lo.right, "right": lo.left}, true)
+		var mk2 := flip.merged({"lv": {"core": 2, "left": 2, "legs": 2}}, true)
+		for full in [lo, flip, mk2]:
+			var m := Sim.make_mech(0, full, 0, at)
+			bad += ensure(m.get("set", "") == key, "%s is on" % key)
+			for part in Sim.SET_BONUS[key]:
+				for slot in Sim.DEFAULT_LOADOUT:
+					if slot != part and not (Sim.HANDS.has(slot) and full[slot] == part):
+						continue
+					for stat in Sim.SET_BONUS[key][part]:
+						var base: float = Sim.tuned(slot, full[slot], full.get("lv", {}).get(slot, 1))[stat]
+						bad += ensure(is_equal_approx(m.rows[slot][stat], base * Sim.SET_BONUS[key][part][stat]), "%s %s.%s" % [key, slot, stat])
+		var off := lo.merged({"booster": "twin" if lo.booster == "thruster" else "thruster"}, true)
+		var m2 := Sim.make_mech(0, off, 0, at)
+		bad += ensure(not m2.has("set") and not m2.has("rows"), "%s is off with one part swapped" % key)
+	var tank := Sim.SETS.tank.merged({"booster": "thruster"}, true)
+	bad += ensure(Sim.max_armor(Sim.SETS.tank).head > Sim.max_armor(tank).head, "the tank bonus raises max armor")
+	return int(bad > 0)

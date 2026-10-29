@@ -172,6 +172,32 @@ const SETS := {
 	"vampire": {"head": "dispenser", "core": "leech", "arms": "reed", "legs": "hover", "booster": "twin", "left": "ricochet", "right": "claws"},
 	"reflector": {"head": "orb", "core": "mirror", "arms": "bulwark", "legs": "treads", "booster": "twin", "left": "bash", "right": "bunker"},
 	"glasscannon": {"head": "visor", "core": "glass", "arms": "wire", "legs": "jets", "booster": "flicker", "left": "rivet", "right": "mortar"},
+	"overclock": {"head": "antenna", "core": "reactor", "arms": "frame", "legs": "mono", "booster": "thruster", "left": "laser", "right": "tesla"},
+	"juggernaut": {"head": "horn", "core": "titan", "arms": "anvil", "legs": "treads", "booster": "rocket", "left": "fist", "right": "rivet"},
+	"hornet": {"head": "crest", "core": "flywheel", "arms": "wire", "legs": "hover", "booster": "flicker", "left": "missiles", "right": "rivet"},
+	"rampart": {"head": "demon", "core": "bastion", "arms": "bulwark", "legs": "greaves", "booster": "thruster", "left": "rivet", "right": "bash"},
+	"riposte": {"head": "visor", "core": "deflector", "arms": "brace", "legs": "skates", "booster": "twin", "left": "katana", "right": "ricochet"},
+	"wraith": {"head": "dish", "core": "shroud", "arms": "reed", "legs": "spider", "booster": "twin", "left": "scatter", "right": "claws"},
+}
+const SET_BONUS := {
+	"duelist": {"rivet": {"cd": 0.92}, "drill": {"cd": 0.92}},
+	"sniper": {"needle": {"dmg": 1.12}},
+	"brawler": {"core": {"fury": 1.4}},
+	"tank": {"core": {"armor": 1.05}},
+	"speedster": {"legs": {"top": 1.05}},
+	"artillery": {"mortar": {"splash": 1.25}},
+	"assassin": {"core": {"afterburn": 1.5}},
+	"pyro": {"core": {"hotDmg": 1.1}},
+	"controller": {"tesla": {"range": 1.08}},
+	"vampire": {"core": {"leech": 1.5}},
+	"reflector": {"core": {"reflectDmg": 1.13}},
+	"glasscannon": {"core": {"dmg": 1.05}},
+	"overclock": {"core": {"surgeGain": 1.1}},
+	"juggernaut": {"core": {"speed": 1.08}},
+	"hornet": {"core": {"momentum": 1.5}},
+	"rampart": {"core": {"absorb": 1.15}},
+	"riposte": {"core": {"perfect": 1.25}},
+	"wraith": {"booster": {"dashCd": 0.85}},
 }
 const DASH := {"ticks": 10, "endLag": 6, "slide": 0.4, "vent": 25, "afterburn": 48, "feintRefund": 0.7}
 const TRAILS := {
@@ -433,9 +459,32 @@ static func tuned(slot: String, key: String, lv: int) -> Dictionary:
 	return out
 
 
+static func set_of(lo) -> String:
+	for k in SETS:
+		var s: Dictionary = SETS[k]
+		if BODY.all(func(slot): return lo[slot] == s[slot]) and ([lo.left, lo.right] == [s.left, s.right] or [lo.right, lo.left] == [s.left, s.right]):
+			return k
+	return ""
+
+
+static func rows_of(lo) -> Dictionary:
+	var lv: Dictionary = lo.get("lv", {})
+	var bonus: Dictionary = SET_BONUS.get(set_of(lo), {})
+	var rows := {}
+	for slot in DEFAULT_LOADOUT:
+		var row := tuned(slot, lo[slot], lv.get(slot, 1))
+		var add: Dictionary = bonus.get(slot if BODY.has(slot) else lo[slot], {})
+		if not add.is_empty():
+			row = row.duplicate()
+			for key in add:
+				row[key] = row[key] * add[key]
+		rows[slot] = row
+	return rows
+
+
 static func max_armor(lo) -> Dictionary:
 	var l := normalize(lo)
-	var k: float = CORES[l.core].get("armor", 1)
+	var k: float = CORES[l.core].get("armor", 1) * SET_BONUS.get(set_of(l), {}).get("core", {}).get("armor", 1)
 	return {"head": jround(HEADS[l.head].armor * k), "rarm": jround(ARMS[l.arms].armor * k), "larm": jround(ARMS[l.arms].armor * k), "legs": jround(LEG_PARTS[l.legs].armor * k)}
 
 
@@ -650,11 +699,11 @@ static func make_mech(id: int, loadout, team: int, s) -> Dictionary:
 		"buffs": {"overdrive": 0, "berserk": 0, "bubble": 0, "bubbleHp": 0, "jam": 0, "slow": 0, "speed": 0, "power": 0, "cool": 0, "deflect": 0, "mirror": 0, "brace": 0, "cleanse": 0, "focus": 0, "pulse": 0, "xray": 0, "root": 0},
 		"act": null, "stagger": 0, "pull": null, "afterburn": 0, "lastHitCast": 0, "ko": false, "dashes": charges(lo), "lift": 0, "liftT": 1,
 	}
-	if lo.has("lv"):
-		var rows := {}
-		for slot in DEFAULT_LOADOUT:
-			rows[slot] = tuned(slot, lo[slot], lo.lv.get(slot, 1))
-		m.rows = rows
+	var kit := set_of(lo)
+	if kit != "":
+		m.set = kit
+	if lo.has("lv") or kit != "":
+		m.rows = rows_of(lo)
 	return m
 
 
