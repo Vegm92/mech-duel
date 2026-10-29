@@ -58,6 +58,7 @@ var skill_btn: Button
 var skill_name: Label
 var info_rows := []
 var about_title: Label
+var set_tag: Label
 var about_desc: Label
 var about_skill: Label
 var mode := "duel"
@@ -271,7 +272,9 @@ func card(slot: String, key: String, r: Rect2) -> void:
 		text(b, kind[0], Vector2(x, 23), 11, LABEL)
 	fit(text(b, kind[1], Vector2(x + nw, 23), 11, kind[2], tw - nw, true), 11, tw - nw, 9)
 	var extra := ""
-	if p.has("ult"):
+	if is_set:
+		extra = tr("setBonusLine").format({"name": tr("sb_" + key)})
+	elif p.has("ult"):
 		extra = tr("titleSkill").format({"name": tr("u_" + p.ult)})
 	elif p.has("move"):
 		extra = tr("dashMove").format({"name": tr("dm_" + p.move)})
@@ -280,11 +283,11 @@ func card(slot: String, key: String, r: Rect2) -> void:
 	elif p.has("e"):
 		extra = tr("eSkillLine").format({"name": tr("e_" + (p.e if p.e != "" else "none"))})
 	if extra != "":
-		fit(text(b, extra, Vector2(x, 41), 11, SKILL if p.has("ult") else GUN, tw, true), 11, tw, 9)
+		fit(text(b, extra, Vector2(x, 41), 11, GOOD if is_set else (SKILL if p.has("ult") else GUN), tw, true), 11, tw, 9)
 	var stats := card_stats(slot, p)
 	if stats.is_empty():
 		var top := 58.0 if extra != "" else 42.0
-		para(b, tr(("sd_" if is_set else "d_") + key), Rect2(x, top, tw, r.size.y - top - 4), 10, DIM, 2 if extra != "" else 3)
+		para(b, tr(("sbd_" if is_set else "d_") + key), Rect2(x, top, tw, r.size.y - top - 4), 10, DIM, 2 if extra != "" else 3)
 	for i in stats.size():
 		var y := r.size.y - (stats.size() - i) * 14.0 - 6.0
 		text(b, tr(stats[i][0]), Vector2(x, y - 5), 10, DIM, 58)
@@ -321,6 +324,7 @@ func build_right() -> void:
 	skill_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var info := panel(root, Rect2(RX, 300, RW, 170), PANEL, LINE, 12)
 	text(info, tr("mechInfo"), Vector2(14, 6), 13, HI, 0, true)
+	set_tag = text(info, "", Vector2(14, 7), 12, GOOD, RW - 28, true, HORIZONTAL_ALIGNMENT_RIGHT)
 	info_rows.clear()
 	var colw := (RW - 28.0) / 2.0
 	for i in 12:
@@ -374,6 +378,8 @@ func refresh() -> void:
 		px -= 1
 	skill_name.add_theme_font_size_override("font_size", px)
 	skill_name.add_theme_color_override("font_color", Color.WHITE if changing else SKILL)
+	var kit := Sim.set_of(next)
+	set_tag.text = tr("setTag").format({"name": tr("set_" + kit), "bonus": tr("sb_" + kit)}) if kit != "" else ""
 	var now := sheet(progress.with_levels(loadout))
 	var then := sheet(progress.with_levels(next))
 	for i in now.size():
@@ -392,7 +398,7 @@ func about() -> void:
 	var h: Dictionary = hover if hover != null else {}
 	var s: String = h.get("set", "")
 	if s == "" and not h.has("slot") and SLOTS[tab] == "set":
-		s = set_of(loadout)
+		s = Sim.set_of(loadout)
 	var slot: String = h.get("slot", SLOTS[tab])
 	var key: String = s if s != "" else h.get("key", loadout.get(slot, ""))
 	about_title.text = ""
@@ -407,6 +413,9 @@ func about() -> void:
 	elif s == "" and progress.level(slot, key) > 1:
 		about_title.text += "  ·  " + tr("mk").format({"n": progress.level(slot, key)})
 	about_desc.text = tr(("sd_" if s != "" else "d_") + key)
+	if s != "":
+		about_desc.text += "
+" + tr("setBonusFull").format({"name": tr("sb_" + s), "desc": tr("sbd_" + s)})
 	var skill := ""
 	if s != "":
 		skill = Sim.ult_of(Sim.SETS[s])
@@ -542,20 +551,13 @@ func main_of(i: int) -> Array:
 	return MAIN[0]
 
 
-func set_of(lo: Dictionary) -> String:
-	for k in Sim.SETS:
-		if Sim.SETS[k] == lo:
-			return k
-	return ""
-
-
 func selected(h: Dictionary) -> bool:
-	return set_of(loadout) == h.set if h.has("set") else loadout[h.slot] == h.key
+	return Sim.set_of(loadout) == h.set if h.has("set") else loadout[h.slot] == h.key
 
 
 func current(i: int) -> String:
 	if SLOTS[i] == "set":
-		var s := set_of(loadout)
+		var s := Sim.set_of(loadout)
 		return tr("set_" + s) if s != "" else tr("setCustom")
 	return tr("p_" + loadout[SLOTS[i]])
 
@@ -582,13 +584,13 @@ static func card_stats(slot: String, p: Dictionary) -> Array:
 
 
 static func sheet(lo: Dictionary) -> Array:
-	var lv: Dictionary = lo.get("lv", {})
+	var rows := Sim.rows_of(lo)
 	var mx := Sim.max_armor(lo)
-	var head := Sim.tuned("head", lo.head, lv.get("head", 1))
-	var c := Sim.tuned("core", lo.core, lv.get("core", 1))
-	var arms := Sim.tuned("arms", lo.arms, lv.get("arms", 1))
-	var legs := Sim.tuned("legs", lo.legs, lv.get("legs", 1))
-	var b := Sim.tuned("booster", lo.booster, lv.get("booster", 1))
+	var head: Dictionary = rows.head
+	var c: Dictionary = rows.core
+	var arms: Dictionary = rows.arms
+	var legs: Dictionary = rows.legs
+	var b: Dictionary = rows.booster
 	return [
 		["siHead", mx.head, 0, false],
 		["siArms", mx.rarm, 0, false],

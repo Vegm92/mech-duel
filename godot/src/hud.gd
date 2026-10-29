@@ -282,6 +282,8 @@ func mech_panel(m: Dictionary, at: Vector2, title: String) -> void:
 	canvas.draw_style_box(Garage.plate(PANEL, EDGE, 1, 10), Rect2(at, PANEL_SIZE))
 	canvas.draw_rect(Rect2(at + Vector2(0, 10), Vector2(3, PANEL_SIZE.y - 20)), Mech.TEAM[t])
 	label(title, at + Vector2(12, 19), 15, Mech.TEAM_LIGHT[t], HORIZONTAL_ALIGNMENT_LEFT, -1.0, 0, bold)
+	if m.has("set"):
+		label(tr("setHud").format({"name": tr("set_" + m.set)}), at + Vector2(12, PANEL_SIZE.y + 16), 12, Garage.GOOD, HORIZONTAL_ALIGNMENT_RIGHT, PANEL_SIZE.x - 22, 4, bold)
 	canvas.draw_line(at + Vector2(12, 25), at + Vector2(208, 25), Color(ACCENT, 0.4), 1.0)
 	canvas.draw_line(at + Vector2(75, 25), at + Vector2(145, 25), ACCENT, 2.0)
 	var fig := Transform2D(0, at) * FIG
