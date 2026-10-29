@@ -92,6 +92,8 @@ var bot_level := "normal"
 ## Per mech: {seat (-1 = bot), team, level}.
 var lineup := []
 var rival_id := 1
+## The Core Siege setup from the menu ({goal, rest, allies, start}); empty = look checks.
+var siege_setup := {}
 var garage: CanvasLayer
 var menu: CanvasLayer
 var first_help := false
@@ -283,16 +285,17 @@ func _ready() -> void:
 	claim.picked.connect(claimed)
 	claim.ui.connect(sfx.ui)
 	garage.fight.connect(built)
-	garage.back.connect(func() -> void: to_menu("duel" if garage.mode == "duel" else "modes"))
+	garage.back.connect(func() -> void: to_menu(garage.mode))
 	menu = Menu.new()
 	menu.bot_level = bot_level
 	menu.setup = saved.get_value("setup", "duel", {})
+	menu.siege = saved.get_value("setup", "siege", {})
 	add_child(menu)
 	menu.picked.connect(pick_mode)
 	menu.ui.connect(sfx.ui)
 	hud.resume.connect(resume)
 	hud.restart.connect(new_match)
-	hud.quit.connect(to_garage)
+	hud.quit.connect(after_match)
 	hud.ui.connect(sfx.ui)
 	garage.ui.connect(sfx.ui)
 	if sandbox and gun < 0:
@@ -382,6 +385,8 @@ func save_loadout() -> void:
 	cfg.set_value("garage", "difficulty", bot_level)
 	if not duel.is_empty():
 		cfg.set_value("setup", "duel", duel)
+	if not siege_setup.is_empty():
+		cfg.set_value("setup", "siege", siege_setup)
 	cfg.save(SAVE)
 
 
@@ -478,8 +483,15 @@ func pick_mode(mode: String) -> void:
 	else:
 		var ids: Array = duel.slots.map(func(sl): return sl.who).filter(func(w): return w >= 0)
 		set_players(ids.map(func(w): return menu.players[w]), ids)
+	siege_setup = menu.siege.duplicate() if mode == "siege" else {}
+	if not siege_setup.is_empty():
+		team_n = mini(Menu.MAX, seats.size() + siege_setup.allies)
 	garage.mode = mode
 	loadout = prog(0).fit(loadout)
+	if basic():
+		menu.visible = false
+		start(loadout, true)
+		return
 	to_garage()
 	if first_help:
 		first_help = false
@@ -493,14 +505,27 @@ func to_garage() -> void:
 
 
 ## Opens the garage for seat t: its player's name, unlocks and mech.
+## A rogue-like Core Siege run: everyone starts on the basic mech, no garage.
+func basic() -> bool:
+	return siege_setup.get("start", "") == "basic"
+
+
+## Leaving a finished or quit match: the garage, or the Core Siege setup for a basic run.
+func after_match() -> void:
+	if basic():
+		to_menu("siege")
+	else:
+		to_garage()
+
+
 func garage_turn(t: int) -> void:
 	leave_match()
 	menu.visible = false
 	claim.visible = false
 	turn = t
 	garage.progress = prog(t)
-	garage.who = tr("playerN").format({"n": who[t] + 1}) if seats.size() > 1 and garage.mode == "duel" else ""
-	garage.last = garage.mode == "siege" or t == seats.size() - 1
+	garage.who = tr("playerN").format({"n": who[t] + 1}) if seats.size() > 1 else ""
+	garage.last = t == seats.size() - 1
 	garage.open(lo_of(t), garage_arg)
 
 
@@ -557,22 +582,29 @@ func new_match() -> void:
 		loadout.right = loadout.left
 	if siege:
 		shop.close()
-		var los := [progress.with_levels(loadout.duplicate())]
-		allies = [null]
-		for i in range(1, maxi(team_n, seats.size())):
-			los.append(los[0].duplicate() if i < seats.size() else Sim.SETS.values()[(s + i) % Sim.SETS.size()])
-			allies.append(Bot.create_brain(s + 10 + i))
+		var los := []
+		allies = []
+		for i in maxi(team_n, seats.size()):
+			if i >= seats.size():
+				los.append(Sim.SETS.values()[(s + i) % Sim.SETS.size()])
+			else:
+				los.append(Sim.DEFAULT_LOADOUT.duplicate(true) if basic() else prog(i).with_levels(lo_of(i).duplicate()))
+			allies.append(null if i == 0 else Bot.create_brain(s + 10 + i))
 		state = Siege.create(los, s)
 		state.siege.director.on = director_on
+		if not siege_setup.is_empty():
+			state.siege.goal = siege_setup.goal
+			state.siege.rest = siege_setup.rest * Sim.TICKS
+		hud.rematch = "rematchSetup" if basic() else "rematch"
 		if not progress.unlock_all:
-			var own := {}
-			for slot in Siege.S.PART_SLOTS:
-				own[slot] = {}
-				for key in Sim.CATALOG[slot]:
-					if progress.has(slot, key):
-						own[slot][key] = progress.level(slot, key)
 			for i in seats.size():
-				state.siege.owned[i] = own.duplicate(true)
+				var own := {}
+				for slot in Siege.S.PART_SLOTS:
+					own[slot] = {}
+					for key in Sim.CATALOG[slot]:
+						if prog(i).has(slot, key):
+							own[slot][key] = prog(i).level(slot, key)
+				state.siege.owned[i] = own
 		state.siege.wave.n = wave_arg - 1
 		for t in guard_arg:
 			state.siege.fund += Siege.GARRISON.cost[t]
@@ -796,7 +828,7 @@ func _input(event: InputEvent) -> void:
 				if skip():
 					get_viewport().set_input_as_handled()
 				elif state.phase == "over":
-					to_garage()
+					after_match()
 					get_viewport().set_input_as_handled()
 			KEY_L:
 				I18n.toggle()
@@ -847,7 +879,8 @@ func _input(event: InputEvent) -> void:
 		elif event.button_index == JOY_BUTTON_START:
 			paused = not paused
 		elif event.button_index == JOY_BUTTON_A:
-			skip()
+			if not skip() and state.phase == "over":
+				after_match()
 	elif event is InputEventJoypadMotion and event.axis_value > 0.5:
 		var k = TRIGGER.find_key(event.axis)
 		if k:
@@ -993,7 +1026,7 @@ func track() -> void:
 					claim.open(drops, Progress.SIEGE_SPOILS[f.n], f.n / 10, progress)
 		if state.phase == "over" and not settled:
 			settled = true
-			if not progress.unlock_all and progress.held(maxi(0, state.siege.wave.n - 1)):
+			if not progress.unlock_all and progress.held(maxi(0, state.siege.wave.n - (0 if state.siege.get("won", false) else 1))):
 				progress.save_file()
 		hud.best = progress.best
 		return

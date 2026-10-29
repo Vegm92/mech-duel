@@ -1033,9 +1033,12 @@ static func direct(state, sg: Dictionary) -> void:
 			state.fx.append({"k": "tactic", "id": "breather", "lanes": [], "t": DIRECTOR.call})
 		if sg.director.scored < w.n:
 			score(sg, w.n, RUN.cap - w.next_in)
-		w.next_in = mini(w.next_in, (RUN.build if w.n < RUN.late else RUN.buildLate) + rest)
+		w.next_in = mini(w.next_in, sg.get("rest", RUN.build if w.n < RUN.late else RUN.buildLate) + rest)
 		if w.n in MILESTONES:
 			state.fx.append({"k": "milestone", "n": w.n, "t": 60})
+		if sg.get("goal", 0) > 0 and w.n >= sg.goal:
+			sg.won = true
+			state.phase = "over"
 		var c: Dictionary = sg.core
 		if c.hp >= c.max * 0.75:
 			var bonus := int(floor(sg.earned * RUN.clear))

@@ -172,6 +172,16 @@ $P = "$R\godot"
   `progress_p<n>.cfg`; `prog` = a shared all-open `free` in a free match). The ladder rival is the first
   bot (`rival_id`), drawn from P1's ladder; a win queues a claim per player (`settle`, `next_claim`,
   `claim.open(..., who)`). The garage has no difficulty button any more.
+- **Core Siege setup** (Victor 2026-10-29: "change parameters, rounds, time and it should be rogue like,
+  start from basics and grow ingame"). `menu.gd` page `siege` after Core Siege (`fit_siege`,
+  `option_row`): waves to win (`GOALS` 10/20/30/0 = endless), break between waves (`RESTS` 15/25/40 s),
+  AI allies (0..4 - players), start (`STARTS`: basic / garage). main.gd `siege_setup` (empty = look
+  checks; saved as `[setup] siege`): `team_n` = players + allies; `siege.goal` (clearing that wave sets
+  `won` and ends the run: `CORE HELD`) and `siege.rest` (replaces `RUN.build` / `buildLate`) are read
+  with `sg.get`, so the siege `GOLDEN` holds. `basic()`: START RUN skips the garage, every player starts
+  on `DEFAULT_LOADOUT` at level 1 and grows with the run's tiers and swaps; `after_match` (Enter, pad A,
+  Quit) goes back to the setup. A garage start gives each player a garage turn and their own mech and
+  owned parts (`prog(i)`). AI allies stay full `SETS`. Evidence: `siege-*-2026-10-29.png`.
 - **Flow:** the game opens on the join screen, then the mode menu (`menu.gd`: Duel, Core Siege, Back;
   Victor 2026-10-29). A mode opens the garage in that mode (`garage.mode`; siege hides the difficulty
   button and FIGHT reads START SIEGE); BACK, Esc or pad B goes back to the menu. FIGHT saves your bot to

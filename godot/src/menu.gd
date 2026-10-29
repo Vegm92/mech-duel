@@ -14,6 +14,9 @@ const MAX := 4
 const TEAMS := {"1v1": [0, 1], "2v2": [0, 0, 1, 1], "ffa": [0, 1, 2, 3]}
 const FORMATS := ["1v1", "2v2", "ffa"]
 const LEVELS := ["easy", "normal", "hard"]
+const GOALS := [10, 20, 30, 0]
+const RESTS := [15, 25, 40]
+const STARTS := ["basic", "garage"]
 
 var root: Control
 var bold: FontVariation
@@ -24,6 +27,8 @@ var players := []
 ## The Duel setup: format, one slot per mech ({who: player index or -1 = bot, level}), ladder on/off.
 var setup := {}
 var bot_level := "normal"
+## The Core Siege setup: waves to win (0 = endless), break between waves (s), AI allies, start mech.
+var siege := {}
 var focus_at := 0
 
 
@@ -57,6 +62,7 @@ func open(at := "") -> void:
 	page = at if at != "" and not players.is_empty() else ("modes" if not players.is_empty() else "players")
 	if page == "duel" and not valid(setup):
 		setup = fresh_setup("1v1" if players.size() <= 2 else "ffa")
+	siege = fit_siege(siege)
 	build()
 
 
@@ -66,6 +72,9 @@ func build() -> void:
 	buttons.clear()
 	if page == "duel":
 		build_duel()
+		return
+	if page == "siege":
+		build_siege()
 		return
 	var title := label(root, tr("gameTitle"), Rect2(0, 120, Garage.SIZE.x, 80), 64, Garage.TEXT)
 	title.add_theme_color_override("font_shadow_color", Color(Garage.HOLO, 0.8))
@@ -162,12 +171,13 @@ func choose(mode: String) -> void:
 		return
 	if players.is_empty():
 		players.append(-1)
-	if mode in ["back", "modes", "duel"]:
-		page = {"back": "players", "modes": "modes", "duel": "duel"}[mode]
+	if mode in ["back", "modes", "duel", "siege"]:
+		page = {"back": "players", "modes": "modes", "duel": "duel", "siege": "siege"}[mode]
+		siege = fit_siege(siege)
 		focus_at = 0
 		if page == "duel" and not valid(setup):
 			setup = fresh_setup("1v1" if players.size() <= 2 else "ffa")
-		ui.emit("tab" if mode != "duel" else "select")
+		ui.emit("select" if mode in ["duel", "siege"] else "tab")
 		build()
 		return
 	ui.emit("select")
@@ -343,6 +353,58 @@ func go_duel() -> void:
 	setup.ladder = setup.ladder and pve(setup)
 	ui.emit("select")
 	picked.emit("duel")
+
+
+## A saved Core Siege setup made valid for the players who joined now.
+func fit_siege(s: Dictionary) -> Dictionary:
+	var out := {"goal": 10, "rest": 25, "allies": 1, "start": "basic"}
+	if GOALS.has(s.get("goal", -1)):
+		out.goal = s.goal
+	if RESTS.has(s.get("rest", -1)):
+		out.rest = s.rest
+	if STARTS.has(s.get("start", "")):
+		out.start = s.start
+	out.allies = clampi(int(s.get("allies", out.allies)), 0, MAX - maxi(1, players.size()))
+	return out
+
+
+func build_siege() -> void:
+	label(root, tr("siegeBtn"), Rect2(0, 28, Garage.SIZE.x, 50), 40, Garage.TEXT)
+	label(root, tr("siegeSetupSub"), Rect2(0, 78, Garage.SIZE.x, 22), 14, Garage.DIM, false)
+	option_row(130, "goalLabel", "goal", GOALS, func(v): return tr("endless") if v == 0 else str(v))
+	option_row(206, "restLabel", "rest", RESTS, func(v): return tr("secs").format({"n": v}))
+	option_row(282, "alliesLabel", "allies", range(MAX), func(v): return str(v))
+	option_row(358, "startLabel", "start", STARTS, func(v): return tr("start_" + v))
+	label(root, tr("startDesc_" + siege.start), Rect2(140, 430, Garage.SIZE.x - 280, 60), 13, Garage.DIM, false)
+	var back := button(Rect2(Garage.SIZE.x / 2.0 - 270, 590, 200, 56), choose.bind("modes"))
+	label(back, tr("backBtn"), Rect2(0, 0, 200, 56), 18, Garage.TEXT)
+	var go := button(Rect2(Garage.SIZE.x / 2.0 - 50, 590, 320, 56), go_siege)
+	label(go, tr("startRun" if siege.start == "basic" else "menuGo"), Rect2(0, 0, 320, 56), 22, Garage.TEXT)
+	buttons[clampi(focus_at, 0, buttons.size() - 1)].grab_focus.call_deferred()
+
+
+func option_row(y: float, title: String, key: String, opts: Array, text: Callable) -> void:
+	label(root, tr(title), Rect2(140, y, 300, 52), 16, Garage.DIM, true, HORIZONTAL_ALIGNMENT_LEFT)
+	var step := 700.0 / opts.size()
+	for i in opts.size():
+		var v = opts[i]
+		var off: bool = key == "allies" and v > MAX - maxi(1, players.size())
+		var b := button(Rect2(440 + i * step, y, step - 14, 52), set_opt.bind(key, v, buttons.size()))
+		pick(b, siege[key] == v)
+		label(b, text.call(v), Rect2(0, 0, step - 14, 52), 18, Garage.LABEL if off else Garage.TEXT)
+		b.disabled = off
+
+
+func set_opt(key: String, v, at: int) -> void:
+	siege[key] = v
+	focus_at = at
+	ui.emit("tab")
+	build()
+
+
+func go_siege() -> void:
+	ui.emit("select")
+	picked.emit("siege")
 
 
 func label(parent: Control, s: String, r: Rect2, px: int, c: Color, heavy := true, align := HORIZONTAL_ALIGNMENT_CENTER) -> Label:

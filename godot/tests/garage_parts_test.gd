@@ -19,6 +19,7 @@ func _initialize() -> void:
 	await run("menu_picks_the_mode_and_the_garage_goes_back_to_it", test_menu_picks_the_mode_and_the_garage_goes_back_to_it)
 	await run("players_join_and_each_device_drives_its_own_mech", test_players_join_and_each_device_drives_its_own_mech)
 	await run("two_players_beat_a_ladder_rival_together_and_each_picks_a_part", test_two_players_beat_a_ladder_rival_together_and_each_picks_a_part)
+	await run("siege_setup_starts_a_basic_run_with_allies_and_ends_back_on_the_setup", test_siege_setup_starts_a_basic_run_with_allies_and_ends_back_on_the_setup)
 	await run("pad_moves_aims_acts_and_pauses", test_pad_moves_aims_acts_and_pauses)
 	await run("garage_works_with_a_pad", test_garage_works_with_a_pad)
 	await run("decor_keeps_off_pads_spawns_and_traps", test_decor_keeps_off_pads_spawns_and_traps)
@@ -162,9 +163,12 @@ func test_menu_picks_the_mode_and_the_garage_goes_back_to_it() -> int:
 	await process_frame
 	var bad := ensure(m.menu.visible and not m.garage.visible and not m.view.visible, "the menu shows alone")
 	m.menu.choose("siege")
+	bad += ensure(m.menu.page == "siege" and m.menu.siege.start == "basic", "Core Siege opens its setup: a basic start by default")
+	m.menu.set_opt("start", "garage", 0)
+	m.menu.go_siege()
 	await process_frame
-	bad += ensure(m.garage.visible and not m.menu.visible and m.garage.mode == "siege", "Core Siege opens the garage in siege mode")
-	bad += ensure(m.garage.last, "Core Siege has one garage turn")
+	bad += ensure(m.garage.visible and not m.menu.visible and m.garage.mode == "siege", "a garage start opens the garage in siege mode")
+	bad += ensure(m.garage.last, "one player: one garage turn")
 	m.garage.go()
 	await physics_frame
 	await physics_frame
@@ -175,7 +179,7 @@ func test_menu_picks_the_mode_and_the_garage_goes_back_to_it() -> int:
 	await process_frame
 	m.garage.go_back()
 	await process_frame
-	bad += ensure(m.menu.visible and not m.garage.visible, "Back goes to the menu")
+	bad += ensure(m.menu.visible and not m.garage.visible and m.menu.page == "siege", "Back goes to the siege setup")
 	m.menu.choose("duel")
 	bad += ensure(m.menu.page == "duel" and m.menu.setup.slots.size() == 2 and m.menu.setup.slots[1].who == -1, "Duel opens its setup: you against a bot")
 	m.menu.go_duel()
@@ -227,6 +231,37 @@ func test_two_players_beat_a_ladder_rival_together_and_each_picks_a_part() -> in
 	m.queue_free()
 	wipe_flow()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(p2))
+	await process_frame
+	return int(bad > 0)
+
+
+func test_siege_setup_starts_a_basic_run_with_allies_and_ends_back_on_the_setup() -> int:
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	root.add_child(m)
+	await process_frame
+	m.state.phase = "over"
+	m.menu.players = [-1, 0]
+	m.menu.siege = {"allies": 3}
+	m.menu.choose("siege")
+	var bad := ensure(m.menu.siege.allies == 2, "2 players: at most 2 AI allies")
+	m.menu.set_opt("goal", 20, 0)
+	m.menu.set_opt("rest", 15, 0)
+	m.menu.set_opt("allies", 1, 0)
+	m.menu.go_siege()
+	await physics_frame
+	var sg: Dictionary = m.state.siege
+	bad += ensure(m.siege and not m.garage.visible and not m.menu.visible, "a basic start skips the garage")
+	bad += ensure(sg.team == 3 and sg.goal == 20 and sg.rest == 15 * m.Sim.TICKS, "2 players + 1 ally, 20 waves, 15 s breaks")
+	var basic: Dictionary = m.Sim.normalize(m.Sim.DEFAULT_LOADOUT)
+	bad += ensure(m.state.mechs[0].loadout == basic and m.state.mechs[1].loadout == basic, "every player starts on the basic mech")
+	sg.won = true
+	m.state.phase = "over"
+	await physics_frame
+	m.after_match()
+	await process_frame
+	bad += ensure(m.menu.visible and m.menu.page == "siege", "after a basic run you land on the siege setup")
+	m.queue_free()
 	await process_frame
 	return int(bad > 0)
 

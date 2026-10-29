@@ -55,6 +55,8 @@ var pad := false
 var levels := []
 ## How many of the mechs (the first ones) are people.
 var humans := 1
+## The line under a finished siege: back to the garage, or to the setup for a basic run.
+var rematch := "rematch"
 var canvas: Control
 var font: Font
 var bold: FontVariation
@@ -191,9 +193,11 @@ func paint() -> void:
 			siege_calls(size)
 		if state.phase == "over":
 			var cy := size.y * 0.38
-			label(tr("siegeLost"), Vector2(0, cy + 30), 110, HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, heavy, 32)
-			label(tr("siegeHeld").format({"n": maxi(0, state.siege.wave.n - 1)}) + ("   ·   " + tr("siegeBest").format({"n": best}) if best > 0 else ""), Vector2(0, cy + 80), 30, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, bold, 14)
-			label(tr("rematch"), Vector2(0, cy + 118), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
+			var won: bool = state.siege.get("won", false)
+			label(tr("siegeWon" if won else "siegeLost"), Vector2(0, cy + 30), 110, Color8(120, 230, 150) if won else HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, heavy, 32)
+			var held: String = tr("siegeAll") if won else tr("siegeHeld")
+			label(held.format({"n": state.siege.wave.n if won else maxi(0, state.siege.wave.n - 1)}) + ("   ·   " + tr("siegeBest").format({"n": best}) if best > 0 else ""), Vector2(0, cy + 80), 30, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, bold, 14)
+			label(tr(rematch), Vector2(0, cy + 118), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
 	else:
 		for i in state.mechs.size():
 			mech_panel(state.mechs[i], corner(i, size), name_of(i) + ("  ·  %d" % state.score[state.mechs[i].team] if state.score.size() > 2 else ""))

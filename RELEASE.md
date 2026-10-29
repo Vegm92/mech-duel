@@ -6,7 +6,7 @@ V1 is one build (`MechDuel-v<version>-windows.zip`). It opens on a mode menu (Vi
 
 - **Duel**: you against an AI rival, first to 3 rounds, in the garage → fight → claim a part → garage loop. Garage (63 parts, 20 weapons, 12 sets), Salvage unlocks, the 12-rival ladder, kill cam, crowd, sound, keyboard + mouse and gamepad, English and Spanish.
 - **Core Siege**: co-op wave defense with an AI ally (Victor 2026-10-28: "one version with the other mode too").
-- **V1 waits for the new menu** (Victor 2026-10-29): steps 1 (mode menu), 2 (up to 4 players on one PC) and 3 (Duel setup) are done; next is Core Siege setup.
+- **V1 waits for the new menu** (Victor 2026-10-29): all 4 steps are done: 1 (mode menu), 2 (up to 4 players on one PC), 3 (Duel setup) and 4 (Core Siege setup).
 - Not in V1: online play, more modes, a settings screen (pause menu sliders and M/N/L keys cover sound and language).
 
 ## V1 changes
@@ -56,5 +56,6 @@ It runs the 11 test suites (duel and siege), exports the build to `build\MechDue
 - Sound mix is not checked by ear.
 - The difficulty button only changes the Duel rival; Core Siege ignores it.
 - **Duel setup** (step 3): 1 VS 1, 2 VS 2 or free-for-all; each slot is a player or a bot with its own difficulty; Free match (every part open, nothing saved) or Ladder (rogue-like unlocks, only when all players are on one team against bots). Each player builds their own mech in the garage in turn (P1, then P2...), and on a ladder win each player picks a part from the rival in turn. Each player has their own save: P1 keeps `progress.cfg`, the others `progress_p2.cfg`... Evidence: `setup-*-2026-10-29.png`.
+- **Core Siege setup** (step 4): waves to win (10, 20, 30 or endless; clearing the last one shows CORE HELD), break between waves (15, 25 or 40 s), AI allies (fill up to 4 mechs), and the start: BASIC MECH (rogue-like: everyone starts on the basic mech and grows it in the run with scrap; no garage, Enter after the run goes back to the setup) or MY GARAGE MECH (each player builds their own mech in turn). Evidence: `siege-*-2026-10-29.png`.
 - With 2+ players: the skill bar (cooldowns) shows only for one player; in Core Siege every player's mech is the same orange (aim rings have the player colors).
 - Core Siege is still being tuned by its own session; the full build ships whatever `main` has at build time.
