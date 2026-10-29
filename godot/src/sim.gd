@@ -818,18 +818,20 @@ static func think(state, m, inp) -> void:
 
 
 static func tick_timers(m) -> void:
-	var n := 2 if m.buffs.overdrive > 0 else 1
-	for k in m.cd:
-		m.cd[k] = max(0, m.cd[k] - n)
+	var bf: Dictionary = m.buffs
+	var n := 2 if bf.overdrive > 0 else 1
+	var cd: Dictionary = m.cd
+	for k in cd:
+		cd[k] = max(0, cd[k] - n)
 	if m.cd.dash == 0 and m.dashes < charges(m.loadout):
 		m.dashes += 1
 		if m.dashes < charges(m.loadout):
 			m.cd.dash = dash_recharge(m)
 	if m.lift > 0:
 		m.lift -= 1
-	for k in m.buffs:
-		if k != "bubbleHp" and m.buffs[k] > 0:
-			m.buffs[k] -= 1
+	for k in bf:
+		if bf[k] > 0 and k != "bubbleHp":
+			bf[k] -= 1
 	if m.afterburn > 0:
 		m.afterburn -= 1
 	if m.stagger > 0:
@@ -1344,18 +1346,24 @@ static func move_shots(state) -> void:
 
 
 static func move_shot(state, s) -> bool:
-	var enemies := foes(state, s.owner)
-	var prey = null
-	for t in enemies:
-		if prey == null or hypot(t.x - s.x, t.y - s.y) < hypot(prey.x - s.x, prey.y - s.y):
-			prey = t
-	if s.homing and prey != null:
-		var sp := hypot(s.vx, s.vy)
-		var a := turn_toward(atan2(s.vy, s.vx), atan2(prey.y - s.y, prey.x - s.x), s.homing * DT)
-		s.vx = cos(a) * sp
-		s.vy = sin(a) * sp
-	for t in enemies:
-		if not (t.buffs.deflect > 0 and hypot(t.x - s.x, t.y - s.y) < ULTS.deflect.radius):
+	var team = state.mechs[s.owner].team
+	if s.homing:
+		var prey = null
+		var pd := 0.0
+		for t in state.mechs:
+			if t.ko or t.team == team:
+				continue
+			var d := hypot(t.x - s.x, t.y - s.y)
+			if prey == null or d < pd:
+				prey = t
+				pd = d
+		if prey != null:
+			var sp := hypot(s.vx, s.vy)
+			var a := turn_toward(atan2(s.vy, s.vx), atan2(prey.y - s.y, prey.x - s.x), s.homing * DT)
+			s.vx = cos(a) * sp
+			s.vy = sin(a) * sp
+	for t in state.mechs:
+		if t.ko or t.team == team or not (t.buffs.deflect > 0 and hypot(t.x - s.x, t.y - s.y) < ULTS.deflect.radius):
 			continue
 		var sp := hypot(s.vx, s.vy)
 		var a := turn_toward(atan2(s.vy, s.vx), atan2(s.y - t.y, s.x - t.x), ULTS.deflect.turn)
@@ -1370,12 +1378,24 @@ static func move_shot(state, s) -> bool:
 		if wall_blocks(state, s.owner, w) and cross_t(x0, y0, s.x, s.y, w) != null:
 			state.fx.append({"k": "ping", "x": s.x, "y": s.y, "a": atan2(s.vy, s.vx), "t": 8})
 			return false
+	var lx := minf(x0, s.x) - 0.001
+	var hx := maxf(x0, s.x) + 0.001
+	var ly := minf(y0, s.y) - 0.001
+	var hy := maxf(y0, s.y) + 0.001
 	var best = null
-	for t in enemies:
-		if airborne(t) or seg_dist(x0, y0, s.x, s.y, t.x, t.y) >= rad(t) + s.r:
+	var bd := 0.0
+	for t in state.mechs:
+		if t.ko or t.team == team:
 			continue
-		if best == null or hypot(t.x - x0, t.y - y0) < hypot(best.x - x0, best.y - y0):
+		var lim: float = rad(t) + s.r
+		if t.x < lx - lim or t.x > hx + lim or t.y < ly - lim or t.y > hy + lim:
+			continue
+		if airborne(t) or seg_dist(x0, y0, s.x, s.y, t.x, t.y) >= lim:
+			continue
+		var d := hypot(t.x - x0, t.y - y0)
+		if best == null or d < bd:
 			best = t
+			bd = d
 	if best != null:
 		return shot_hits(state, s, best)
 	var g := geo(state)
@@ -1387,8 +1407,10 @@ static func move_shot(state, s) -> bool:
 			wall = w
 			break
 	var pillar = null
-	var team = state.mechs[s.owner].team
 	for p in g.pillars:
+		var pl: float = p.r + s.r
+		if p.x < lx - pl or p.x > hx + pl or p.y < ly - pl or p.y > hy + pl:
+			continue
 		if p.get("only", team) == team and state.mechs[s.owner].buffs.xray == 0 and seg_dist(x0, y0, s.x, s.y, p.x, p.y) < p.r + s.r:
 			pillar = p
 			break
@@ -1825,31 +1847,72 @@ static func update_fields(state) -> void:
 	state.fields = keep
 
 
+static var _grid_of: Array = []
+static var _grid := {}
+const GRID := {"cell": 8.0, "reach": 2.0}
+
+
+static func near_solids(solids: Array, x: float, y: float) -> Array:
+	if not is_same(solids, _grid_of):
+		_grid = {}
+		for i in solids.size():
+			var p = solids[i]
+			var e: float = p.r + GRID.reach
+			for cx in range(floori((p.x - e) / GRID.cell), floori((p.x + e) / GRID.cell) + 1):
+				for cy in range(floori((p.y - e) / GRID.cell), floori((p.y + e) / GRID.cell) + 1):
+					var k := Vector2i(cx, cy)
+					if not _grid.has(k):
+						_grid[k] = []
+					_grid[k].append(i)
+		_grid_of = solids
+	return _grid.get(Vector2i(floori(x / GRID.cell), floori(y / GRID.cell)), [])
+
+
+static func push_solid(m, p, mr: float) -> bool:
+	var dx: float = m.x - p.x
+	var dy: float = m.y - p.y
+	var lim: float = p.r + mr
+	if absf(dx) >= lim or absf(dy) >= lim:
+		return false
+	var d := hypot(dx, dy)
+	if d >= lim or d == 0:
+		return false
+	var nx := dx / d
+	var ny := dy / d
+	m.x = p.x + nx * lim
+	m.y = p.y + ny * lim
+	var vn: float = m.vx * nx + m.vy * ny
+	if vn < 0:
+		m.vx -= vn * nx
+		m.vy -= vn * ny
+	return true
+
+
 static func collide(m, shrink: float, g: Dictionary = DUEL_GEO) -> void:
-	for p in g.solids:
-		var dx: float = m.x - p.x
-		var dy: float = m.y - p.y
-		var d := hypot(dx, dy)
-		var lim: float = p.r + rad(m)
-		if d >= lim or d == 0:
-			continue
-		var nx := dx / d
-		var ny := dy / d
-		m.x = p.x + nx * lim
-		m.y = p.y + ny * lim
-		var vn: float = m.vx * nx + m.vy * ny
-		if vn < 0:
-			m.vx -= vn * nx
-			m.vy -= vn * ny
+	var mr := rad(m)
+	var solids: Array = g.solids
+	var moved := -1
+	for i in (near_solids(solids, m.x, m.y) if mr <= GRID.reach else range(solids.size())):
+		if push_solid(m, solids[i], mr):
+			moved = i
+			break
+	if moved >= 0:
+		for i in range(moved + 1, solids.size()):
+			push_solid(m, solids[i], mr)
+	var edge := mr + 0.000001
 	for b in g.get("boxes", []):
+		if m.x < b.x0 - edge or m.x > b.x1 + edge or m.y < b.y0 - edge or m.y > b.y1 + edge:
+			continue
 		if b.get("only", m.team) != m.team or b.get("hp", 1) <= 0:
 			continue
 		var cx := clampf(m.x, b.x0, b.x1)
 		var cy := clampf(m.y, b.y0, b.y1)
 		var bx: float = m.x - cx
 		var by: float = m.y - cy
+		if absf(bx) >= mr or absf(by) >= mr:
+			continue
 		var bd := hypot(bx, by)
-		if bd >= rad(m):
+		if bd >= mr:
 			continue
 		if bd == 0:
 			var out := [m.x - b.x0, b.x1 - m.x, m.y - b.y0, b.y1 - m.y]
@@ -1859,20 +1922,20 @@ static func collide(m, shrink: float, g: Dictionary = DUEL_GEO) -> void:
 			cx = [b.x0, b.x1, m.x, m.x][k]
 			cy = [m.y, m.y, b.y0, b.y1][k]
 			bd = 1.0
-		m.x = cx + bx / bd * rad(m)
-		m.y = cy + by / bd * rad(m)
+		m.x = cx + bx / bd * mr
+		m.y = cy + by / bd * mr
 		var vb: float = (m.vx * bx + m.vy * by) / bd
 		if vb < 0:
 			m.vx -= vb * bx / bd
 			m.vy -= vb * by / bd
 	for r in g.get("rings", []):
 		var d := hypot(m.x, m.y)
-		if d > 0 and d > r.r0 - rad(m) and d < r.r1 + rad(m) and not in_gap(r, m.x, m.y, 0.0):
-			var to: float = r.r0 - rad(m) if d < (r.r0 + r.r1) / 2.0 else r.r1 + rad(m)
+		if d > 0 and d > r.r0 - mr and d < r.r1 + mr and not in_gap(r, m.x, m.y, 0.0):
+			var to: float = r.r0 - mr if d < (r.r0 + r.r1) / 2.0 else r.r1 + mr
 			m.x *= to / d
 			m.y *= to / d
 	for w in g.walls:
-		var o: float = m.x * w.nx + m.y * w.ny + rad(m) - (w.d - shrink)
+		var o: float = m.x * w.nx + m.y * w.ny + mr - (w.d - shrink)
 		if o <= 0:
 			continue
 		m.x -= w.nx * o

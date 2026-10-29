@@ -47,7 +47,7 @@ const NEON := {"cyan": 0.75, "orange": 0.75}
 
 const FONT := {"family": "saira", "impact": "exo2", "width": 87.5, "text": 600, "bold": 800, "heavy": 900}
 
-const POP := {"hit": Color("#ffffff"), "head": Color("#ff8c28"), "block": Color("#2ba7ff"), "heal": Color("#2dd66b")}
+const POP := {"hit": Color("#ffffff"), "head": Color("#ff8c28"), "hurt": Color("#ff3b3b"), "block": Color("#2ba7ff"), "heal": Color("#2dd66b")}
 
 const HAZARD := {"paint": PAL.hazard, "black": PAL.void, "metal": FAMILY.hazard[0], "rough": FAMILY.hazard[1], "width": 0.16, "wear": 0.3, "warn_color": PAL.warn}
 

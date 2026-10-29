@@ -3,7 +3,7 @@ extends RefCounted
 const Sim = preload("res://src/sim.gd")
 
 const SKILL := {"skilled": {"aimError": 0.3, "reaction": 0.15, "dodge": 0.5}, "average": {"aimError": 0.9, "reaction": 0.3, "dodge": 0.25}, "weak": {"aimError": 1.6, "reaction": 0.5, "dodge": 0.1}}
-## Duel rival difficulty, picked in the garage. Merged into the rival's brain; any key left out uses BOT.
+## Duel bot difficulty, picked per bot slot in the Duel setup (menu.gd). Merged into the rival's brain; any key left out uses BOT.
 ## block = chance to shield an incoming shot, lead = how far ahead it aims at a moving target (0 = where you are now), move = top speed share,
 ## pause = extra ticks between shots, rhythm = random extra delay cap, heatCap = heat it stops firing at,
 ## juke = ticks between strafe flips (long = predictable). Check with tests/difficulty_test.gd.
@@ -57,19 +57,21 @@ static func dist(a, b) -> float:
 
 
 static func pick(state, brain, m):
-	var lst := Sim.foes(state, m.id)
-	if brain.get("lanes_only", false):
-		lst = lst.filter(func(t): return t.team != 2)
+	var lanes: bool = brain.get("lanes_only", false)
+	var want = brain.get("target", -1)
 	var near = null
-	for t in lst:
-		if near == null or dist(m, t) < dist(m, near):
-			near = t
+	var nd := 0.0
 	var cur = null
-	for t in lst:
-		if t.id == brain.get("target", -1):
+	for t in state.mechs:
+		if t.ko or t.team == m.team or (lanes and t.team == 2):
+			continue
+		var d := dist(m, t)
+		if near == null or d < nd:
+			near = t
+			nd = d
+		if cur == null and t.id == want:
 			cur = t
-			break
-	if cur != null and dist(m, cur) < dist(m, near) * BOT.stick + 2:
+	if cur != null and dist(m, cur) < nd * BOT.stick + 2:
 		return cur
 	if near != null:
 		brain.target = near.id

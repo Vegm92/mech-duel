@@ -6,7 +6,7 @@ const Siege = preload("res://src/siege.gd")
 const S = preload("res://src/siege_state.gd")
 const Progress = preload("res://src/progress.gd")
 
-const GOLDEN := 143156958
+const GOLDEN := 404460410
 
 var failed := 0
 var filter := ""
@@ -92,6 +92,7 @@ func _init() -> void:
 	run("boss_waves_keep_their_must_list_and_mk_and_scrap_is_untouched", test_boss_waves_keep_their_must_list_and_mk_and_scrap_is_untouched)
 	run("waves_one_to_three_plan_the_same_with_the_director_on_and_off", test_waves_one_to_three_plan_the_same_with_the_director_on_and_off)
 	run("two_easy_waves_raise_the_tier_and_two_hard_waves_give_one_pity_wave", test_two_easy_waves_raise_the_tier_and_two_hard_waves_give_one_pity_wave)
+	run("clearing_the_goal_wave_wins_and_the_break_follows_the_setup", test_clearing_the_goal_wave_wins_and_the_break_follows_the_setup)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -107,6 +108,33 @@ func run(name: String, test: Callable) -> void:
 		print("test failed: %s" % name)
 	else:
 		print("test passed: %s (%d ms)" % [name, Time.get_ticks_msec() - t0])
+
+
+func clear_wave(s: Dictionary, n: int) -> void:
+	var sg: Dictionary = s.siege
+	sg.wave.n = n
+	sg.wave.live = true
+	sg.wave.next_in = Siege.RUN.cap
+	sg.queue = []
+	for e in sg.enemies:
+		if not e.neutral:
+			e.act = "die"
+	Siege.direct(s, sg)
+
+
+func test_clearing_the_goal_wave_wins_and_the_break_follows_the_setup() -> int:
+	var s := Siege.create([Sim.SETS.duelist], 1)
+	var sg: Dictionary = s.siege
+	sg.goal = 2
+	sg.rest = 40 * Sim.TICKS
+	clear_wave(s, 1)
+	var bad := ensure(s.phase != "over" and sg.wave.next_in == 40 * Sim.TICKS, "wave 1 cleared: the break is the 40 s picked, the run goes on")
+	clear_wave(s, 2)
+	bad += ensure(s.phase == "over" and sg.get("won", false) and not sg.lost, "clearing the goal wave wins the run")
+	var endless := Siege.create([Sim.SETS.duelist], 1)
+	clear_wave(endless, 30)
+	bad += ensure(endless.phase != "over" and endless.siege.wave.next_in == Siege.RUN.buildLate, "no goal: endless, and the old break")
+	return int(bad > 0)
 
 
 func ensure(cond: bool, what: String) -> int:

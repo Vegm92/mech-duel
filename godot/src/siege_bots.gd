@@ -17,6 +17,48 @@ const GLOW := {"rest": 3.0, "wind": 9.0, "roll": 6.0}
 const NEUTRAL := {"eyes": Color8(255, 165, 40), "rust": Color8(128, 100, 74), "mix": 0.65}
 const NAP := {"wake": 30.0, "sink": 0.18, "pitch": 0.12, "roll": 0.28, "spread": 0.3, "droop": 0.35, "kneel": 0.3, "blink": 3, "tilt": 0.35}
 const BOOM := {"per_m": 0.55, "min": 0.6, "max": 2.4, "big": 3.0}
+const HIDDEN := Transform3D(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+const BODY_SHADER := """
+shader_type spatial;
+uniform float metal;
+uniform float rough;
+varying vec4 tint;
+
+vec3 lin(vec3 c) {
+	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+}
+
+void vertex() {
+	tint = COLOR;
+}
+
+void fragment() {
+	ALBEDO = lin(tint.rgb);
+	METALLIC = metal;
+	ROUGHNESS = rough;
+	EMISSION = lin(vec3(tint.a));
+}
+"""
+const GLOW_SHADER := """
+shader_type spatial;
+uniform vec4 dark : source_color;
+varying vec4 eye;
+
+vec3 lin(vec3 c) {
+	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+}
+
+void vertex() {
+	eye = INSTANCE_CUSTOM;
+}
+
+void fragment() {
+	vec3 e = lin(eye.rgb);
+	ALBEDO = eye.a > 0.0 ? e : dark.rgb;
+	EMISSION = e * eye.a;
+}
+"""
+const VIEW_MARGIN := 6.0
 const BAR := {"h": 0.12, "y": 0.45, "per_m": 0.35, "min": 0.6, "max": 1.6, "back": Color8(20, 20, 26), "fill": Color8(255, 70, 40)}
 
 var rigs := {}
@@ -24,6 +66,8 @@ var pool := {}
 var bars := {}
 var spare_bars := []
 var swarms := {}
+var batches := {}
+var skins := {}
 var marks := Node3D.new()
 var clock := 0.0
 
@@ -99,14 +143,26 @@ func sync(siege: Dictionary, dt: float) -> void:
 	for id in rigs.keys():
 		if not seen.has(id):
 			drop(id)
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	var planes: Array = cam.get_frustum() if cam != null else []
 	for e in siege.enemies:
 		var r: Dictionary = rigs[e.id]
 		move(r, e, dt)
 		if e.kind == "swarm":
 			cube(r, e)
-		else:
+		elif e.act == "die" or seen(planes, Vector3(e.x, SIZE[e.kind] * 0.5, e.y)):
 			pose(r, e)
+		else:
+			r.fresh = true
 		bar(e)
+
+
+## Off-camera rigs skip posing; they snap back into pose the tick they come into view.
+static func seen(planes: Array, p: Vector3) -> bool:
+	for pl in planes:
+		if (pl as Plane).distance_to(p) > VIEW_MARGIN:
+			return false
+	return true
 
 
 func paints() -> Dictionary:
@@ -121,22 +177,111 @@ func paints() -> Dictionary:
 	return {"body": body, "trim": Mech.mat(Mech.STEEL, 0.0, Mech.SKIN.trim[0], Mech.SKIN.trim[1]), "joint": Mech.mat(Mech.DARK, 0.0, Mech.SKIN.joint[0], Mech.SKIN.joint[1]), "glow": glow}
 
 
+## Shared materials of the batched bots: the body tint and flash come from the instance color,
+## the eye color and glow from the instance custom data.
+func skin() -> Dictionary:
+	if skins.is_empty():
+		var body := ShaderMaterial.new()
+		body.shader = Shader.new()
+		body.shader.code = BODY_SHADER
+		body.set_shader_parameter("metal", Mech.SKIN.body[0])
+		body.set_shader_parameter("rough", Mech.SKIN.body[1])
+		var glow := ShaderMaterial.new()
+		glow.shader = Shader.new()
+		glow.shader.code = GLOW_SHADER
+		glow.set_shader_parameter("dark", Mech.DARK)
+		var mats := paints()
+		skins = {"body": body, "glow": glow, "trim": mats.trim, "joint": mats.joint}
+	return skins
+
+
+## One MultiMesh per bot part; every rig with that part owns one slot in it.
+func batch(part: String) -> Dictionary:
+	if not batches.has(part):
+		var mesh: ArrayMesh = Mech.models("bots")[part][0].duplicate()
+		var mats := skin()
+		for i in mesh.get_surface_count():
+			mesh.surface_set_material(i, mats[mesh.surface_get_material(i).resource_name])
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.use_custom_data = true
+		mm.mesh = mesh
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		add_child(mmi)
+		batches[part] = {"mm": mm, "free": []}
+	return batches[part]
+
+
+func slot(b: Dictionary) -> int:
+	var mm: MultiMesh = b.mm
+	if b.free.is_empty():
+		var old := mm.instance_count
+		var keep := []
+		for i in old:
+			keep.append([mm.get_instance_transform(i), mm.get_instance_color(i), mm.get_instance_custom_data(i)])
+		mm.instance_count = maxi(old * 2, 16)
+		for i in range(mm.instance_count - 1, -1, -1):
+			if i < old:
+				mm.set_instance_transform(i, keep[i][0])
+				mm.set_instance_color(i, keep[i][1])
+				mm.set_instance_custom_data(i, keep[i][2])
+			else:
+				mm.set_instance_transform(i, HIDDEN)
+				b.free.append(i)
+			mm.reset_instance_physics_interpolation(i)
+	return b.free.pop_back()
+
+
+func part(r: Dictionary, node: Node3D, name: String) -> void:
+	var b := batch(name)
+	r.parts.append([node, b.mm, slot(b), false])
+
+
+## Copies a rig's pose and paint into its batch slots; hidden parts collapse to nothing.
+func draw(r: Dictionary, fresh: bool) -> void:
+	var c := Color(r.body.albedo_color, r.body.emission.r)
+	var e: Color = r.glow.emission
+	var g := Color(e.r, e.g, e.b, r.glow.emission_energy_multiplier)
+	var inv := global_transform.affine_inverse()
+	var paint_new: bool = c != r.get("c", Color.TRANSPARENT) or g != r.get("g", Color.TRANSPARENT)
+	r.c = c
+	r.g = g
+	for p in r.parts:
+		var mm: MultiMesh = p[1]
+		if not p[0].is_visible_in_tree():
+			if p[3]:
+				mm.set_instance_transform(p[2], HIDDEN)
+				mm.reset_instance_physics_interpolation(p[2])
+				p[3] = false
+			continue
+		mm.set_instance_transform(p[2], inv * p[0].global_transform)
+		if paint_new or not p[3]:
+			mm.set_instance_color(p[2], c)
+			mm.set_instance_custom_data(p[2], g)
+		if fresh or not p[3]:
+			mm.reset_instance_physics_interpolation(p[2])
+			p[3] = true
+
+
 func build(kind: String) -> Dictionary:
 	var all := Mech.models("bots")
-	var mats := paints()
 	var root := Node3D.new()
 	add_child(root)
 	var lean := Node3D.new()
 	root.add_child(lean)
-	var r := {"kind": kind, "root": root, "lean": lean, "body": mats.body, "glow": mats.glow, "legs": [], "turret": null, "spin": null, "mk": null}
-	Mech.add_part(lean, kind, mats, "bots")
+	var r := {"kind": kind, "root": root, "lean": lean, "legs": [], "turret": null, "spin": null, "mk": null, "parts": [],
+		"body": {"albedo_color": MK[0], "emission": Color.BLACK},
+		"glow": {"albedo_color": EYES[0], "emission": EYES[0], "emission_energy_multiplier": GLOW.rest}}
+	part(r, lean, kind)
 	var names: Array = all.keys().filter(func(n): return n.begins_with(kind + "_"))
 	names.sort()
 	for n in names:
 		var p := Node3D.new()
 		p.position = all[n][1]
 		lean.add_child(p)
-		Mech.add_part(p, n, mats, "bots")
+		part(r, p, n)
 		match n.trim_prefix(kind + "_"):
 			"turret":
 				r.turret = p
@@ -148,7 +293,7 @@ func build(kind: String) -> Dictionary:
 				var leg: Array = r.legs[s.trim_prefix("rod").to_int() - 1]
 				p.reparent(leg[0], false)
 				p.position -= leg[0].position
-				leg.append([p, p.position, p.get_child(0).mesh.get_aabb().get_center().normalized()])
+				leg.append([p, p.position, (all[n][0] as Mesh).get_aabb().get_center().normalized()])
 			_:
 				r.legs.append([p, Vector3(p.position.x, 0, p.position.z).normalized().cross(Vector3.UP).normalized()])
 	if r.mk != null and r.turret != null:
@@ -185,6 +330,7 @@ func drop(id) -> void:
 		release(r)
 	else:
 		r.root.visible = false
+		draw(r, false)
 		if not pool.has(r.kind):
 			pool[r.kind] = []
 		pool[r.kind].append(r)
@@ -304,9 +450,10 @@ func pose(r: Dictionary, e: Dictionary) -> void:
 		r.turret.rotation.x = 0.0 if e.kind == "turret" else sag
 	var on := lit(e)
 	glow *= on
-	r.body.albedo_color = paint(e)
-	r.glow.albedo_color = eyes(e).lerp(Mech.DARK, 1.0 - on)
-	r.glow.emission = eyes(e)
+	var tint: Color = paint(e)
+	var eye: Color = eyes(e)
+	r.glow.albedo_color = eye.lerp(Mech.DARK, 1.0 - on)
+	r.glow.emission = eye
 	if e.act == "die":
 		var f := minf(t / POSE.die, 1.0)
 		if not r.dead:
@@ -315,7 +462,7 @@ func pose(r: Dictionary, e: Dictionary) -> void:
 		pitch = 0.0
 		roll = POSE.tip * f
 		drop = POSE.sink * h * f
-		r.body.albedo_color = paint(e).darkened(0.75 * f)
+		tint = tint.darkened(0.75 * f)
 		root.visible = t < POSE.die
 		k = 0.0
 	root.position = Vector3(e.x, LIFT.get(e.kind, 0.0) * (1.0 - z), e.y)
@@ -336,11 +483,11 @@ func pose(r: Dictionary, e: Dictionary) -> void:
 			leg[2][0].position = leg[2][1] - leg[2][2] * up * POSE.piston
 	if r.spin != null:
 		r.spin.rotation.z -= r.d / ROLL[e.kind]
+	r.body.albedo_color = tint
 	r.glow.emission_energy_multiplier = glow
 	r.body.emission = Color.WHITE * (0.9 * r.flash / POSE.flash)
-	if r.fresh:
-		r.fresh = false
-		root.reset_physics_interpolation()
+	draw(r, r.fresh)
+	r.fresh = false
 
 
 func cube(r: Dictionary, e: Dictionary) -> void:

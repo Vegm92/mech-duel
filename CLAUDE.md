@@ -46,6 +46,8 @@ $P = "$R\godot"
 & $G --path $P -- --unlock-all                                  # dev mode: every part open, nothing saved
 & $G --path $P -- --replay=0 --seed=1                           # watch a kill cam right away
 & $G --path $P --resolution 1920x1080 -s "$R\tools\perf_probe.gd" -- --autopilot --seed=3   # speed: one PERF line after ~40 s
+& $G --path $P -- --horde=50 --team=4 --tiers=5                # play Core Siege now: you + 3 AI mates, all upgrades at max, a live wave of 50 bots from their spawns (dev run, nothing saved)
+& $G --path $P --resolution 1920x1080 -s "$R\tools\siege_stress.gd" -- --siege --autopilot --team=4 --seed=3   # siege load: 20 -> 200 enemies (+10 every 4 s, --from/--step/--top/--hold), one BOTS line per step with ms per part; --near=1 spawns them around you (on screen), --steps=1 = one tick per frame (no catch-up), --own=0 = the real main loop (only fps/render numbers), --hide=particles|bots|legs|bars|botshadow|sharemat|shadows|hud|sound|interp to isolate a cost
 & $G --path $P --resolution 1920x1080 -s "$R\tools\arena_shot.gd" -- --autopilot --seed=3 --tick=700 "--out=$env:TEMP\arena.png"   # arena-only still (--top: whole arena)
 ```
 
@@ -66,7 +68,11 @@ $P = "$R\godot"
 - **Effects** follow `FX_DESIGN.md` ("punch, not glow", Victor 2026-10-26): `fx.gd` holds the
   recipes and their knobs (`Fx.HIT`), drawn with `Mech.flat` (unshaded, no emission, so effects
   never bloom). Hit-stop: `view.stop` asks main.gd to hold sim + view for N physics frames
-  (`view.process_mode` disabled, camera shake keeps going). Rebuilt in the crisp neon look
+  (`view.process_mode` disabled, camera shake keeps going). Core Siege has no hit-stop at all (Victor
+  2026-10-29: freezes on every hit felt like lag with many enemies): `Siege.step` zeroes
+  `state.hitstop` and `view.sync` zeroes `view.stop`. Crowds trim small effects there too: `view.fx_load`
+  over `FX_BUDGET.max` skips wall pings, cuts hits on bots to sparks + star and hits on players to
+  the star (`Fx.hit` `lite`); booms and the numbers stay (Victor 2026-10-29: 60 fps with 100 bots). Rebuilt in the crisp neon look
   (additive `Mech.flat(c, true)`, team colors): hit, muzzle, bolts, flame, missile, laser, lance,
   rail, tesla, boom (+ scorch marks in `view.marks`), mortar warning, parry, break, K.O. (+ slow-mo:
   `view.slow` → main.gd sets `Engine.time_scale`), land, dash (+ `Fx.ghost` afterimages), booster
@@ -148,7 +154,43 @@ $P = "$R\godot"
   every tab switch); the first pad press shows it and moves it. The cursor is the white `focus`
   ring in `paint` (Godot hides it on mouse clicks by default). Evidence:
   `godot-garage-pad-2026-10-26.png`.
-- **Flow (same as JS):** the game opens on the garage; FIGHT saves your bot to
+- **Local players** (Victor 2026-10-29: "manage controllers or players first"; same PC, one shared
+  screen). `menu.gd` opens on the join screen: Enter / Space joins keyboard + mouse, A / Start joins a
+  pad, Esc / B leaves, a joined device's Enter / A (or CONTINUE) goes on; `menu.players` = devices in
+  join order (-1 = keyboard + mouse). main.gd `seats` (one per human, `seat()`: dev, tap, aim, reach,
+  recent, pad; `set_players`): a single player is dev -2 and reads every device as before; with more,
+  each reads only its device (`key`, `pad`, `stick`, `mouse` take the seat, `seat_of` routes taps).
+  `aim`, `on_pad`, `reach` are seat 0's. Duel: 2 players = 1v1, 3-4 = FFA with bots filling to 4, all
+  on P1's loadout, no ladder (`rival_key` ""); `brains[i]` drive every bot slot. Core Siege: team =
+  max(`--team`, players). Camera (`group`, `DUEL_CAM`, `SIEGE_CAM.group`) frames every mech in a duel
+  and every human in a siege. HUD: `hud.humans`, a panel per mech at `corner(i)` named P1-P4
+  (`name_of`), scores in the panels with more than 2 teams, `win_text`; the skill bar only for one
+  player. Extra aim rings: `view.sync(..., more)`. The radial shop belongs to the player who opened
+  it (`shop_seat`, `radial.device`). Look flag: `--players=<n>` (keyboard + pads 0..n-2; with no
+  `--at` the shot is the join screen). Evidence: `players-*-2026-10-29.png`.
+- **Duel setup** (Victor 2026-10-29: "parts and bots selector for each player", rogue-like option for
+  PvE). `menu.gd` page `duel` after Duel: format (`TEAMS`: 1v1, 2v2 = slots 0-1 vs 2-3, ffa), one slot
+  per mech (`setup.slots`: `who` = player index or -1 = bot, `level`), Free match / Ladder (`pve`: all
+  players on one team and a bot on another). main.gd: `duel` (the setup; empty = the old lineup for look
+  checks), `lineup_of` (humans first, then bots, with team and level), `who` (seat → player), garage
+  turns (`garage_turn`, `built`, `garage.who` / `garage.last`), per-player mechs (`lo_of`, `set_lo`,
+  `loadout_p<n>` in `loadout.cfg`, `[setup] duel`) and saves (`profile`: P1 = `progress.cfg`, others
+  `progress_p<n>.cfg`; `prog` = a shared all-open `free` in a free match). The ladder rival is the first
+  bot (`rival_id`), drawn from P1's ladder; a win queues a claim per player (`settle`, `next_claim`,
+  `claim.open(..., who)`). The garage has no difficulty button any more.
+- **Core Siege setup** (Victor 2026-10-29: "change parameters, rounds, time and it should be rogue like,
+  start from basics and grow ingame"). `menu.gd` page `siege` after Core Siege (`fit_siege`,
+  `option_row`): waves to win (`GOALS` 10/20/30/0 = endless), break between waves (`RESTS` 15/25/40 s),
+  AI allies (0..4 - players), start (`STARTS`: basic / garage). main.gd `siege_setup` (empty = look
+  checks; saved as `[setup] siege`): `team_n` = players + allies; `siege.goal` (clearing that wave sets
+  `won` and ends the run: `CORE HELD`) and `siege.rest` (replaces `RUN.build` / `buildLate`) are read
+  with `sg.get`, so the siege `GOLDEN` holds. `basic()`: START RUN skips the garage, every player starts
+  on `DEFAULT_LOADOUT` at level 1 and grows with the run's tiers and swaps; `after_match` (Enter, pad A,
+  Quit) goes back to the setup. A garage start gives each player a garage turn and their own mech and
+  owned parts (`prog(i)`). AI allies stay full `SETS`. Evidence: `siege-*-2026-10-29.png`.
+- **Flow:** the game opens on the join screen, then the mode menu (`menu.gd`: Duel, Core Siege, Back;
+  Victor 2026-10-29). A mode opens the garage in that mode (`garage.mode`; siege hides the difficulty
+  button and FIGHT reads START SIEGE); BACK, Esc or pad B goes back to the menu. FIGHT saves your bot to
   `user://loadout.cfg` (`ConfigFile`, read back through `Sim.normalize`) and starts the match.
   Esc pauses with three buttons in hud.gd (Resume, Restart match, Quit to garage); Enter after
   the match goes back to the garage (main marks that Enter handled, or the garage would take it
@@ -166,7 +208,7 @@ $P = "$R\godot"
   what Esc does. Taps latch like keys. While you aim with the pad the HUD slots show pad buttons
   (`hud.pad`, `cap*` strings). Pause menu: Resume has focus when it opens, D-pad / left stick
   move, A presses (main adds A to `ui_accept`; Godot 4.7 leaves it out). Garage with a pad: see
-  Garage. Not built yet: a second local player, rumble. Evidence:
+  Garage. Not built yet: rumble. Evidence:
   `godot-gamepad-hud-2026-10-26.png`, `godot-gamepad-pause-2026-10-26.png`.
 - **Salvage** (Victor 2026-10-28, issue #12): parts are locked until you win them. `progress.gd`
   holds what you own (`user://progress.cfg`, separate from `loadout.cfg`): a level 1..3 per part
@@ -185,7 +227,7 @@ $P = "$R\godot"
   claim screen for the first rival; look check). Not built: stakes, coop, PvP, the nemesis.
 - **Core Siege** (Victor 2026-10-28; spec `CORE_SIEGE_DESIGN.md`, who edits what
   `CORE_SIEGE_SPLIT.md`): co-op wave defense, up to 4 mechs (you + `bot.gd` allies) hold a Reactor
-  Core against grey enemy bots on 4 lanes. The garage's CORE SIEGE button starts a run (`start(lo,
+  Core against grey enemy bots on 4 lanes. Core Siege on the menu, then START SIEGE in the garage, starts a run (`start(lo,
   true)`; `make_view` rebuilds the view when the mode changes), `--siege` starts look checks in it.
   View: `view.build(true)` keeps only marks and the reticle; `siege_view` (arena, core, gates,
   pads, crowd on the blocks, 4 floodlight towers whose spots join `view.towers`, crowd material
@@ -194,9 +236,14 @@ $P = "$R\godot"
   rotating. Look flags: `--top` (whole map, dist 205), `--core=<pct>` (start the core lower),
   `--shot-on=<fx kind>` (save the still when that fx fires, e.g. `ring`, `coreDown`),
   `--team=1..4`, `--wave=<n>` (dev: start at wave n). Sim: `siege.gd` (`create`, `step`, wave
-  director `direct`/`plan`, bot AI `drive`, core rings + repair + respawn in `settle`) on top of
+  director `direct`/`plan`, bot AI `drive` (a bot re-picks its `target` every other tick, staggered by id; in between it keeps chasing `e.seek` while that mech stands; Victor 2026-10-29), core rings + repair + respawn in `settle`) on top of
   `sim.gd`; constants and the view contract in `siege_state.gd`; the views read only
-  `state.siege` (`siege_view.gd` arena/core, `siege_bots.gd` bots; owned by the art sessions).
+  `state.siege` (`siege_view.gd` arena/core, `siege_bots.gd` bots; owned by the art sessions). Bots draw in
+  batches (Victor 2026-10-29, for 60 fps with 100 on screen): each rig is a tree of plain `Node3D`
+  joints that `pose` animates as before, and `draw` copies every joint into its part's shared
+  `MultiMesh` slot (`batch`, `slot`); body tint + hit flash ride the instance color, eye color + glow
+  the custom data (`BODY_SHADER`, `GLOW_SHADER`); `r.body` / `r.glow` are plain value dicts. Rigs off
+  camera (`seen`, `VIEW_MARGIN`) skip posing and snap back when they come into view.
   Every bot also has a body in `state.mechs` (team 1, key `bot`, armor all in `head`, legs top
   ÷ `MOVE.jammed` because its leg pool is 0), so every player weapon, skill and dash hits it with no
   special case; dead bodies are recycled (`gone`). Arena shape lives in `state.geo` (walls,
@@ -274,7 +321,7 @@ $P = "$R\godot"
   lose about a wave sooner); `--director=on` turns it on. `director.force = <tactic>` is the test hook. `bot.gd` `SKILL`
   (skilled / average / weak) merges into a brain; `tools/siege_balance.gd -- --director=both
   --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
-  Not built yet: a second local player, netcode, VS (design only).
+  Not built yet: netcode, VS (design only).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.
@@ -470,7 +517,7 @@ $P = "$R\godot"
   slot is a team-color light on a black base (0.9); every match mech gets a team ring on the
   floor, a ▼ over its head and a 2 px screen-space rim in its team color (`view.gd` `MARK` and
   `mark()`, `look.gd` `RIM`; not in the garage), all off while the mech hides in smoke
-  (`Sim.hidden`); the lance/rail wind-up bar is `Mech.flat`, so it no longer blooms. **Atmosphere** (M4): `godot/src/decor.gd` adds seeded scorch marks, metal scraps, floor grates, grime at the wall bases and floating dust, built once by `view.build`; `Decor.clear` keeps every piece 1.5 m off pads, spawns, trap warnings and oil (re-checked in `garage_parts_test`), and nothing on the floor moves. **HUD** (M5, reference `docs/reference/impact-numbers.webp`): two fonts, each with its `OFL.txt` in `godot/assets/fonts/<family>/`: Saira for the HUD, garage and menus, Exo 2 for the feedback in game (impact numbers and the big calls; Victor 2026-10-28) (`look.gd` `FONT`, `Look.font(weight, italic, family)`, Saira set as the default by `Look.ui()` first thing in main.gd); impact numbers are 2D text drawn by `hud.gd` from `view.pops` in the sheet's colors (`look.gd` `POP`: hit white, head orange, BLOCKED blue when a shield takes a hit, heal green), never `Label3D` (AgX dulls 3D text); every plate is `Garage.plate`, team score tags around an m:ss clock, a compact skill bar, callouts on plates (a broken part under its owner's panel, arena calls under the clock); the aim reticle is `Mech.flat`. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
+  (`Sim.hidden`); the lance/rail wind-up bar is `Mech.flat`, so it no longer blooms. **Atmosphere** (M4): `godot/src/decor.gd` adds seeded scorch marks, metal scraps, floor grates, grime at the wall bases and floating dust, built once by `view.build`; `Decor.clear` keeps every piece 1.5 m off pads, spawns, trap warnings and oil (re-checked in `garage_parts_test`), and nothing on the floor moves. **HUD** (M5, reference `docs/reference/impact-numbers.webp`): two fonts, each with its `OFL.txt` in `godot/assets/fonts/<family>/`: Saira for the HUD, garage and menus, Exo 2 for the feedback in game (impact numbers and the big calls; Victor 2026-10-28) (`look.gd` `FONT`, `Look.font(weight, italic, family)`, Saira set as the default by `Look.ui()` first thing in main.gd); impact numbers are 2D text drawn by `hud.gd` from `view.pops` in the sheet's colors (`look.gd` `POP`: hit white, head (crit) orange and bigger with more pop, hurt red = damage a human player takes, BLOCKED blue when a shield takes a hit, heal green; Victor 2026-10-29: small, well above the target, quick hits on one mech climb a stair (`view.STAIR`, `hud.NUMBER.step`), gone in ~0.5 s, at most `view.POPS_MAX` on screen), never `Label3D` (AgX dulls 3D text); every plate is `Garage.plate`, team score tags around an m:ss clock, a compact skill bar, callouts on plates (a broken part under its owner's panel, arena calls under the clock); the aim reticle is `Mech.flat`. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
   `--autopilot`), `tools/arena_shot.gd` (arena-only still with effects and the wind-up bar
   hidden, where bright is measured; `--top` = the whole arena; `-s <absolute path>`, `--tick=N
   --out=<abs png>`), `tools/look_stats.py` (look numbers vs the reference),

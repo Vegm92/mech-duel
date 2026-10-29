@@ -20,7 +20,9 @@ const REC := Color8(255, 59, 48)
 const BARS := 0.08
 const PANEL_SIZE := Vector2(220, 142)
 const SLOT := Vector2(84, 58)
-const NUMBER := {"size": 42, "scale": {"hit": 1.0, "head": 1.2, "block": 0.75, "heal": 1.0}, "outline": 8, "glow": 24, "rise": 1.6, "life": 45, "fade": 18, "pop": 1.4, "snap": 7}
+const NUMBER := {"size": 24, "scale": {"hit": 1.0, "head": 1.35, "hurt": 1.0, "block": 0.8, "heal": 1.0},
+	"pop": {"hit": 1.25, "head": 1.9, "hurt": 1.25, "block": 1.2, "heal": 1.25}, "glow": {"head": 14},
+	"outline": 5, "rise": 0.8, "life": 32, "fade": 14, "snap": 5, "lift": 34.0, "step": Vector2(18, -22)}
 const FIG := Transform2D(0, Vector2(0.6, 0.6), 0, Vector2(23, 5))
 const PARTS := ["head", "larm", "rarm", "legs"]
 const SHAPES := {
@@ -51,7 +53,12 @@ var state: Dictionary
 var view: Node3D
 var paused := false
 var pad := false
-var level := ""
+## Per mech: the bot level shown on its plate ("" = none).
+var levels := []
+## How many of the mechs (the first ones) are people.
+var humans := 1
+## The line under a finished siege: back to the garage, or to the setup for a basic run.
+var rematch := "rematch"
 var canvas: Control
 var font: Font
 var bold: FontVariation
@@ -173,12 +180,14 @@ func paint() -> void:
 	if replay >= 0.0:
 		replay_bars(size)
 	elif state.has("siege"):
-		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
+		for i in humans:
+			mech_panel(state.mechs[i], corner(i, size), name_of(i))
 		siege_tiers(Vector2(16, 16 + PANEL_SIZE.y + 10))
 		siege_top(size)
 		siege_marks(size)
 		if not paused:
-			slots(size)
+			if humans == 1:
+				slots(size)
 			if not state.siege.wave.live and state.phase != "over":
 				siege_shop(size)
 			siege_crate(size)
@@ -186,20 +195,45 @@ func paint() -> void:
 			siege_calls(size)
 		if state.phase == "over":
 			var cy := size.y * 0.38
-			label(tr("siegeLost"), Vector2(0, cy + 30), 110, HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, heavy, 32)
-			label(tr("siegeHeld").format({"n": maxi(0, state.siege.wave.n - 1)}) + ("   ·   " + tr("siegeBest").format({"n": best}) if best > 0 else ""), Vector2(0, cy + 80), 30, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, bold, 14)
-			label(tr("rematch"), Vector2(0, cy + 118), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
+			var won: bool = state.siege.get("won", false)
+			label(tr("siegeWon" if won else "siegeLost"), Vector2(0, cy + 30), 110, Color8(120, 230, 150) if won else HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, heavy, 32)
+			var held: String = tr("siegeAll") if won else tr("siegeHeld")
+			label(held.format({"n": state.siege.wave.n if won else maxi(0, state.siege.wave.n - 1)}) + ("   ·   " + tr("siegeBest").format({"n": best}) if best > 0 else ""), Vector2(0, cy + 80), 30, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, bold, 14)
+			label(tr(rematch), Vector2(0, cy + 118), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
 	else:
-		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
-		mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot") + ("  ·  " + tr("lv_" + level) if level != "" else ""))
+		for i in state.mechs.size():
+			mech_panel(state.mechs[i], corner(i, size), name_of(i) + ("  ·  %d" % state.score[state.mechs[i].team] if state.score.size() > 2 else ""))
 		clock(size)
-		if not paused:
+		if not paused and humans == 1:
 			slots(size)
 		callouts(size)
 	if paused:
 		canvas.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.5))
 		label(tr("mPaused"), Vector2(0, size.y * 0.3), 72, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, bold)
 		label(tr("pauseHint"), Vector2(0, size.y * 0.3 + 46), 20, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6)
+
+
+## Panel spots: top left, top right, bottom left, bottom right.
+func corner(i: int, size: Vector2) -> Vector2:
+	var x := 16.0 if i % 2 == 0 else size.x - 16 - PANEL_SIZE.x
+	return Vector2(x, 16.0 if i < 2 else size.y - 36 - PANEL_SIZE.y)
+
+
+func name_of(i: int) -> String:
+	if i < humans:
+		return tr("you") if humans == 1 else tr("playerN").format({"n": i + 1})
+	var lv: String = levels[i] if i < levels.size() else ""
+	return tr("rivalBot") + ("  ·  " + tr("lv_" + lv) if lv != "" else "")
+
+
+## The text for a win by `team`: You win / Rival wins alone, the winner's name with more people.
+func win_text(team: int) -> String:
+	if humans == 1:
+		return tr("youWin") if team == state.mechs[0].team else tr("rivalWins")
+	for i in state.mechs.size():
+		if state.mechs[i].team == team:
+			return tr("wins").format({"name": name_of(i)})
+	return ""
 
 
 func pops() -> void:
@@ -209,11 +243,13 @@ func pops() -> void:
 		var p: Vector3 = n.p + Vector3(0, NUMBER.rise * (1.0 - pow(1.0 - t / NUMBER.life, 2.0)), 0)
 		if cam.is_position_behind(p):
 			continue
-		var s := lerpf(NUMBER.pop, 1.0, minf(t / NUMBER.snap, 1.0))
+		var s := lerpf(NUMBER.pop[n.k], 1.0, minf(t / NUMBER.snap, 1.0))
 		var px := roundi(NUMBER.size * NUMBER.scale[n.k])
 		var c := Color(Look.POP[n.k], clampf((NUMBER.life - t) / (NUMBER.life - NUMBER.fade), 0.0, 1.0))
-		canvas.draw_set_transform(cam.unproject_position(p), 0.0, Vector2(s, s))
-		label(n.text, Vector2(-200, px * 0.35), px, c, HORIZONTAL_ALIGNMENT_CENTER, 400.0, NUMBER.outline, heavy, NUMBER.glow)
+		var step: Vector2 = NUMBER.step
+		var at: Vector2 = cam.unproject_position(p) + Vector2(0, -NUMBER.lift) + step * n.get("step", 0)
+		canvas.draw_set_transform(at, 0.0, Vector2(s, s))
+		label(n.text, Vector2(-200, px * 0.35), px, c, HORIZONTAL_ALIGNMENT_CENTER, 400.0, NUMBER.outline, heavy, NUMBER.glow.get(n.k, 0))
 	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
@@ -280,7 +316,7 @@ func clock(size: Vector2) -> void:
 	var r := Rect2(size.x / 2.0 - 60, 12, 120, 52)
 	var n: int = Sim.MATCH.wins
 	var tw := 30.0 + n * 16.0
-	for side in 2:
+	for side in (2 if state.score.size() == 2 else 0):
 		var box := Rect2(r.position.x - tw - 4 if side == 0 else r.end.x + 4, r.position.y + 6, tw, 40)
 		tag(box, side)
 		for i in n:
@@ -575,12 +611,16 @@ func callouts(size: Vector2) -> void:
 		"ko":
 			var title: String = tr("timeUp") if state.finalKo < 0 else tr("ko")
 			label(title, Vector2(0, cy + 30), 120, Color8(255, 214, 120), HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
-			var sub: String = tr("draw") if state.winner < 0 else (tr("youWin") if state.winner == state.mechs[0].team else tr("rivalWins"))
+			var sub: String = tr("draw") if state.winner < 0 else win_text(state.winner)
 			var c: Color = TEXT if state.winner < 0 else Mech.TEAM_LIGHT[state.winner]
 			label(sub, Vector2(0, cy + 80), 30, c, HORIZONTAL_ALIGNMENT_CENTER, w, 8, bold, 14)
 		"over":
-			var won: bool = state.score[0] > state.score[1]
-			label(tr("victory") if won else tr("defeat"), Vector2(0, cy + 30), 120, Mech.TEAM_LIGHT[0] if won else Mech.TEAM_LIGHT[1], HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
+			var best := 0
+			for t in state.score.size():
+				if state.score[t] > state.score[best]:
+					best = t
+			var big: String = (tr("victory") if best == 0 else tr("defeat")) if humans == 1 else win_text(best)
+			label(big, Vector2(0, cy + 30), 120 if humans == 1 else 90, Mech.TEAM_LIGHT[best], HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
 			label(tr("rematch"), Vector2(0, cy + 84), 26, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 8, bold)
 		"fight":
 			var go = has_fx("fight")
@@ -604,7 +644,7 @@ func callouts(size: Vector2) -> void:
 			"break":
 				text = tr("broke_" + f.part)
 				c = Mech.TEAM_LIGHT[state.mechs[f.id].team]
-				side = mini(f.id, 1)
+				side = f.id % 2
 		if text != "":
 			var tw := bold.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 24.0
 			var x: float = at[side].x - [0.0, tw, tw / 2.0][side]

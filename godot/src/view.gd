@@ -169,6 +169,9 @@ void fragment() {
 }
 """
 
+const POPS_MAX := 24
+const STAIR := {"window": 20, "steps": 5}
+const FX_BUDGET := {"max": 10.0, "decay": 0.95}
 const ITEM := {"size": 1.5, "lift": 1.6, "tilt": -0.9, "ring": [0.6, 0.8], "shock": 2.4}
 const MARK := {"ring": [0.9, 1.12], "y": 0.1, "dim": 0.3, "alpha": 0.9, "arrow": Vector3(0.75, 0.6, 0.05), "lift": 2.9}
 const BLOCK_GAP := 20
@@ -201,9 +204,13 @@ var emp_mats := [ShaderMaterial.new(), ShaderMaterial.new()]
 var cones := {}
 var muzzle_off := {}
 var pops := []
+var fx_load := 0.0
+var stairs := {}
+var humans := 1
 var replaying := false
 var kick := Vector3.ZERO
 var reticle: MeshInstance3D
+var reticles := []
 var danger: MeshInstance3D
 var danger_mesh := ImmediateMesh.new()
 var last_shrink := -1.0
@@ -563,8 +570,11 @@ func shooter_color(state: Dictionary, f: Dictionary) -> Color:
 	return Color8(255, 210, 120)
 
 
-func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
+## `more` = the aim points of players 2-4 (index i is mech i + 1).
+func sync(state: Dictionary, aim: Vector3, dt: float, more := []) -> void:
 	tick += 1
+	fx_load *= FX_BUDGET.decay
+	humans = more.size() + 1
 	muzzle_off.clear()
 	follow(state, dt)
 	for i in mechs.size():
@@ -606,12 +616,20 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 			settle(cab)
 	reticle.position = aim + Vector3(0, 0.05, 0)
 	reticle.visible = state.phase == "fight" and not state.mechs[0].ko and not replaying
+	for i in more.size():
+		var m: Dictionary = state.mechs[i + 1]
+		if reticles.size() <= i:
+			reticles.append(Mech.add(self, Mech.ring(0.35, 0.45), Mech.flat(Color(Mech.TEAM_LIGHT[i + 1], 0.8))))
+		reticles[i].position = more[i] + Vector3(0, 0.05, 0)
+		reticles[i].visible = state.phase == "fight" and not m.ko and not replaying
 	var fresh := []
 	for f in state.fx:
 		if not f.has("seen"):
 			f["seen"] = true
 			fresh.append(f)
 			spawn(state, f)
+	if state.has("siege"):
+		stop = 0
 	react(state, fresh)
 	var flames := {}
 	for s in state.shots:
@@ -676,7 +694,7 @@ func guard(m: Dictionary, node) -> void:
 		Fx.ripple(self, node.shield.global_transform, got - was, false)
 		if tick - node.get_meta("blocked", -BLOCK_GAP) >= BLOCK_GAP:
 			node.set_meta("blocked", tick)
-			number(Vector3(m.x, 2.3, m.y), tr("blocked"), "block")
+			number(Vector3(m.x, 2.3, m.y), tr("blocked"), "block", m.id)
 	elif was > 0.0 and m.act == null and m.cd.shield > Sim.SHIELD.cd:
 		Fx.ripple(self, node.shield.global_transform, was, true)
 	node.set_meta("soaked", got)
@@ -978,12 +996,26 @@ func item_color(kind: String) -> Color:
 
 
 
-func number(p: Vector3, text: String, kind: String) -> void:
-	pops.append({"p": p, "text": text, "k": kind, "at": tick})
+## Quick hits on the same mech (`key`) climb a stair of up to STAIR.steps.
+func number(p: Vector3, text: String, kind: String, key := -1) -> void:
+	var step := 0
+	if key >= 0:
+		var was = stairs.get(key)
+		if was != null and tick - was.at < STAIR.window:
+			step = (was.n + 1) % STAIR.steps
+		stairs[key] = {"n": step, "at": tick}
+	pops.append({"p": p, "text": text, "k": kind, "at": tick, "step": step})
+	if pops.size() > POPS_MAX:
+		pops.pop_front()
 
 
 
 
+
+
+## Core Siege only: a screen already full of small effects gets trimmed ones.
+func crowded(state: Dictionary) -> bool:
+	return state.has("siege") and fx_load > FX_BUDGET.max
 
 
 func spawn(state: Dictionary, f: Dictionary) -> void:
@@ -991,8 +1023,12 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 	match f.k:
 		"hit":
 			var head: bool = f.get("head", false)
-			Fx.hit(self, f, shooter_color(state, f))
-			number(p + Vector3(0, 1.3, 0), str(int(f.n)), "head" if head else "hit")
+			var lite := 0
+			if crowded(state):
+				lite = 1 if state.mechs[f.id].has("bot") else 2
+			Fx.hit(self, f, shooter_color(state, f), lite)
+			fx_load += 1.0
+			number(p + Vector3(0, 1.3, 0), str(int(f.n)), "hurt" if f.id < humans else ("head" if head else "hit"), f.id)
 			var push := Fx.kick_of(f)
 			if push == Vector3.ZERO:
 				shake = maxf(shake, Fx.shake_of(f))
@@ -1059,7 +1095,7 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 		"heal", "pickup", "pulse":
 			Fx.heal(self, f)
 			if f.k == "heal":
-				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), "heal")
+				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), "heal", f.get("id", -1))
 		"hooked":
 			Fx.hooked(self, f, Mech.TEAM[team_of(state, f.by)])
 		"soak":
@@ -1078,7 +1114,9 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			Fx.crush(self, marks, f)
 			shake = maxf(shake, 0.3)
 		"ping":
-			Fx.ping(self, f)
+			if not crowded(state):
+				Fx.ping(self, f)
+				fx_load += 1.0
 		"charge":
 			Fx.charge(self, f, Mech.TEAM[team_of(state, f.id)])
 		"ult":

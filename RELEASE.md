@@ -2,20 +2,23 @@
 
 ## Scope (decided 2026-10-28)
 
-V1 comes in two builds from the same code:
+V1 is one build (`MechDuel-v<version>-windows.zip`). It opens on a mode menu (Victor 2026-10-29: "chose game mode first"):
 
-- **Duel** (`MechDuel-v<version>-windows.zip`): you against an AI rival, first to 3 rounds, in the garage → fight → claim a part → garage loop. Garage (63 parts, 20 weapons, 12 sets), Salvage unlocks, the 12-rival ladder, kill cam, crowd, sound, keyboard + mouse and gamepad, English and Spanish.
-- **Full** (`MechDuel-v<version>-full-windows.zip`, Victor 2026-10-28: "one version with the other mode too"): Duel plus **Core Siege** (co-op wave defense with an AI ally, from the CORE SIEGE button). Same exe; the export preset `Windows Desktop (Full)` adds the feature tag `siege`, and `main.gd` shows the button when `OS.has_feature("siege")` (or `--siege`).
-- Not in V1: multiplayer, more modes, a settings screen (pause menu sliders and M/N/L keys cover sound and language).
+- **Duel**: you against an AI rival, first to 3 rounds, in the garage → fight → claim a part → garage loop. Garage (63 parts, 20 weapons, 12 sets), Salvage unlocks, the 12-rival ladder, kill cam, crowd, sound, keyboard + mouse and gamepad, English and Spanish.
+- **Core Siege**: co-op wave defense with an AI ally (Victor 2026-10-28: "one version with the other mode too").
+- **V1 waits for the new menu** (Victor 2026-10-29): all 4 steps are done: 1 (mode menu), 2 (up to 4 players on one PC), 3 (Duel setup) and 4 (Core Siege setup).
+- Not in V1: online play, more modes, a settings screen (pause menu sliders and M/N/L keys cover sound and language).
 
 ## V1 changes
 
 - First launch opens a **How to play** screen (goal, every control on keyboard and pad). Button in the garage to open it again.
 - **Quit** button in the garage. Version shown bottom right (`application/config/version` in `godot/project.godot`).
 - Dev keys (F freeze, C cameras, Tab, T, K, J) are off in exported builds (`OS.is_debug_build()`).
-- **Difficulty: Easy / Normal / Hard**, a button next to FIGHT (pad: Back), saved in `user://loadout.cfg`, shown on the rival's HUD plate. Knobs per level in `bot.gd` `LEVELS`: aim error, prediction (`lead`), reaction, dodging, shielding (`block`), top speed (`move`), fire pauses, heat limit, strafe rhythm.
+- **Difficulty: Easy / Normal / Hard**, per bot slot in the Duel setup (it was a garage button until step 3), saved in `user://loadout.cfg`, shown on the bot's HUD plate. Knobs per level in `bot.gd` `LEVELS`: aim error, prediction (`lead`), reaction, dodging, shielding (`block`), top speed (`move`), fire pauses, heat limit, strafe rhythm.
 - Measured by `tests/difficulty_test.gd` (8 mirror matches vs the old bot, 2026-10-28): rival round wins Easy 7/30, Normal 12/33, Hard 22/32; old bot 18/32. Normal is gentler than the old bot, Hard is tougher.
-- Tests: `garage_parts_test` help/siege test, `difficulty_test`.
+- **Mode menu** (`menu.gd`): Duel / Core Siege / Quit. The garage gets BACK (Esc, pad B) instead of Quit, and no CORE SIEGE button. Evidence: `menu-*-2026-10-29.png`.
+- **Local players** (step 2): a join screen before the modes (Enter or A to join, up to 4: keyboard + mouse and gamepads). Each device drives its own mech. Duel: 2 players fight each other, 3-4 play a free-for-all (bots fill to 4). Core Siege: every player gets a mech. One shared screen; the camera zooms out to keep everyone in. A HUD panel per player (P1-P4). Evidence: `players-*-2026-10-29.png`.
+- Tests: `garage_parts_test` (join, each device drives its own mech, 2 = 1v1, 3 = FFA, siege seats, menu → garage → match in both modes, help, Esc back), `difficulty_test`.
 
 ## Build
 
@@ -25,7 +28,7 @@ Needs Godot 4.7.2 at `C:\Users\victo\Tools\Godot\` with the 4.7.2 export templat
 & "C:\Users\victo\Proyectos\Claude-Code-Game-Studios\games\mech-duel\tools\build_release.ps1"
 ```
 
-It runs the 11 test suites (duel and siege), exports both builds to `build\MechDuel-v<version>-windows\` and `build\MechDuel-v<version>-full-windows\` (exe + `CREDITS.txt` + `licenses\`) and zips them. To bump the version, change `config/version` in `godot/project.godot` and the two version lines in `godot/export_presets.cfg`.
+It runs the 11 test suites (duel and siege), exports the build to `build\MechDuel-v<version>-windows\` (exe + `CREDITS.txt` + `licenses\`) and zips it. To bump the version, change `config/version` in `godot/project.godot` and the two version lines in `godot/export_presets.cfg`.
 
 ## Release checklist
 
@@ -39,7 +42,7 @@ It runs the 11 test suites (duel and siege), exports both builds to `build\MechD
 | 6 | No crashes in tests | done | 11 suites ALL PASSED, 2026-10-28 |
 | 6b | Core Siege from the full exe: garage button, help, waves 2 and 8 | done (autopilot), **not human-tested** | `v1-full-*-2026-10-28.png` |
 | 7 | UI at 16:9, 21:9, 4:3 | done | `v1-exe-ultrawide`, `v1-exe-4x3-*` |
-| 8 | Reproducible build + version | done | `tools/build_release.ps1`, v1.0.0, built from commit `c90378f`: duel zip SHA-256 `E1D0CBFA…756463AE`, full zip `F9CC79D8…C708CD2C` |
+| 8 | Reproducible build + version | **rebuild after the menu work** (last build below is pre-menu) | `tools/build_release.ps1`, v1.0.0, built from commit `c90378f`: duel zip SHA-256 `E1D0CBFA…756463AE`, full zip `F9CC79D8…C708CD2C` |
 | 9 | Store page text + screenshots | done (draft) | `production/store/itch-page.md`, `production/store/screens/` |
 | 10 | Licences, secrets | done | `CREDITS.txt`; no keys in repo, no network code |
 | 11 | A human plays 2 full matches from the zip | **open (Victor)** | |
@@ -52,4 +55,7 @@ It runs the 11 test suites (duel and siege), exports both builds to `build\MechD
 - Exe is not code-signed: Windows SmartScreen will warn on first run ("More info → Run anyway").
 - Sound mix is not checked by ear.
 - The difficulty button only changes the Duel rival; Core Siege ignores it.
+- **Duel setup** (step 3): 1 VS 1, 2 VS 2 or free-for-all; each slot is a player or a bot with its own difficulty; Free match (every part open, nothing saved) or Ladder (rogue-like unlocks, only when all players are on one team against bots). Each player builds their own mech in the garage in turn (P1, then P2...), and on a ladder win each player picks a part from the rival in turn. Each player has their own save: P1 keeps `progress.cfg`, the others `progress_p2.cfg`... Evidence: `setup-*-2026-10-29.png`.
+- **Core Siege setup** (step 4): waves to win (10, 20, 30 or endless; clearing the last one shows CORE HELD), break between waves (15, 25 or 40 s), AI allies (fill up to 4 mechs), and the start: BASIC MECH (rogue-like: everyone starts on the basic mech and grows it in the run with scrap; no garage, Enter after the run goes back to the setup) or MY GARAGE MECH (each player builds their own mech in turn). Evidence: `siege-*-2026-10-29.png`.
+- With 2+ players: the skill bar (cooldowns) shows only for one player; in Core Siege every player's mech is the same orange (aim rings have the player colors).
 - Core Siege is still being tuned by its own session; the full build ships whatever `main` has at build time.

@@ -16,12 +16,15 @@ func _initialize() -> void:
 	await run("every_part_builds_alone_with_a_model", test_every_part_builds_alone_with_a_model)
 	await run("garage_previews_on_hover_and_equips_on_click", test_garage_previews_on_hover_and_equips_on_click)
 	await run("match_flow_comes_back_to_the_garage", test_match_flow_comes_back_to_the_garage)
-	await run("siege_button_starts_a_siege_and_fight_goes_back_to_a_duel", test_siege_button_starts_a_siege_and_fight_goes_back_to_a_duel)
+	await run("menu_picks_the_mode_and_the_garage_goes_back_to_it", test_menu_picks_the_mode_and_the_garage_goes_back_to_it)
+	await run("players_join_and_each_device_drives_its_own_mech", test_players_join_and_each_device_drives_its_own_mech)
+	await run("two_players_beat_a_ladder_rival_together_and_each_picks_a_part", test_two_players_beat_a_ladder_rival_together_and_each_picks_a_part)
+	await run("siege_setup_starts_a_basic_run_with_allies_and_ends_back_on_the_setup", test_siege_setup_starts_a_basic_run_with_allies_and_ends_back_on_the_setup)
 	await run("pad_moves_aims_acts_and_pauses", test_pad_moves_aims_acts_and_pauses)
 	await run("garage_works_with_a_pad", test_garage_works_with_a_pad)
 	await run("decor_keeps_off_pads_spawns_and_traps", test_decor_keeps_off_pads_spawns_and_traps)
 	await run("garage_locks_parts_you_have_not_won", test_garage_locks_parts_you_have_not_won)
-	await run("help_blocks_fight_and_siege_stays_hidden", test_help_blocks_fight_and_siege_stays_hidden)
+	await run("help_blocks_fight_and_esc_goes_back", test_help_blocks_fight_and_esc_goes_back)
 	await run("winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part", test_winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part)
 	await run("losing_a_match_gives_no_claim", test_losing_a_match_gives_no_claim)
 	print("FAILED" if failed else "ALL PASSED")
@@ -30,7 +33,8 @@ func _initialize() -> void:
 
 func run(name: String, test: Callable) -> void:
 	var t0 := Time.get_ticks_msec()
-	if await test.call() != 0:
+	var r = await test.call()
+	if not r is int or r != 0:
 		failed += 1
 		print("test failed: " + name)
 	else:
@@ -149,27 +153,183 @@ func test_match_flow_comes_back_to_the_garage() -> int:
 	return int(bad > 0)
 
 
-func test_siege_button_starts_a_siege_and_fight_goes_back_to_a_duel() -> int:
+func test_menu_picks_the_mode_and_the_garage_goes_back_to_it() -> int:
 	var m = load("res://main.tscn").instantiate()
 	m.autopilot = true
 	root.add_child(m)
 	await process_frame
 	m.state.phase = "over"
-	m.to_garage()
+	m.to_menu()
 	await process_frame
-	m.garage.go_siege()
+	var bad := ensure(m.menu.visible and not m.garage.visible and not m.view.visible, "the menu shows alone")
+	m.menu.choose("siege")
+	bad += ensure(m.menu.page == "siege" and m.menu.siege.start == "basic", "Core Siege opens its setup: a basic start by default")
+	m.menu.set_opt("start", "garage", 0)
+	m.menu.go_siege()
+	await process_frame
+	bad += ensure(m.garage.visible and not m.menu.visible and m.garage.mode == "siege", "a garage start opens the garage in siege mode")
+	bad += ensure(m.garage.last, "one player: one garage turn")
+	m.garage.go()
 	await physics_frame
 	await physics_frame
-	var bad := ensure(m.siege and m.state.has("siege") and m.siege_view != null, "CORE SIEGE starts a siege run")
+	bad += ensure(m.siege and m.state.has("siege") and m.siege_view != null, "the garage starts a siege run")
 	bad += ensure(m.view.visible and not m.garage.visible, "the siege view shows")
 	m.state.phase = "over"
 	m.to_garage()
 	await process_frame
+	m.garage.go_back()
+	await process_frame
+	bad += ensure(m.menu.visible and not m.garage.visible and m.menu.page == "siege", "Back goes to the siege setup")
+	m.menu.choose("duel")
+	bad += ensure(m.menu.page == "duel" and m.menu.setup.slots.size() == 2 and m.menu.setup.slots[1].who == -1, "Duel opens its setup: you against a bot")
+	m.menu.go_duel()
+	await process_frame
+	bad += ensure(m.garage.visible and m.garage.mode == "duel" and m.garage.last, "CONTINUE opens the garage")
 	m.garage.go()
 	await physics_frame
 	await physics_frame
-	bad += ensure(not m.siege and not m.state.has("siege") and m.siege_view == null, "FIGHT goes back to a duel")
+	bad += ensure(not m.siege and not m.state.has("siege") and m.siege_view == null, "the garage starts a duel")
 	m.queue_free()
+	return int(bad > 0)
+
+
+func test_two_players_beat_a_ladder_rival_together_and_each_picks_a_part() -> int:
+	wipe_flow()
+	var p2 := FLOW.get_basename() + "_p2.cfg"
+	if FileAccess.file_exists(p2):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(p2))
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	m.progress_arg = FLOW
+	root.add_child(m)
+	await process_frame
+	m.state.phase = "over"
+	m.menu.players = [-1, 0]
+	m.menu.choose("duel")
+	m.menu.set_format("2v2")
+	m.menu.cycle_level(2)
+	var s: Dictionary = m.menu.setup
+	var bad := ensure(s.slots.map(func(sl): return sl.who) == [0, 1, -1, -1] and s.slots[2].level == "hard" and m.menu.pve(s) and s.ladder, "2 VS 2 puts both players on one team against two bots; the ladder is on")
+	m.menu.go_duel()
+	await process_frame
+	m.garage.go()
+	m.garage.go()
+	await physics_frame
+	bad += ensure(m.state.mechs.map(func(x): return x.team) == [0, 0, 1, 1] and m.rival_key == "duelist" and m.rival_id == 2 and m.hud.levels[2] == "hard", "the first bot is the ladder rival, at the level picked for its slot")
+	bad += ensure(m.prog(1).path == p2 and m.prog(0) == m.progress and m.garage.progress == m.prog(1), "P2 has their own save")
+	m.broke = ["legs"]
+	m.foe_ko = true
+	m.state.score = [3, 1]
+	m.state.phase = "over"
+	await physics_frame
+	await physics_frame
+	bad += ensure(m.claim.visible and m.claimer == 0 and m.claims == [1], "P1 picks first, P2 waits")
+	m.claim.pick(0)
+	bad += ensure(m.claim.visible and m.claimer == 1, "then P2 picks")
+	m.claim.pick(0)
+	bad += ensure(m.garage.visible and m.progress.beaten.get("duelist", 0) == 1 and m.prog(1).beaten.get("duelist", 0) == 1 and FileAccess.file_exists(p2), "both beat the rival and both saves are written")
+	m.queue_free()
+	wipe_flow()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(p2))
+	await process_frame
+	return int(bad > 0)
+
+
+func test_siege_setup_starts_a_basic_run_with_allies_and_ends_back_on_the_setup() -> int:
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	root.add_child(m)
+	await process_frame
+	m.state.phase = "over"
+	m.menu.players = [-1, 0]
+	m.menu.siege = {"allies": 3}
+	m.menu.choose("siege")
+	var bad := ensure(m.menu.siege.allies == 2, "2 players: at most 2 AI allies")
+	m.menu.set_opt("goal", 20, 0)
+	m.menu.set_opt("rest", 15, 0)
+	m.menu.set_opt("allies", 1, 0)
+	m.menu.go_siege()
+	await physics_frame
+	var sg: Dictionary = m.state.siege
+	bad += ensure(m.siege and not m.garage.visible and not m.menu.visible, "a basic start skips the garage")
+	bad += ensure(sg.team == 3 and sg.goal == 20 and sg.rest == 15 * m.Sim.TICKS, "2 players + 1 ally, 20 waves, 15 s breaks")
+	var basic: Dictionary = m.Sim.normalize(m.Sim.DEFAULT_LOADOUT)
+	bad += ensure(m.state.mechs[0].loadout == basic and m.state.mechs[1].loadout == basic, "every player starts on the basic mech")
+	sg.won = true
+	m.state.phase = "over"
+	await physics_frame
+	m.after_match()
+	await process_frame
+	bad += ensure(m.menu.visible and m.menu.page == "siege", "after a basic run you land on the siege setup")
+	m.queue_free()
+	await process_frame
+	return int(bad > 0)
+
+
+func key_event(k: Key, down := true) -> InputEventKey:
+	var e := InputEventKey.new()
+	e.physical_keycode = k
+	e.pressed = down
+	return e
+
+
+func pad_event(dev: int, b: JoyButton) -> InputEventJoypadButton:
+	var e := InputEventJoypadButton.new()
+	e.device = dev
+	e.button_index = b
+	e.pressed = true
+	return e
+
+
+func test_players_join_and_each_device_drives_its_own_mech() -> int:
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	root.add_child(m)
+	await process_frame
+	m.state.phase = "over"
+	m.menu.players.clear()
+	m.to_menu()
+	await process_frame
+	m.menu._input(key_event(KEY_ENTER))
+	m.menu._input(pad_event(0, JOY_BUTTON_A))
+	m.menu._input(pad_event(1, JOY_BUTTON_A))
+	m.menu._input(pad_event(1, JOY_BUTTON_B))
+	var bad := ensure(m.menu.players == [-1, 0] and m.menu.page == "players", "Enter and pad A join, pad B leaves")
+	m.menu._input(pad_event(0, JOY_BUTTON_A))
+	bad += ensure(m.menu.page == "modes", "A from a joined pad goes on to the modes")
+	m.menu.choose("duel")
+	bad += ensure(m.menu.setup.format == "1v1" and m.menu.setup.slots.map(func(sl): return sl.who) == [0, 1] and not m.menu.pve(m.menu.setup), "two players default to P1 against P2, no ladder")
+	m.menu.go_duel()
+	await process_frame
+	bad += ensure(m.garage.who == m.tr("playerN").format({"n": 1}) and not m.garage.last, "P1 builds first")
+	m.garage.equip({"set": "tank"})
+	m.garage.go()
+	await process_frame
+	bad += ensure(m.garage.visible and m.garage.who == m.tr("playerN").format({"n": 2}) and m.garage.last, "then P2 builds")
+	m.garage.go()
+	await physics_frame
+	bad += ensure(m.state.mechs[0].loadout == Sim.SETS.tank and m.state.mechs[1].loadout != Sim.SETS.tank, "each player fights with their own mech")
+	m.autopilot = false
+	m.frozen = true
+	bad += ensure(m.state.mechs.size() == 2 and m.rival_key == "" and m.hud.humans == 2, "two players fight each other, no ladder rival")
+	Input.parse_input_event(key_event(KEY_D))
+	pad(JOY_BUTTON_LEFT_SHOULDER, true)
+	await settle()
+	var p1: Dictionary = m.player_input(0)
+	var p2: Dictionary = m.player_input(1)
+	bad += ensure(p1.mx == 1.0 and not p1.dash and p2.mx == 0.0 and p2.dash, "the keyboard drives P1 only, pad 0 drives P2 only")
+	Input.parse_input_event(key_event(KEY_D, false))
+	pad(JOY_BUTTON_LEFT_SHOULDER, false)
+	m.duel = {}
+	m.set_players([-1, 0, 1])
+	m.new_match()
+	bad += ensure(m.state.mechs.size() == 4 and m.state.mechs[3].team == 3 and m.brains.size() == 4, "three players play a free-for-all with one bot")
+	m.siege = true
+	m.make_view()
+	m.new_match()
+	bad += ensure(m.state.siege.team == 3 and m.group().size() == 3 and m.state.siege.owned.size() >= 3, "Core Siege gives each of the three players a mech")
+	m.queue_free()
+	await process_frame
 	return int(bad > 0)
 
 
@@ -315,7 +475,7 @@ func test_garage_locks_parts_you_have_not_won() -> int:
 	return int(bad > 0)
 
 
-func test_help_blocks_fight_and_siege_stays_hidden() -> int:
+func test_help_blocks_fight_and_esc_goes_back() -> int:
 	var g = Garage.new()
 	g.progress = Progress.new()
 	root.add_child(g)
@@ -324,8 +484,10 @@ func test_help_blocks_fight_and_siege_stays_hidden() -> int:
 	var fights := [0]
 	g.fight.connect(func(_lo): fights[0] += 1)
 	var labels: Array = g.find_children("*", "Label", true, false).map(func(l): return l.text)
-	var bad := ensure(not labels.has(g.tr("siegeBtn")), "the Core Siege button is hidden by default")
-	bad += ensure(labels.has(g.tr("helpBtn")) and labels.has(g.tr("quitBtn")), "how to play and quit buttons are there")
+	var backs := [0]
+	g.back.connect(func(): backs[0] += 1)
+	var bad := ensure(not labels.has(g.tr("siegeBtn")), "no Core Siege button in the garage")
+	bad += ensure(labels.has(g.tr("helpBtn")) and labels.has(g.tr("backBtn")), "how to play and back buttons are there")
 	g.show_help()
 	var enter := InputEventKey.new()
 	enter.physical_keycode = KEY_ENTER
@@ -334,6 +496,11 @@ func test_help_blocks_fight_and_siege_stays_hidden() -> int:
 	bad += ensure(g.help == null and fights[0] == 0, "Enter closes the help without starting a fight")
 	g._unhandled_key_input(enter)
 	bad += ensure(fights[0] == 1, "the next Enter fights")
+	var esc := InputEventKey.new()
+	esc.physical_keycode = KEY_ESCAPE
+	esc.pressed = true
+	g._unhandled_key_input(esc)
+	bad += ensure(backs[0] == 1, "Esc goes back to the menu")
 	g.queue_free()
 	return int(bad > 0)
 
