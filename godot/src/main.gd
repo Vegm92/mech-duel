@@ -136,6 +136,8 @@ var team_n := 2
 var wave_arg := 1
 var director_on := false
 var spawn_arg := ""
+var horde_arg := 0
+var tiers_arg := 0
 var modules_arg := false
 var top_arg := false
 var guard_arg := 0
@@ -226,6 +228,11 @@ func _ready() -> void:
 			modules_arg = true
 		elif a.begins_with("--spawn="):
 			spawn_arg = a.substr(8)
+		elif a.begins_with("--horde="):
+			horde_arg = maxi(0, a.substr(8).to_int())
+			siege = true
+		elif a.begins_with("--tiers="):
+			tiers_arg = clampi(a.substr(8).to_int(), 0, 5)
 		elif a.begins_with("--director="):
 			director_on = a.substr(11) == "on"
 		elif a.begins_with("--wave="):
@@ -245,7 +252,7 @@ func _ready() -> void:
 		elif a == "--sandbox" or a.begins_with("--sandbox="):
 			sandbox = true
 			gun = Sim.WEAPONS.keys().find(a.substr(10)) if a.contains("=") else -1
-	var real := progress_arg != "" or not (autopilot or sandbox or shot_path != "")
+	var real := progress_arg != "" or not (autopilot or sandbox or shot_path != "" or horde_arg > 0)
 	progress.unlock_all = unlock_arg or not real
 	if progress_arg != "":
 		progress.path = progress_arg
@@ -303,7 +310,7 @@ func _ready() -> void:
 	first_help = real and not FileAccess.file_exists(SAVE)
 	if garage_arg >= 0:
 		to_garage()
-	elif not (autopilot or shot_at >= 0 or sandbox):
+	elif not (autopilot or shot_at >= 0 or sandbox or horde_arg > 0):
 		to_menu()
 	else:
 		menu.visible = false
@@ -619,6 +626,14 @@ func new_match() -> void:
 				Siege.build(state, state.siege.pads[b[0]], b[1])
 		if Siege.BOTS.has(spawn_arg):
 			Siege.look(state, spawn_arg)
+		if tiers_arg > 0:
+			for i in seats.size():
+				for slot in Siege.S.PART_SLOTS:
+					state.siege.tiers[i][slot] = tiers_arg
+				Siege.outfit(state.mechs[i], state.siege.tiers[i], 0)
+				state.mechs[i].armor = state.mechs[i].max.duplicate()
+		if horde_arg > 0:
+			Siege.horde(state, horde_arg)
 	else:
 		lineup = lineup_of()
 		var los := []

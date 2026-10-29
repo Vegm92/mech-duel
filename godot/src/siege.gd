@@ -866,6 +866,21 @@ static func look(state, kind: String) -> void:
 				b.y = p.y
 
 
+## Dev (`--horde=<n>`): a live wave of `n` mixed bots from their own spawn points on all 4 lanes.
+static func horde(state, n: int) -> void:
+	var sg: Dictionary = state.siege
+	var w: Dictionary = sg.wave
+	w.n += 1
+	w.live = true
+	w.next_in = RUN.cap
+	w.lanes_open = [true, true, true, true]
+	var mix := ["scout", "spider", "walker", "swarm", "flyer", "turret", "scout", "tripod", "spider", "heavy"]
+	var i := 0
+	while sg.enemies.filter(func(e): return not e.neutral).size() < n:
+		spawn(state, mix[(i / 4) % mix.size()], i % 4, float((i / 4) % 7) - 3.0)
+		i += 1
+
+
 static func spawn(state, kind: String, lane: int, side: float, mk := 1, at := {}, team := 1) -> Dictionary:
 	var k: Dictionary = BOTS[kind]
 	var e := {}

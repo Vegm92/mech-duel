@@ -46,6 +46,7 @@ $P = "$R\godot"
 & $G --path $P -- --unlock-all                                  # dev mode: every part open, nothing saved
 & $G --path $P -- --replay=0 --seed=1                           # watch a kill cam right away
 & $G --path $P --resolution 1920x1080 -s "$R\tools\perf_probe.gd" -- --autopilot --seed=3   # speed: one PERF line after ~40 s
+& $G --path $P -- --horde=50 --team=4 --tiers=5                # play Core Siege now: you + 3 AI mates, all upgrades at max, a live wave of 50 bots from their spawns (dev run, nothing saved)
 & $G --path $P --resolution 1920x1080 -s "$R\tools\siege_stress.gd" -- --siege --autopilot --team=4 --seed=3   # siege load: 20 -> 200 enemies (+10 every 4 s, --from/--step/--top/--hold), one BOTS line per step with ms per part; --near=1 spawns them around you (on screen), --steps=1 = one tick per frame (no catch-up), --own=0 = the real main loop (only fps/render numbers), --hide=particles|bots|legs|bars|botshadow|sharemat|shadows|hud|sound|interp to isolate a cost
 & $G --path $P --resolution 1920x1080 -s "$R\tools\arena_shot.gd" -- --autopilot --seed=3 --tick=700 "--out=$env:TEMP\arena.png"   # arena-only still (--top: whole arena)
 ```
