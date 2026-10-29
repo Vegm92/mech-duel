@@ -275,13 +275,40 @@ static func step(state, inputs: Array):
 		if not m.ko and not m.get("fly", false) and not m.get("sleep", false):
 			Sim.collide(m, 0.0, state.geo)
 			live.append(m)
-	for i in live.size():
-		for j in range(i + 1, live.size()):
-			Sim.separate(live[i], live[j])
+	push_apart(live)
 	settle(state, sg)
 	sense(state, sg)
 	direct(state, sg)
 	return state
+
+
+static func push_apart(live: Array) -> void:
+	var n := live.size()
+	var xs := PackedFloat64Array()
+	var ys := PackedFloat64Array()
+	var rs := PackedFloat64Array()
+	for m in live:
+		xs.append(m.x)
+		ys.append(m.y)
+		rs.append(Sim.rad(m))
+	for i in n:
+		for j in range(i + 1, n):
+			var lim: float = rs[i] + rs[j]
+			if absf(xs[j] - xs[i]) >= lim or absf(ys[j] - ys[i]) >= lim:
+				continue
+			Sim.separate(live[i], live[j])
+			xs[i] = live[i].x
+			ys[i] = live[i].y
+			xs[j] = live[j].x
+			ys[j] = live[j].y
+
+
+static func inside_ring(state, id: int, team: int) -> bool:
+	var mine: int = state.mechs[id].team
+	for t in state.mechs:
+		if not t.ko and t.team != mine and (team < 0 or t.team == team) and Sim.hypot(t.x, t.y) < S.RING_OUT + 2.0:
+			return true
+	return false
 
 
 static func ally_input(state, brain, id: int) -> Dictionary:
@@ -299,14 +326,14 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 	var c: Dictionary = sg.core
 	var post := S.at(open[id % open.size()] if open.size() else id % 4, RUN.post)
 	var leash: float = RUN.leash
-	if Sim.foes(state, id).any(func(t): return Sim.hypot(t.x, t.y) < S.RING_OUT + 2.0):
+	if inside_ring(state, id, -1):
 		post = {"x": c.x, "y": c.y}
 		leash = S.RING_OUT + 4.0
 	var mend: bool = not sg.wave.live and c.hp < c.max * (4 - c.broken) / 4.0
 	if mend or (not sg.wave.live and next_buy(sg, m) != ""):
 		post = S.at(id % 4, S.CORE.repair - 1.5)
 	var o = Bot.pick(state, brain, m)
-	if farmer and not mend and not Sim.foes(state, id).any(func(t): return t.team == 1 and Sim.hypot(t.x, t.y) < S.RING_OUT + 2.0):
+	if farmer and not mend and not inside_ring(state, id, 1):
 		var f := farm(state, sg, m, o, inp)
 		ai_wallet(state, sg, m, f)
 		return f
@@ -571,7 +598,7 @@ static func target(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dicti
 		var prey = null
 		for i in sg.team:
 			var m = state.mechs[i]
-			if not m.ko and not Sim.hidden(state, m) and Sim.hypot(m.x - e.home.x, m.y - e.home.y) <= YARD.leash and (prey == null or Sim.hypot(m.x - b.x, m.y - b.y) < Sim.hypot(prey.x - b.x, prey.y - b.y)):
+			if not m.ko and Sim.hypot(m.x - e.home.x, m.y - e.home.y) <= YARD.leash and (prey == null or Sim.hypot(m.x - b.x, m.y - b.y) < Sim.hypot(prey.x - b.x, prey.y - b.y)) and not Sim.hidden(state, m):
 				prey = m
 		return {} if prey == null else {"x": prey.x, "y": prey.y, "r": Sim.rad(prey), "mech": prey}
 	var reach: float = k.get("hunt", RUN.aggro if k.get("first", "") != "mech" else k.range)
@@ -579,10 +606,10 @@ static func target(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dicti
 	var nd := 0.0
 	for i in sg.team + 1:
 		var m = state.mechs[i]
-		if m.ko or Sim.hidden(state, m):
+		if m.ko:
 			continue
 		var d := Sim.hypot(m.x - b.x, m.y - b.y)
-		if d <= reach and (near == null or d < nd) and (d <= RUN.aggro or k.get("fly", false) or open_line(state, b.x, b.y, m.x, m.y)):
+		if d <= reach and (near == null or d < nd) and not Sim.hidden(state, m) and (d <= RUN.aggro or k.get("fly", false) or open_line(state, b.x, b.y, m.x, m.y)):
 			near = m
 			nd = d
 	if near != null:
@@ -606,15 +633,33 @@ static func target(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dicti
 static func open_line(state, x0: float, y0: float, x1: float, y1: float) -> bool:
 	var g: Dictionary = state.geo
 	var n := int(ceil(Sim.hypot(x1 - x0, y1 - y0) / 2.0))
+	if n <= 1:
+		return true
+	var lx := minf(x0, x1) - 0.001
+	var hx := maxf(x0, x1) + 0.001
+	var ly := minf(y0, y1) - 0.001
+	var hy := maxf(y0, y1) + 0.001
+	var boxes := []
+	for bx in g.boxes:
+		if bx.get("hp", 1) > 0 and bx.x1 > lx and bx.x0 < hx and bx.y1 > ly and bx.y0 < hy:
+			boxes.append(bx)
+	var near := Sim.seg_dist(x0, y0, x1, y1, 0.0, 0.0) - 0.001
+	var far := maxf(Sim.hypot(x0, y0), Sim.hypot(x1, y1)) + 0.001
+	var rings := []
+	for r in g.rings:
+		if far > r.r0 and near < r.r1:
+			rings.append(r)
+	if boxes.is_empty() and rings.is_empty():
+		return true
 	for i in range(1, n):
 		var x: float = lerpf(x0, x1, i / float(n))
 		var y: float = lerpf(y0, y1, i / float(n))
 		var d := Sim.hypot(x, y)
-		for r in g.rings:
+		for r in rings:
 			if d > r.r0 and d < r.r1 and not Sim.in_gap(r, x, y, 0.0):
 				return false
-		for bx in g.boxes:
-			if bx.get("hp", 1) > 0 and x > bx.x0 and x < bx.x1 and y > bx.y0 and y < bx.y1:
+		for bx in boxes:
+			if x > bx.x0 and x < bx.x1 and y > bx.y0 and y < bx.y1:
 				return false
 	return true
 
@@ -1731,7 +1776,7 @@ static func awake(state, sg: Dictionary, e: Dictionary, b: Dictionary) -> bool:
 		var near := false
 		for i in sg.team:
 			var m = state.mechs[i]
-			if not m.ko and not Sim.hidden(state, m) and Sim.hypot(m.x - b.x, m.y - b.y) <= YARD.wake:
+			if not m.ko and Sim.hypot(m.x - b.x, m.y - b.y) <= YARD.wake and not Sim.hidden(state, m):
 				near = true
 		if not near and b.armor.head >= b.max.head:
 			e.t += 1
