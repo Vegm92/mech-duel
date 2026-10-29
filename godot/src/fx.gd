@@ -470,7 +470,8 @@ static func burst(parent: Node3D, p: Vector3, dir: Vector3, L: Dictionary, t := 
 	return fire(parent, s)
 
 
-static func hit(parent: Node3D, f: Dictionary, c: Color) -> void:
+## `lite` trims a hit for crowded screens: 1 keeps sparks and star, 2 keeps only the star.
+static func hit(parent: Node3D, f: Dictionary, c: Color, lite := 0) -> void:
 	var w := weight(f.n)
 	var t := w / HIT.w_max
 	var p := Vector3(f.x, 1.0, f.y)
@@ -483,10 +484,14 @@ static func hit(parent: Node3D, f: Dictionary, c: Color) -> void:
 		dir = (-back + Vector3(0, 0.35, 0)).normalized()
 		spread = LAYERS.hit_sparks.spread
 	var size := 0.7 + 0.3 * t
-	flash(parent, p, HIT.flash * size, HIT.flash_secs)
 	star(parent, p, HIT.star * size, HIT.star_secs, c)
-	ring(parent, p, HIT.marker * 0.4, HIT.marker * size, HIT.marker_secs, c)
+	if lite >= 2:
+		return
 	burst(parent, p, dir, LAYERS.hit_sparks, t, 1.0, tint(c)).spread = spread
+	if lite >= 1:
+		return
+	flash(parent, p, HIT.flash * size, HIT.flash_secs)
+	ring(parent, p, HIT.marker * 0.4, HIT.marker * size, HIT.marker_secs, c)
 	burst(parent, p, (dir + Vector3.UP).normalized(), LAYERS.hit_smoke, t)
 	if w > HIT.chips_at:
 		burst(parent, p, dir, LAYERS.hit_chips, t).spread = spread + 25.0

@@ -169,6 +169,7 @@ void fragment() {
 }
 """
 
+const FX_BUDGET := {"max": 10.0, "decay": 0.95}
 const ITEM := {"size": 1.5, "lift": 1.6, "tilt": -0.9, "ring": [0.6, 0.8], "shock": 2.4}
 const MARK := {"ring": [0.9, 1.12], "y": 0.1, "dim": 0.3, "alpha": 0.9, "arrow": Vector3(0.75, 0.6, 0.05), "lift": 2.9}
 const BLOCK_GAP := 20
@@ -201,6 +202,7 @@ var emp_mats := [ShaderMaterial.new(), ShaderMaterial.new()]
 var cones := {}
 var muzzle_off := {}
 var pops := []
+var fx_load := 0.0
 var replaying := false
 var kick := Vector3.ZERO
 var reticle: MeshInstance3D
@@ -567,6 +569,7 @@ func shooter_color(state: Dictionary, f: Dictionary) -> Color:
 ## `more` = the aim points of players 2-4 (index i is mech i + 1).
 func sync(state: Dictionary, aim: Vector3, dt: float, more := []) -> void:
 	tick += 1
+	fx_load *= FX_BUDGET.decay
 	muzzle_off.clear()
 	follow(state, dt)
 	for i in mechs.size():
@@ -996,12 +999,21 @@ func number(p: Vector3, text: String, kind: String) -> void:
 
 
 
+## Core Siege only: a screen already full of small effects gets trimmed ones.
+func crowded(state: Dictionary) -> bool:
+	return state.has("siege") and fx_load > FX_BUDGET.max
+
+
 func spawn(state: Dictionary, f: Dictionary) -> void:
 	var p := Vector3(f.get("x", 0.0), 1.0, f.get("y", 0.0))
 	match f.k:
 		"hit":
 			var head: bool = f.get("head", false)
-			Fx.hit(self, f, shooter_color(state, f))
+			var lite := 0
+			if crowded(state):
+				lite = 1 if state.mechs[f.id].has("bot") else 2
+			Fx.hit(self, f, shooter_color(state, f), lite)
+			fx_load += 1.0
 			number(p + Vector3(0, 1.3, 0), str(int(f.n)), "head" if head else "hit")
 			var push := Fx.kick_of(f)
 			if push == Vector3.ZERO:
@@ -1088,7 +1100,9 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 			Fx.crush(self, marks, f)
 			shake = maxf(shake, 0.3)
 		"ping":
-			Fx.ping(self, f)
+			if not crowded(state):
+				Fx.ping(self, f)
+				fx_load += 1.0
 		"charge":
 			Fx.charge(self, f, Mech.TEAM[team_of(state, f.id)])
 		"ult":
