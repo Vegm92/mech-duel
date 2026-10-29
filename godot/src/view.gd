@@ -620,6 +620,8 @@ func sync(state: Dictionary, aim: Vector3, dt: float, more := []) -> void:
 			f["seen"] = true
 			fresh.append(f)
 			spawn(state, f)
+	if state.has("siege"):
+		stop = 0
 	react(state, fresh)
 	var flames := {}
 	for s in state.shots:

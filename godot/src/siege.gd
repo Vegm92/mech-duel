@@ -237,11 +237,7 @@ static func step(state, inputs: Array):
 	sg.tick = state.tick
 	Sim.age_fx(state)
 	var team: int = sg.team
-	if state.hitstop > 0:
-		state.hitstop -= 1
-		for i in team:
-			Sim.read_buttons(state.mechs[i], inputs[i] if i < inputs.size() else Sim.IDLE, false)
-		return state
+	state.hitstop = 0
 	if state.phase == "over":
 		return state
 	for i in team:
