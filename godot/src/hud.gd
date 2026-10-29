@@ -20,7 +20,9 @@ const REC := Color8(255, 59, 48)
 const BARS := 0.08
 const PANEL_SIZE := Vector2(220, 142)
 const SLOT := Vector2(84, 58)
-const NUMBER := {"size": 42, "scale": {"hit": 1.0, "head": 1.2, "block": 0.75, "heal": 1.0}, "outline": 8, "glow": 24, "rise": 1.6, "life": 45, "fade": 18, "pop": 1.4, "snap": 7}
+const NUMBER := {"size": 24, "scale": {"hit": 1.0, "head": 1.35, "hurt": 1.0, "block": 0.8, "heal": 1.0},
+	"pop": {"hit": 1.25, "head": 1.9, "hurt": 1.25, "block": 1.2, "heal": 1.25}, "glow": {"head": 14},
+	"outline": 5, "rise": 0.8, "life": 32, "fade": 14, "snap": 5, "lift": 34.0, "step": Vector2(18, -22)}
 const FIG := Transform2D(0, Vector2(0.6, 0.6), 0, Vector2(23, 5))
 const PARTS := ["head", "larm", "rarm", "legs"]
 const SHAPES := {
@@ -241,11 +243,13 @@ func pops() -> void:
 		var p: Vector3 = n.p + Vector3(0, NUMBER.rise * (1.0 - pow(1.0 - t / NUMBER.life, 2.0)), 0)
 		if cam.is_position_behind(p):
 			continue
-		var s := lerpf(NUMBER.pop, 1.0, minf(t / NUMBER.snap, 1.0))
+		var s := lerpf(NUMBER.pop[n.k], 1.0, minf(t / NUMBER.snap, 1.0))
 		var px := roundi(NUMBER.size * NUMBER.scale[n.k])
 		var c := Color(Look.POP[n.k], clampf((NUMBER.life - t) / (NUMBER.life - NUMBER.fade), 0.0, 1.0))
-		canvas.draw_set_transform(cam.unproject_position(p), 0.0, Vector2(s, s))
-		label(n.text, Vector2(-200, px * 0.35), px, c, HORIZONTAL_ALIGNMENT_CENTER, 400.0, NUMBER.outline, heavy, NUMBER.glow)
+		var step: Vector2 = NUMBER.step
+		var at: Vector2 = cam.unproject_position(p) + Vector2(0, -NUMBER.lift) + step * n.get("step", 0)
+		canvas.draw_set_transform(at, 0.0, Vector2(s, s))
+		label(n.text, Vector2(-200, px * 0.35), px, c, HORIZONTAL_ALIGNMENT_CENTER, 400.0, NUMBER.outline, heavy, NUMBER.glow.get(n.k, 0))
 	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 

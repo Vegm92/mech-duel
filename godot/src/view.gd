@@ -169,6 +169,8 @@ void fragment() {
 }
 """
 
+const POPS_MAX := 24
+const STAIR := {"window": 20, "steps": 5}
 const FX_BUDGET := {"max": 10.0, "decay": 0.95}
 const ITEM := {"size": 1.5, "lift": 1.6, "tilt": -0.9, "ring": [0.6, 0.8], "shock": 2.4}
 const MARK := {"ring": [0.9, 1.12], "y": 0.1, "dim": 0.3, "alpha": 0.9, "arrow": Vector3(0.75, 0.6, 0.05), "lift": 2.9}
@@ -203,6 +205,8 @@ var cones := {}
 var muzzle_off := {}
 var pops := []
 var fx_load := 0.0
+var stairs := {}
+var humans := 1
 var replaying := false
 var kick := Vector3.ZERO
 var reticle: MeshInstance3D
@@ -570,6 +574,7 @@ func shooter_color(state: Dictionary, f: Dictionary) -> Color:
 func sync(state: Dictionary, aim: Vector3, dt: float, more := []) -> void:
 	tick += 1
 	fx_load *= FX_BUDGET.decay
+	humans = more.size() + 1
 	muzzle_off.clear()
 	follow(state, dt)
 	for i in mechs.size():
@@ -689,7 +694,7 @@ func guard(m: Dictionary, node) -> void:
 		Fx.ripple(self, node.shield.global_transform, got - was, false)
 		if tick - node.get_meta("blocked", -BLOCK_GAP) >= BLOCK_GAP:
 			node.set_meta("blocked", tick)
-			number(Vector3(m.x, 2.3, m.y), tr("blocked"), "block")
+			number(Vector3(m.x, 2.3, m.y), tr("blocked"), "block", m.id)
 	elif was > 0.0 and m.act == null and m.cd.shield > Sim.SHIELD.cd:
 		Fx.ripple(self, node.shield.global_transform, was, true)
 	node.set_meta("soaked", got)
@@ -991,8 +996,17 @@ func item_color(kind: String) -> Color:
 
 
 
-func number(p: Vector3, text: String, kind: String) -> void:
-	pops.append({"p": p, "text": text, "k": kind, "at": tick})
+## Quick hits on the same mech (`key`) climb a stair of up to STAIR.steps.
+func number(p: Vector3, text: String, kind: String, key := -1) -> void:
+	var step := 0
+	if key >= 0:
+		var was = stairs.get(key)
+		if was != null and tick - was.at < STAIR.window:
+			step = (was.n + 1) % STAIR.steps
+		stairs[key] = {"n": step, "at": tick}
+	pops.append({"p": p, "text": text, "k": kind, "at": tick, "step": step})
+	if pops.size() > POPS_MAX:
+		pops.pop_front()
 
 
 
@@ -1014,7 +1028,7 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 				lite = 1 if state.mechs[f.id].has("bot") else 2
 			Fx.hit(self, f, shooter_color(state, f), lite)
 			fx_load += 1.0
-			number(p + Vector3(0, 1.3, 0), str(int(f.n)), "head" if head else "hit")
+			number(p + Vector3(0, 1.3, 0), str(int(f.n)), "hurt" if f.id < humans else ("head" if head else "hit"), f.id)
 			var push := Fx.kick_of(f)
 			if push == Vector3.ZERO:
 				shake = maxf(shake, Fx.shake_of(f))
@@ -1081,7 +1095,7 @@ func spawn(state: Dictionary, f: Dictionary) -> void:
 		"heal", "pickup", "pulse":
 			Fx.heal(self, f)
 			if f.k == "heal":
-				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), "heal")
+				number(p + Vector3(0, 1.3, 0), "+%d" % int(f.n), "heal", f.get("id", -1))
 		"hooked":
 			Fx.hooked(self, f, Mech.TEAM[team_of(state, f.by)])
 		"soak":
