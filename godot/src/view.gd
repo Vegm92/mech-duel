@@ -204,6 +204,7 @@ var pops := []
 var replaying := false
 var kick := Vector3.ZERO
 var reticle: MeshInstance3D
+var reticles := []
 var danger: MeshInstance3D
 var danger_mesh := ImmediateMesh.new()
 var last_shrink := -1.0
@@ -563,7 +564,8 @@ func shooter_color(state: Dictionary, f: Dictionary) -> Color:
 	return Color8(255, 210, 120)
 
 
-func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
+## `more` = the aim points of players 2-4 (index i is mech i + 1).
+func sync(state: Dictionary, aim: Vector3, dt: float, more := []) -> void:
 	tick += 1
 	muzzle_off.clear()
 	follow(state, dt)
@@ -606,6 +608,12 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 			settle(cab)
 	reticle.position = aim + Vector3(0, 0.05, 0)
 	reticle.visible = state.phase == "fight" and not state.mechs[0].ko and not replaying
+	for i in more.size():
+		var m: Dictionary = state.mechs[i + 1]
+		if reticles.size() <= i:
+			reticles.append(Mech.add(self, Mech.ring(0.35, 0.45), Mech.flat(Color(Mech.TEAM_LIGHT[i + 1], 0.8))))
+		reticles[i].position = more[i] + Vector3(0, 0.05, 0)
+		reticles[i].visible = state.phase == "fight" and not m.ko and not replaying
 	var fresh := []
 	for f in state.fx:
 		if not f.has("seen"):

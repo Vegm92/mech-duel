@@ -23,6 +23,8 @@ var hover := -1
 var aim := Vector2.ZERO
 var age := 0.0
 var pad_id := -1
+## Only this device steers it: -2 = any, -1 = keyboard + mouse, else a gamepad id.
+var device := -2
 var font: Font
 var bold: Font
 
@@ -128,6 +130,8 @@ static func wedge_at(v: Vector2, n: int, dead: float) -> int:
 
 func _input(ev: InputEvent) -> void:
 	if not visible or not own_input:
+		return
+	if device != -2 and device != (ev.device if ev is InputEventJoypadButton or ev is InputEventJoypadMotion else -1):
 		return
 	var used := true
 	if ev is InputEventMouseMotion:

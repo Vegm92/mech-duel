@@ -148,8 +148,22 @@ $P = "$R\godot"
   every tab switch); the first pad press shows it and moves it. The cursor is the white `focus`
   ring in `paint` (Godot hides it on mouse clicks by default). Evidence:
   `godot-garage-pad-2026-10-26.png`.
-- **Flow:** the game opens on the mode menu (`menu.gd`: Duel, Core Siege, Quit; Victor
-  2026-10-29). A mode opens the garage in that mode (`garage.mode`; siege hides the difficulty
+- **Local players** (Victor 2026-10-29: "manage controllers or players first"; same PC, one shared
+  screen). `menu.gd` opens on the join screen: Enter / Space joins keyboard + mouse, A / Start joins a
+  pad, Esc / B leaves, a joined device's Enter / A (or CONTINUE) goes on; `menu.players` = devices in
+  join order (-1 = keyboard + mouse). main.gd `seats` (one per human, `seat()`: dev, tap, aim, reach,
+  recent, pad; `set_players`): a single player is dev -2 and reads every device as before; with more,
+  each reads only its device (`key`, `pad`, `stick`, `mouse` take the seat, `seat_of` routes taps).
+  `aim`, `on_pad`, `reach` are seat 0's. Duel: 2 players = 1v1, 3-4 = FFA with bots filling to 4, all
+  on P1's loadout, no ladder (`rival_key` ""); `brains[i]` drive every bot slot. Core Siege: team =
+  max(`--team`, players). Camera (`group`, `DUEL_CAM`, `SIEGE_CAM.group`) frames every mech in a duel
+  and every human in a siege. HUD: `hud.humans`, a panel per mech at `corner(i)` named P1-P4
+  (`name_of`), scores in the panels with more than 2 teams, `win_text`; the skill bar only for one
+  player. Extra aim rings: `view.sync(..., more)`. The radial shop belongs to the player who opened
+  it (`shop_seat`, `radial.device`). Look flag: `--players=<n>` (keyboard + pads 0..n-2; with no
+  `--at` the shot is the join screen). Evidence: `players-*-2026-10-29.png`.
+- **Flow:** the game opens on the join screen, then the mode menu (`menu.gd`: Duel, Core Siege, Back;
+  Victor 2026-10-29). A mode opens the garage in that mode (`garage.mode`; siege hides the difficulty
   button and FIGHT reads START SIEGE); BACK, Esc or pad B goes back to the menu. FIGHT saves your bot to
   `user://loadout.cfg` (`ConfigFile`, read back through `Sim.normalize`) and starts the match.
   Esc pauses with three buttons in hud.gd (Resume, Restart match, Quit to garage); Enter after
@@ -168,7 +182,7 @@ $P = "$R\godot"
   what Esc does. Taps latch like keys. While you aim with the pad the HUD slots show pad buttons
   (`hud.pad`, `cap*` strings). Pause menu: Resume has focus when it opens, D-pad / left stick
   move, A presses (main adds A to `ui_accept`; Godot 4.7 leaves it out). Garage with a pad: see
-  Garage. Not built yet: a second local player, rumble. Evidence:
+  Garage. Not built yet: rumble. Evidence:
   `godot-gamepad-hud-2026-10-26.png`, `godot-gamepad-pause-2026-10-26.png`.
 - **Salvage** (Victor 2026-10-28, issue #12): parts are locked until you win them. `progress.gd`
   holds what you own (`user://progress.cfg`, separate from `loadout.cfg`): a level 1..3 per part
@@ -276,7 +290,7 @@ $P = "$R\godot"
   lose about a wave sooner); `--director=on` turns it on. `director.force = <tactic>` is the test hook. `bot.gd` `SKILL`
   (skilled / average / weak) merges into a brain; `tools/siege_balance.gd -- --director=both
   --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
-  Not built yet: a second local player, netcode, VS (design only).
+  Not built yet: netcode, VS (design only).
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

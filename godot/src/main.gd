@@ -19,7 +19,8 @@ const Siege = preload("res://src/siege.gd")
 const SiegeView = preload("res://src/siege_view.gd")
 const SiegeBots = preload("res://src/siege_bots.gd")
 const Radial = preload("res://src/radial.gd")
-const SIEGE_CAM := {"dist": 48.0, "edge": 62.0, "near": 36.0, "far": 64.0, "top": 205.0}
+const SIEGE_CAM := {"dist": 48.0, "edge": 62.0, "near": 36.0, "far": 64.0, "group": 110.0, "top": 205.0}
+const DUEL_CAM := {"near": 28.0, "far": 64.0, "crowd": 80.0}
 
 const PITCH := deg_to_rad(60.0)
 const FOV := 40.0
@@ -38,19 +39,18 @@ var crowd_sound := CrowdSound.new()
 var sfx := Sfx.new()
 var brain: Dictionary
 var pilot: Dictionary
+var brains := []
 var view: Node3D
 var hud: CanvasLayer
 var cam: Camera3D
 var focus := Vector3(Sim.CX, 0, Sim.CY)
 var dist := 32.0
-var aim := Vector3(Sim.CX, 0, Sim.CY)
 var paused := false
 var autopilot := false
 var seed_arg := -1
 var shot_path := ""
 var shot_at := -1
 var shooting := false
-var tapped := {}
 var shake := 0.0
 var kick := Vector3.ZERO
 var kick_t := 0.0
@@ -95,9 +95,23 @@ var target := 0
 var orbit := Vector2.ZERO
 var zoom := 1.0
 var pad_id := 0
-var on_pad := false
-var reach := Vector2.ZERO
-var recent: Array[Vector2] = []
+## One seat per human. dev: -2 = the only player (keyboard, mouse and the last pad), -1 = keyboard + mouse, else a gamepad id.
+var seats := [seat(-2)]
+var shop_seat := 0
+var join_arg := []
+var aim: Vector3:
+	get:
+		return seats[0].aim
+	set(v):
+		seats[0].aim = v
+var on_pad: bool:
+	get:
+		return seats[0].pad
+	set(v):
+		seats[0].pad = v
+var reach: Vector2:
+	get:
+		return seats[0].reach
 var rec := Killcam.recorder()
 var replay := {}
 var replay_at := -1
@@ -200,6 +214,12 @@ func _ready() -> void:
 			director_on = a.substr(11) == "on"
 		elif a.begins_with("--wave="):
 			wave_arg = maxi(1, a.substr(7).to_int())
+		elif a.begins_with("--players="):
+			var devs := [-1]
+			for i in range(1, clampi(a.substr(10).to_int(), 1, 4)):
+				devs.append(i - 1)
+			set_players(devs)
+			join_arg = devs
 		elif a.begins_with("--team="):
 			team_n = clampi(a.substr(7).to_int(), 1, 4)
 		elif a.begins_with("--lang="):
@@ -233,7 +253,7 @@ func _ready() -> void:
 	hud.add_child(shop)
 	shop.confirm_on_release = true
 	shop.hold_action = &"siege_shop"
-	shop.picked.connect(func(path: PackedStringArray): tapped.buy = path[-1])
+	shop.picked.connect(func(path: PackedStringArray): seats[shop_seat].tap.buy = path[-1])
 	make_view()
 	loadout = flag_loadout()
 	garage = Garage.new()
@@ -342,7 +362,7 @@ func save_loadout() -> void:
 
 func resume() -> void:
 	paused = false
-	tapped.clear()
+	clear_taps()
 
 
 func leave_match() -> void:
@@ -360,13 +380,32 @@ func to_menu() -> void:
 	leave_match()
 	garage.visible = false
 	menu.open()
+	if not join_arg.is_empty():
+		menu.players = join_arg.duplicate()
+		menu.page = "players"
+		menu.build()
 	if shot_path != "":
 		for i in 8:
 			await get_tree().process_frame
 		take_shot()
 
 
+func clear_taps() -> void:
+	for t in seats:
+		t.tap.clear()
+
+
+static func seat(dev: int) -> Dictionary:
+	return {"dev": dev, "tap": {}, "aim": Vector3(Sim.CX, 0, Sim.CY), "reach": Vector2.ZERO, "recent": [], "pad": dev >= 0}
+
+
+## One seat per joined device; a single player keeps every device.
+func set_players(devs: Array) -> void:
+	seats = [seat(-2)] if devs.size() <= 1 else devs.map(func(d): return seat(d))
+
+
 func pick_mode(mode: String) -> void:
+	set_players(menu.players)
 	garage.mode = mode
 	to_garage()
 	if first_help:
@@ -406,7 +445,7 @@ func new_match() -> void:
 	stop = 0
 	slow = 0.0
 	Engine.time_scale = 1.0
-	tapped.clear()
+	clear_taps()
 	rec = Killcam.recorder()
 	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
 	var rival: Dictionary
@@ -427,8 +466,8 @@ func new_match() -> void:
 		shop.close()
 		var los := [progress.with_levels(loadout.duplicate())]
 		allies = [null]
-		for i in range(1, team_n):
-			los.append(Sim.SETS.values()[(s + i) % Sim.SETS.size()])
+		for i in range(1, maxi(team_n, seats.size())):
+			los.append(los[0].duplicate() if i < seats.size() else Sim.SETS.values()[(s + i) % Sim.SETS.size()])
 			allies.append(Bot.create_brain(s + 10 + i))
 		state = Siege.create(los, s)
 		state.siege.director.on = director_on
@@ -439,7 +478,8 @@ func new_match() -> void:
 				for key in Sim.CATALOG[slot]:
 					if progress.has(slot, key):
 						own[slot][key] = progress.level(slot, key)
-			state.siege.owned[0] = own
+			for i in seats.size():
+				state.siege.owned[i] = own.duplicate(true)
 		state.siege.wave.n = wave_arg - 1
 		for t in guard_arg:
 			state.siege.fund += Siege.GARRISON.cost[t]
@@ -454,8 +494,14 @@ func new_match() -> void:
 				Siege.build(state, state.siege.pads[b[0]], b[1])
 		if Siege.BOTS.has(spawn_arg):
 			Siege.look(state, spawn_arg)
-	else:
+	elif seats.size() == 1:
 		state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
+	else:
+		rival_key = ""
+		var los := []
+		for i in 2 if seats.size() == 2 else 4:
+			los.append(progress.with_levels(loadout.duplicate()) if i < seats.size() else Sim.SETS.values()[(s + i) % Sim.SETS.size()])
+		state = Sim.create_state(los, Sim.FORMATS["1v1" if los.size() == 2 else "ffa"])
 	if sandbox:
 		pin()
 	brain = Bot.create_brain(s + 1)
@@ -463,6 +509,12 @@ func new_match() -> void:
 	if hud.level != "":
 		brain.merge(Bot.LEVELS[hud.level], true)
 	pilot = Bot.create_brain(s + 2)
+	brains = [pilot, brain]
+	for i in range(2, state.mechs.size()):
+		brains.append(Bot.create_brain(s + 10 + i))
+		if hud.level != "":
+			brains[i].merge(Bot.LEVELS[hud.level], true)
+	hud.humans = seats.size()
 	if farm_arg:
 		pilot.farm = true
 	view.reset(state)
@@ -477,79 +529,117 @@ func new_match() -> void:
 			start_replay()
 
 
+## Where the camera keeps in view: every human in Core Siege, every mech in a duel.
+func group() -> Array:
+	var pts := []
+	for i in (seats.size() if siege else state.mechs.size()):
+		pts.append(Vector3(state.mechs[i].x, 0, state.mechs[i].y))
+	return pts
+
+
 func snap_camera() -> void:
-	var me = state.mechs[0]
-	var foe = state.mechs[0 if siege else 1]
-	focus = Vector3((me.x + foe.x) / 2.0, 0, (me.y + foe.y) / 2.0)
+	var pts := group()
+	focus = pts.reduce(func(a, b): return a + b, Vector3.ZERO) / pts.size()
 	place_camera()
 	cam.reset_physics_interpolation()
 
 
-func key(k: Key) -> bool:
-	return Input.is_physical_key_pressed(k)
+func key(k: Key, i := 0) -> bool:
+	return seats[i].dev < 0 and Input.is_physical_key_pressed(k)
 
 
-func pad(k: String) -> bool:
+## The gamepad seat i reads, or -1 (keyboard + mouse only).
+func pad_of(i: int) -> int:
+	return pad_id if seats[i].dev == -2 else seats[i].dev
+
+
+func pad(k: String, i := 0) -> bool:
+	var p := pad_of(i)
+	if p < 0:
+		return false
 	if TRIGGER.has(k):
-		return Input.get_joy_axis(pad_id, TRIGGER[k]) > 0.5
-	return Input.is_joy_button_pressed(pad_id, PAD[k])
+		return Input.get_joy_axis(p, TRIGGER[k]) > 0.5
+	return Input.is_joy_button_pressed(p, PAD[k])
 
 
-func stick(x: JoyAxis, y: JoyAxis) -> Vector2:
-	var v := Vector2(Input.get_joy_axis(pad_id, x), Input.get_joy_axis(pad_id, y)).limit_length(1.0)
+func stick(x: JoyAxis, y: JoyAxis, i := 0) -> Vector2:
+	var p := pad_of(i)
+	if p < 0:
+		return Vector2.ZERO
+	var v := Vector2(Input.get_joy_axis(p, x), Input.get_joy_axis(p, y)).limit_length(1.0)
 	return v if v.length() > DEAD else Vector2.ZERO
 
 
-func player_input() -> Dictionary:
-	var move := stick(JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y)
+func mouse(b: MouseButton, i: int) -> bool:
+	return seats[i].dev < 0 and Input.is_mouse_button_pressed(b)
+
+
+func player_input(i := 0) -> Dictionary:
+	var st: Dictionary = seats[i]
+	var tap: Dictionary = st.tap
+	var p := pad_of(i)
+	var move := stick(JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y, i)
+	var shopping: bool = shop.visible and shop_seat == i
 	var inp := {
-		"mx": float(int(key(KEY_D)) - int(key(KEY_A))) + move.x,
-		"my": float(int(key(KEY_S)) - int(key(KEY_W))) + move.y,
-		"ax": aim.x,
-		"ay": aim.z,
-		"left": Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or tapped.has("left") or pad("left"),
-		"right": Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or tapped.has("right") or pad("right"),
-		"shield": key(KEY_Q) or tapped.has("shield") or pad("shield"),
-		"hook": key(KEY_E) or tapped.has("hook") or pad("hook"),
-		"dash": key(KEY_SPACE) or tapped.has("dash") or pad("dash"),
-		"ult": key(KEY_R) or tapped.has("ult") or pad("ult"),
-		"buy": tapped.get("buy", ""),
-		"call": tapped.has("call"),
-		"post": tapped.has("post"),
-		"use": key(KEY_V) or (siege and Input.is_joy_button_pressed(pad_id, JOY_BUTTON_A)),
-		"recall": key(KEY_B) or (siege and Input.is_joy_button_pressed(pad_id, JOY_BUTTON_X)),
-		"shop": shop.visible,
+		"mx": float(int(key(KEY_D, i)) - int(key(KEY_A, i))) + move.x,
+		"my": float(int(key(KEY_S, i)) - int(key(KEY_W, i))) + move.y,
+		"ax": st.aim.x,
+		"ay": st.aim.z,
+		"left": mouse(MOUSE_BUTTON_LEFT, i) or tap.has("left") or pad("left", i),
+		"right": mouse(MOUSE_BUTTON_RIGHT, i) or tap.has("right") or pad("right", i),
+		"shield": key(KEY_Q, i) or tap.has("shield") or pad("shield", i),
+		"hook": key(KEY_E, i) or tap.has("hook") or pad("hook", i),
+		"dash": key(KEY_SPACE, i) or tap.has("dash") or pad("dash", i),
+		"ult": key(KEY_R, i) or tap.has("ult") or pad("ult", i),
+		"buy": tap.get("buy", ""),
+		"call": tap.has("call"),
+		"post": tap.has("post"),
+		"use": key(KEY_V, i) or (siege and p >= 0 and Input.is_joy_button_pressed(p, JOY_BUTTON_A)),
+		"recall": key(KEY_B, i) or (siege and p >= 0 and Input.is_joy_button_pressed(p, JOY_BUTTON_X)),
+		"shop": shopping,
 	}
-	if shop.visible:
+	if shopping:
 		for k in ["left", "right", "hook", "ult", "dash", "shield"]:
 			inp[k] = false
-		inp.ax = state.mechs[0].tx
-		inp.ay = state.mechs[0].ty
-	tapped.clear()
+		inp.ax = state.mechs[i].tx
+		inp.ay = state.mechs[i].ty
+	tap.clear()
 	return inp
 
 
-func aim_point() -> Vector3:
-	var r := stick(JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y) * REACH
+func aim_point(i := 0) -> Vector3:
+	var st: Dictionary = seats[i]
+	var r := stick(JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y, i) * REACH
 	if r != Vector2.ZERO:
-		on_pad = true
-		reach = r
-		recent.push_back(r)
-		if recent.size() > LOOKBACK:
-			recent.pop_front()
-	elif not recent.is_empty():
-		reach = recent[0]
-		recent.clear()
-	if on_pad:
-		var me = state.mechs[0]
-		return Vector3(me.x + reach.x, 0, me.y + reach.y)
+		st.pad = true
+		st.reach = r
+		st.recent.push_back(r)
+		if st.recent.size() > LOOKBACK:
+			st.recent.pop_front()
+	elif not st.recent.is_empty():
+		st.reach = st.recent[0]
+		st.recent.clear()
+	if st.pad or st.dev >= 0:
+		var me = state.mechs[i]
+		return Vector3(me.x + st.reach.x, 0, me.y + st.reach.y)
 	var mp := get_viewport().get_mouse_position()
 	var o := cam.project_ray_origin(mp)
 	var d := cam.project_ray_normal(mp)
 	if absf(d.y) < 0.001:
-		return aim
+		return st.aim
 	var t := -o.y / d.y
-	return o + d * t if t > 0 else aim
+	return o + d * t if t > 0 else st.aim
+
+
+## The seat an event belongs to, or -1 (a device nobody joined with).
+func seat_of(ev: InputEvent) -> int:
+	if seats.size() == 1:
+		return 0
+	var d: int = ev.device if ev is InputEventJoypadButton or ev is InputEventJoypadMotion else -1
+	for i in seats.size():
+		if seats[i].dev == d:
+			return i
+	return -1
 
 
 func _input(event: InputEvent) -> void:
@@ -557,22 +647,24 @@ func _input(event: InputEvent) -> void:
 		Sfx.toggle("muted" if event.physical_keycode == KEY_M else "music_on")
 	if garage.visible or claim.visible or menu.visible:
 		return
-	if event is InputEventMouseMotion:
-		on_pad = false
-	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+	var who := seat_of(event)
+	var tap: Dictionary = seats[who].tap if who >= 0 else {}
+	if event is InputEventMouseMotion and who >= 0:
+		seats[who].pad = false
+	if seats.size() == 1 and (event is InputEventJoypadButton or event is InputEventJoypadMotion):
 		pad_id = event.device
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode in DEV_KEYS and not OS.is_debug_build():
 			return
 		match event.physical_keycode:
 			KEY_Q:
-				tapped.shield = true
+				tap.shield = true
 			KEY_E:
-				tapped.hook = true
+				tap.hook = true
 			KEY_SPACE:
-				tapped.dash = true
+				tap.dash = true
 			KEY_R:
-				tapped.ult = true
+				tap.ult = true
 			KEY_ESCAPE:
 				paused = not paused
 			KEY_ENTER, KEY_KP_ENTER:
@@ -584,12 +676,12 @@ func _input(event: InputEvent) -> void:
 			KEY_L:
 				I18n.toggle()
 			KEY_X:
-				tapped.post = true
+				tap.post = true
 			KEY_SHIFT:
-				open_shop()
+				open_shop(who)
 			KEY_F:
 				frozen = not frozen
-				tapped.clear()
+				clear_taps()
 			KEY_C:
 				cam_mode = (cam_mode + 1) % CAMS.size()
 				orbit = Vector2.ZERO
@@ -604,7 +696,7 @@ func _input(event: InputEvent) -> void:
 				auto_fire = not auto_fire
 			KEY_G:
 				guard = not guard
-				tapped.call = true
+				tap.call = true
 			KEY_K:
 				refill = not refill
 			KEY_J:
@@ -613,10 +705,10 @@ func _input(event: InputEvent) -> void:
 		orbit += event.relative * 0.01
 	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			tapped.left = true
+			tap.left = true
 			skip()
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			tapped.right = true
+			tap.right = true
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			zoom = maxf(zoom * 0.9, 0.3)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
@@ -624,9 +716,9 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventJoypadButton and event.pressed:
 		var k = PAD.find_key(event.button_index)
 		if event.button_index == JOY_BUTTON_Y:
-			open_shop()
+			open_shop(who)
 		elif k:
-			tapped[k] = true
+			tap[k] = true
 		elif event.button_index == JOY_BUTTON_START:
 			paused = not paused
 		elif event.button_index == JOY_BUTTON_A:
@@ -634,15 +726,19 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventJoypadMotion and event.axis_value > 0.5:
 		var k = TRIGGER.find_key(event.axis)
 		if k:
-			tapped[k] = true
+			tap[k] = true
 
 
-func open_shop() -> void:
-	if not siege or shop.visible or paused or state.phase == "over" or state.mechs[0].ko:
+func open_shop(i := 0) -> void:
+	if i < 0 or not siege or shop.visible or paused or state.phase == "over" or state.mechs[i].ko:
 		return
-	if Sim.hypot(state.mechs[0].x, state.mechs[0].y) > Siege.S.PLAZA:
+	if Sim.hypot(state.mechs[i].x, state.mechs[i].y) > Siege.S.PLAZA:
 		return
-	shop.open(hud.shop_menu(0))
+	shop_seat = i
+	shop.device = seats[i].dev
+	if seats[i].dev >= 0:
+		shop.pad_id = seats[i].dev
+	shop.open(hud.shop_menu(i))
 
 
 func _notification(what: int) -> void:
@@ -653,7 +749,8 @@ func _notification(what: int) -> void:
 func _physics_process(delta: float) -> void:
 	if garage.visible or claim.visible or menu.visible:
 		return
-	aim = aim_point()
+	for i in seats.size():
+		seats[i].aim = aim_point(i)
 	var held := stop > 0
 	if held:
 		stop -= 1
@@ -662,14 +759,25 @@ func _physics_process(delta: float) -> void:
 		if Killcam.done(replay):
 			back_to_live()
 	elif not paused and not frozen and not held:
-		var me = (Siege.ally_input(state, pilot, 0) if siege else Bot.bot_input(state, pilot, 0)) if autopilot and not sandbox else player_input()
-		var foe = Bot.bot_input(state, brain, 1) if not siege else null
+		var bots: bool = autopilot and not sandbox
+		var ins := []
+		for i in seats.size():
+			if not bots:
+				ins.append(player_input(i))
+			elif siege:
+				ins.append(Siege.ally_input(state, pilot if i == 0 else allies[i], i))
+			else:
+				ins.append(Bot.bot_input(state, brains[i], i))
+		var me = ins[0]
 		if siege:
-			var ins := [me]
-			for i in range(1, state.siege.team):
+			for i in range(ins.size(), state.siege.team):
 				ins.append(Siege.ally_input(state, allies[i], i))
 			Siege.step(state, ins)
-		elif sandbox:
+		else:
+			for i in range(ins.size(), state.mechs.size()):
+				ins.append(Bot.bot_input(state, brains[i], i))
+		var foe = null if siege else ins[1]
+		if sandbox:
 			pin()
 			var t = state.mechs[1]
 			me.mx = 0.0
@@ -694,10 +802,11 @@ func _physics_process(delta: float) -> void:
 				for s in state.shots:
 					if s.owner == 0 and Vector2(s.x - t.x, s.y - t.y).length() < SANDBOX.guard:
 						foe.shield = true
-		else:
-			Killcam.record(rec, state, [me, foe])
+			ins[1] = foe
+		elif not siege:
+			Killcam.record(rec, state, ins)
 		if not siege:
-			Sim.step(state, [me, foe])
+			Sim.step(state, ins)
 		if not siege and Killcam.wants(state, rec):
 			start_replay()
 	if siege and shop_arg and state.tick == 60:
@@ -705,12 +814,13 @@ func _physics_process(delta: float) -> void:
 		state.siege.wallets[0] += 600
 		open_shop()
 	if siege and shop.visible:
-		if state.mechs[0].ko or Sim.hypot(state.mechs[0].x, state.mechs[0].y) > Siege.S.PLAZA:
+		var sm: Dictionary = state.mechs[shop_seat]
+		if sm.ko or Sim.hypot(sm.x, sm.y) > Siege.S.PLAZA:
 			shop.close()
 		elif state.tick % 10 == 0:
-			shop.refresh(hud.shop_menu(0))
+			shop.refresh(hud.shop_menu(shop_seat))
 	if not frozen and not held:
-		view.sync(state, aim, delta)
+		view.sync(state, aim, delta, seats.slice(1).map(func(t): return t.aim))
 		if siege:
 			siege_view.update(state.siege)
 			siege_bots.sync(state.siege, delta)
@@ -824,15 +934,17 @@ func pin() -> void:
 
 
 func follow(delta: float) -> void:
-	var me = state.mechs[0]
-	var foe = state.mechs[0 if siege else 1]
-	var a := Vector3(me.x, 0, me.y)
-	var b := Vector3(foe.x, 0, foe.y)
+	var pts := group()
+	var a: Vector3 = pts[0]
+	var b: Vector3 = pts[0]
+	for p in pts:
+		a = a.min(p)
+		b = b.max(p)
 	var target := (a + b) / 2.0
-	var want := clampf(maxf(absf(a.x - b.x) * 0.9 + 8.0, absf(a.z - b.z) * 2.0 + 12.0), 28.0, 64.0)
+	var want := clampf(maxf(absf(a.x - b.x) * 0.9 + 8.0, absf(a.z - b.z) * 2.0 + 12.0), DUEL_CAM.near, DUEL_CAM.far if pts.size() <= 2 else DUEL_CAM.crowd)
 	if siege:
-		want = clampf(SIEGE_CAM.dist * zoom, SIEGE_CAM.near, SIEGE_CAM.far)
-		target = Vector3(clampf(a.x, -SIEGE_CAM.edge, SIEGE_CAM.edge), 0, clampf(a.z, -SIEGE_CAM.edge, SIEGE_CAM.edge))
+		want = clampf(maxf(SIEGE_CAM.dist * zoom, want if pts.size() > 1 else 0.0), SIEGE_CAM.near, SIEGE_CAM.far if pts.size() == 1 else SIEGE_CAM.group)
+		target = Vector3(clampf(target.x, -SIEGE_CAM.edge, SIEGE_CAM.edge), 0, clampf(target.z, -SIEGE_CAM.edge, SIEGE_CAM.edge))
 		if top_arg:
 			want = SIEGE_CAM.top
 			target = Vector3.ZERO
@@ -916,7 +1028,7 @@ func cut_to(s: Dictionary) -> void:
 	view.hype = h
 	stop = 0
 	slow = 0.0
-	tapped.clear()
+	clear_taps()
 
 
 ## Slow motion = fewer physics ticks per real second (the sim steps once per tick) with time_scale

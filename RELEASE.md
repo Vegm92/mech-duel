@@ -6,7 +6,7 @@ V1 is one build (`MechDuel-v<version>-windows.zip`). It opens on a mode menu (Vi
 
 - **Duel**: you against an AI rival, first to 3 rounds, in the garage → fight → claim a part → garage loop. Garage (63 parts, 20 weapons, 12 sets), Salvage unlocks, the 12-rival ladder, kill cam, crowd, sound, keyboard + mouse and gamepad, English and Spanish.
 - **Core Siege**: co-op wave defense with an AI ally (Victor 2026-10-28: "one version with the other mode too").
-- **V1 waits for the new menu** (Victor 2026-10-29): step 1 (mode menu) is done; next are local players (up to 4 on one PC), Duel setup and Core Siege setup.
+- **V1 waits for the new menu** (Victor 2026-10-29): step 1 (mode menu) and step 2 (up to 4 players on one PC) are done; next are Duel setup and Core Siege setup.
 - Not in V1: online play, more modes, a settings screen (pause menu sliders and M/N/L keys cover sound and language).
 
 ## V1 changes
@@ -17,7 +17,8 @@ V1 is one build (`MechDuel-v<version>-windows.zip`). It opens on a mode menu (Vi
 - **Difficulty: Easy / Normal / Hard**, a button next to FIGHT (pad: Back), saved in `user://loadout.cfg`, shown on the rival's HUD plate. Knobs per level in `bot.gd` `LEVELS`: aim error, prediction (`lead`), reaction, dodging, shielding (`block`), top speed (`move`), fire pauses, heat limit, strafe rhythm.
 - Measured by `tests/difficulty_test.gd` (8 mirror matches vs the old bot, 2026-10-28): rival round wins Easy 7/30, Normal 12/33, Hard 22/32; old bot 18/32. Normal is gentler than the old bot, Hard is tougher.
 - **Mode menu** (`menu.gd`): Duel / Core Siege / Quit. The garage gets BACK (Esc, pad B) instead of Quit, and no CORE SIEGE button. Evidence: `menu-*-2026-10-29.png`.
-- Tests: `garage_parts_test` (menu → garage → match in both modes, help, Esc back), `difficulty_test`.
+- **Local players** (step 2): a join screen before the modes (Enter or A to join, up to 4: keyboard + mouse and gamepads). Each device drives its own mech. Duel: 2 players fight each other, 3-4 play a free-for-all (bots fill to 4). Core Siege: every player gets a mech. One shared screen; the camera zooms out to keep everyone in. A HUD panel per player (P1-P4). Evidence: `players-*-2026-10-29.png`.
+- Tests: `garage_parts_test` (join, each device drives its own mech, 2 = 1v1, 3 = FFA, siege seats, menu → garage → match in both modes, help, Esc back), `difficulty_test`.
 
 ## Build
 
@@ -54,4 +55,5 @@ It runs the 11 test suites (duel and siege), exports the build to `build\MechDue
 - Exe is not code-signed: Windows SmartScreen will warn on first run ("More info → Run anyway").
 - Sound mix is not checked by ear.
 - The difficulty button only changes the Duel rival; Core Siege ignores it.
+- With 2+ players: everyone uses P1's mech until step 3 adds a garage turn per player; the skill bar (cooldowns) shows only for one player; in Core Siege every player's mech is the same orange (aim rings have the player colors).
 - Core Siege is still being tuned by its own session; the full build ships whatever `main` has at build time.

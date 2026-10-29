@@ -17,6 +17,7 @@ func _initialize() -> void:
 	await run("garage_previews_on_hover_and_equips_on_click", test_garage_previews_on_hover_and_equips_on_click)
 	await run("match_flow_comes_back_to_the_garage", test_match_flow_comes_back_to_the_garage)
 	await run("menu_picks_the_mode_and_the_garage_goes_back_to_it", test_menu_picks_the_mode_and_the_garage_goes_back_to_it)
+	await run("players_join_and_each_device_drives_its_own_mech", test_players_join_and_each_device_drives_its_own_mech)
 	await run("pad_moves_aims_acts_and_pauses", test_pad_moves_aims_acts_and_pauses)
 	await run("garage_works_with_a_pad", test_garage_works_with_a_pad)
 	await run("decor_keeps_off_pads_spawns_and_traps", test_decor_keeps_off_pads_spawns_and_traps)
@@ -181,6 +182,64 @@ func test_menu_picks_the_mode_and_the_garage_goes_back_to_it() -> int:
 	await physics_frame
 	bad += ensure(not m.siege and not m.state.has("siege") and m.siege_view == null, "the garage starts a duel")
 	m.queue_free()
+	return int(bad > 0)
+
+
+func key_event(k: Key, down := true) -> InputEventKey:
+	var e := InputEventKey.new()
+	e.physical_keycode = k
+	e.pressed = down
+	return e
+
+
+func pad_event(dev: int, b: JoyButton) -> InputEventJoypadButton:
+	var e := InputEventJoypadButton.new()
+	e.device = dev
+	e.button_index = b
+	e.pressed = true
+	return e
+
+
+func test_players_join_and_each_device_drives_its_own_mech() -> int:
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	root.add_child(m)
+	await process_frame
+	m.state.phase = "over"
+	m.menu.players.clear()
+	m.to_menu()
+	await process_frame
+	m.menu._input(key_event(KEY_ENTER))
+	m.menu._input(pad_event(0, JOY_BUTTON_A))
+	m.menu._input(pad_event(1, JOY_BUTTON_A))
+	m.menu._input(pad_event(1, JOY_BUTTON_B))
+	var bad := ensure(m.menu.players == [-1, 0] and m.menu.page == "players", "Enter and pad A join, pad B leaves")
+	m.menu._input(pad_event(0, JOY_BUTTON_A))
+	bad += ensure(m.menu.page == "modes", "A from a joined pad goes on to the modes")
+	m.menu.choose("duel")
+	await process_frame
+	m.garage.go()
+	await physics_frame
+	m.autopilot = false
+	m.frozen = true
+	bad += ensure(m.state.mechs.size() == 2 and m.rival_key == "" and m.hud.humans == 2, "two players fight each other, no ladder rival")
+	Input.parse_input_event(key_event(KEY_D))
+	pad(JOY_BUTTON_LEFT_SHOULDER, true)
+	await settle()
+	var p1: Dictionary = m.player_input(0)
+	var p2: Dictionary = m.player_input(1)
+	bad += ensure(p1.mx == 1.0 and not p1.dash and p2.mx == 0.0 and p2.dash, "the keyboard drives P1 only, pad 0 drives P2 only")
+	Input.parse_input_event(key_event(KEY_D, false))
+	pad(JOY_BUTTON_LEFT_SHOULDER, false)
+	m.set_players([-1, 0, 1])
+	m.new_match()
+	bad += ensure(m.state.mechs.size() == 4 and m.state.mechs[3].team == 3 and m.brains.size() == 4, "three players play a free-for-all with one bot")
+	m.siege = true
+	m.make_view()
+	m.new_match()
+	bad += ensure(m.state.siege.team == 3 and m.group().size() == 3 and m.state.siege.owned.size() >= 3, "Core Siege gives each of the three players a mech")
+	m.queue_free()
+	await process_frame
 	return int(bad > 0)
 
 
