@@ -16,12 +16,12 @@ func _initialize() -> void:
 	await run("every_part_builds_alone_with_a_model", test_every_part_builds_alone_with_a_model)
 	await run("garage_previews_on_hover_and_equips_on_click", test_garage_previews_on_hover_and_equips_on_click)
 	await run("match_flow_comes_back_to_the_garage", test_match_flow_comes_back_to_the_garage)
-	await run("siege_button_starts_a_siege_and_fight_goes_back_to_a_duel", test_siege_button_starts_a_siege_and_fight_goes_back_to_a_duel)
+	await run("menu_picks_the_mode_and_the_garage_goes_back_to_it", test_menu_picks_the_mode_and_the_garage_goes_back_to_it)
 	await run("pad_moves_aims_acts_and_pauses", test_pad_moves_aims_acts_and_pauses)
 	await run("garage_works_with_a_pad", test_garage_works_with_a_pad)
 	await run("decor_keeps_off_pads_spawns_and_traps", test_decor_keeps_off_pads_spawns_and_traps)
 	await run("garage_locks_parts_you_have_not_won", test_garage_locks_parts_you_have_not_won)
-	await run("help_blocks_fight_and_siege_stays_hidden", test_help_blocks_fight_and_siege_stays_hidden)
+	await run("help_blocks_fight_and_esc_goes_back", test_help_blocks_fight_and_esc_goes_back)
 	await run("winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part", test_winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part)
 	await run("losing_a_match_gives_no_claim", test_losing_a_match_gives_no_claim)
 	print("FAILED" if failed else "ALL PASSED")
@@ -149,26 +149,37 @@ func test_match_flow_comes_back_to_the_garage() -> int:
 	return int(bad > 0)
 
 
-func test_siege_button_starts_a_siege_and_fight_goes_back_to_a_duel() -> int:
+func test_menu_picks_the_mode_and_the_garage_goes_back_to_it() -> int:
 	var m = load("res://main.tscn").instantiate()
 	m.autopilot = true
 	root.add_child(m)
 	await process_frame
 	m.state.phase = "over"
-	m.to_garage()
+	m.to_menu()
 	await process_frame
-	m.garage.go_siege()
+	var bad := ensure(m.menu.visible and not m.garage.visible and not m.view.visible, "the menu shows alone")
+	m.menu.choose("siege")
+	await process_frame
+	bad += ensure(m.garage.visible and not m.menu.visible and m.garage.mode == "siege", "Core Siege opens the garage in siege mode")
+	bad += ensure(not m.garage.diff_label.get_parent().visible, "no difficulty button in siege mode")
+	m.garage.go()
 	await physics_frame
 	await physics_frame
-	var bad := ensure(m.siege and m.state.has("siege") and m.siege_view != null, "CORE SIEGE starts a siege run")
+	bad += ensure(m.siege and m.state.has("siege") and m.siege_view != null, "the garage starts a siege run")
 	bad += ensure(m.view.visible and not m.garage.visible, "the siege view shows")
 	m.state.phase = "over"
 	m.to_garage()
 	await process_frame
+	m.garage.go_back()
+	await process_frame
+	bad += ensure(m.menu.visible and not m.garage.visible, "Back goes to the menu")
+	m.menu.choose("duel")
+	await process_frame
+	bad += ensure(m.garage.mode == "duel" and m.garage.diff_label.get_parent().visible, "Duel opens the garage with the difficulty button")
 	m.garage.go()
 	await physics_frame
 	await physics_frame
-	bad += ensure(not m.siege and not m.state.has("siege") and m.siege_view == null, "FIGHT goes back to a duel")
+	bad += ensure(not m.siege and not m.state.has("siege") and m.siege_view == null, "the garage starts a duel")
 	m.queue_free()
 	return int(bad > 0)
 
@@ -315,7 +326,7 @@ func test_garage_locks_parts_you_have_not_won() -> int:
 	return int(bad > 0)
 
 
-func test_help_blocks_fight_and_siege_stays_hidden() -> int:
+func test_help_blocks_fight_and_esc_goes_back() -> int:
 	var g = Garage.new()
 	g.progress = Progress.new()
 	root.add_child(g)
@@ -324,8 +335,10 @@ func test_help_blocks_fight_and_siege_stays_hidden() -> int:
 	var fights := [0]
 	g.fight.connect(func(_lo): fights[0] += 1)
 	var labels: Array = g.find_children("*", "Label", true, false).map(func(l): return l.text)
-	var bad := ensure(not labels.has(g.tr("siegeBtn")), "the Core Siege button is hidden by default")
-	bad += ensure(labels.has(g.tr("helpBtn")) and labels.has(g.tr("quitBtn")), "how to play and quit buttons are there")
+	var backs := [0]
+	g.back.connect(func(): backs[0] += 1)
+	var bad := ensure(not labels.has(g.tr("siegeBtn")), "no Core Siege button in the garage")
+	bad += ensure(labels.has(g.tr("helpBtn")) and labels.has(g.tr("backBtn")), "how to play and back buttons are there")
 	g.show_help()
 	var enter := InputEventKey.new()
 	enter.physical_keycode = KEY_ENTER
@@ -334,6 +347,11 @@ func test_help_blocks_fight_and_siege_stays_hidden() -> int:
 	bad += ensure(g.help == null and fights[0] == 0, "Enter closes the help without starting a fight")
 	g._unhandled_key_input(enter)
 	bad += ensure(fights[0] == 1, "the next Enter fights")
+	var esc := InputEventKey.new()
+	esc.physical_keycode = KEY_ESCAPE
+	esc.pressed = true
+	g._unhandled_key_input(esc)
+	bad += ensure(backs[0] == 1, "Esc goes back to the menu")
 	g.queue_free()
 	return int(bad > 0)
 

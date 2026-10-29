@@ -1,7 +1,7 @@
 extends CanvasLayer
 
 signal fight(lo: Dictionary)
-signal siege(lo: Dictionary)
+signal back
 signal ui(kind: String)
 
 const Sim = preload("res://src/sim.gd")
@@ -61,7 +61,7 @@ var info_rows := []
 var about_title: Label
 var about_desc: Label
 var about_skill: Label
-var siege_btn := false
+var mode := "duel"
 var help: Control
 var difficulty := "normal"
 var diff_label: Label
@@ -120,9 +120,9 @@ func build() -> void:
 		b.add_theme_stylebox_override("normal", plate(CARD, LINE, 1, 8))
 		for s in ["hover", "pressed", "hover_pressed"]:
 			b.add_theme_stylebox_override(s, plate(HOV, LINE_HOV, 1, 8))
-		b.pressed.connect(show_help if i == 0 else quit_game)
+		b.pressed.connect(show_help if i == 0 else go_back)
 		root.add_child(b)
-		text(b, tr("helpBtn" if i == 0 else "quitBtn"), Vector2.ZERO, 13, TEXT, 108, true, HORIZONTAL_ALIGNMENT_CENTER, 32)
+		text(b, tr("helpBtn" if i == 0 else "backBtn"), Vector2.ZERO, 13, TEXT, 108, true, HORIZONTAL_ALIGNMENT_CENTER, 32)
 	text(root, tr("version").format({"v": ProjectSettings.get_setting("application/config/version", "dev")}), Vector2(RX, 703), 10, LABEL, RW, false, HORIZONTAL_ALIGNMENT_RIGHT)
 	build_right()
 	build_tab()
@@ -148,7 +148,7 @@ func show_help() -> void:
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	help.add_child(dim)
-	var tall := 590.0 if siege_btn else 500.0
+	var tall := 590.0
 	var box := panel(help, Rect2(0, 0, 720, tall), PANEL, HI, 14)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.set_anchors_preset(Control.PRESET_CENTER)
@@ -166,9 +166,8 @@ func show_help() -> void:
 		text(box, tr(HELP[i][0]), Vector2(36, y), 13, HI, 190, true)
 		text(box, tr(HELP[i][1]), Vector2(232, y), 13, HI, 120, true)
 		text(box, tr(HELP[i][2]), Vector2(360, y), 13, TEXT, 324)
-	if siege_btn:
-		text(box, tr("helpSiege"), Vector2(36, 428), 12, HOLO, 648, true)
-		para(box, tr("helpSiegeText"), Rect2(36, 450, 648, 84), 12, TEXT, 4)
+	text(box, tr("helpSiege"), Vector2(36, 428), 12, HOLO, 648, true)
+	para(box, tr("helpSiegeText"), Rect2(36, 450, 648, 84), 12, TEXT, 4)
 	text(box, tr("helpClose"), Vector2(0, tall - 38), 12, LABEL, 720, false, HORIZONTAL_ALIGNMENT_CENTER)
 
 
@@ -185,8 +184,10 @@ func paint_difficulty() -> void:
 	diff_label.add_theme_color_override("font_color", {"easy": GOOD, "normal": TEXT, "hard": BAD}[difficulty])
 
 
-func quit_game() -> void:
-	get_tree().quit()
+func go_back() -> void:
+	hide_help()
+	ui.emit("tab")
+	back.emit()
 
 
 func hide_help() -> void:
@@ -344,8 +345,7 @@ func build_right() -> void:
 	about_title = text(ab, "", Vector2(14, 8), 15, HI, RW - 28, true)
 	about_desc = para(ab, "", Rect2(14, 34, RW - 28, 68), 12, DIM, 4)
 	about_skill = para(ab, "", Rect2(14, 106, RW - 28, 48), 12, SKILL, 3)
-	var sw := 132.0
-	var dw := 120.0
+	var dw := 120.0 if mode == "duel" else 0.0
 	var db := Button.new()
 	db.position = Vector2(RX, 646)
 	db.size = Vector2(dw, 54)
@@ -356,13 +356,14 @@ func build_right() -> void:
 		db.add_theme_stylebox_override(s, plate(HOV, HI, 2, 12))
 	db.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	db.pressed.connect(next_difficulty)
+	db.visible = mode == "duel"
 	root.add_child(db)
 	text(db, tr("diffLabel"), Vector2(0, 8), 10, DIM, dw, true, HORIZONTAL_ALIGNMENT_CENTER)
 	diff_label = text(db, "", Vector2(0, 22), 18, TEXT, dw, true, HORIZONTAL_ALIGNMENT_CENTER)
 	paint_difficulty()
 	var f := Button.new()
-	f.position = Vector2(RX + dw + 8, 646)
-	f.size = Vector2(RW - dw - 8 - (sw + 8 if siege_btn else 0.0), 54)
+	f.position = Vector2(RX + (dw + 8 if dw > 0 else 0.0), 646)
+	f.size = Vector2(RW - (dw + 8 if dw > 0 else 0.0), 54)
 	f.focus_mode = Control.FOCUS_NONE
 	f.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var glow := Color(1.0, 0.48, 0.18, 0.9)
@@ -372,21 +373,7 @@ func build_right() -> void:
 	f.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	f.pressed.connect(go)
 	root.add_child(f)
-	fit(text(f, tr("fightShort" if siege_btn else "fightBtn"), Vector2.ZERO, 20, Color("1a0d05"), f.size.x, true, HORIZONTAL_ALIGNMENT_CENTER, 54), 20, f.size.x - 16, 12)
-	if not siege_btn:
-		return
-	var sb := Button.new()
-	sb.position = Vector2(RX + RW - sw, 646)
-	sb.size = Vector2(sw, 54)
-	sb.focus_mode = Control.FOCUS_NONE
-	sb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	sb.add_theme_stylebox_override("normal", plate(PANEL, Color("ffd2a8"), 2, 12))
-	for s in ["hover", "pressed", "hover_pressed"]:
-		sb.add_theme_stylebox_override(s, plate(Color(0.16, 0.12, 0.1), Color("ffd2a8"), 2, 12))
-	sb.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	sb.pressed.connect(go_siege)
-	root.add_child(sb)
-	text(sb, tr("siegeBtn"), Vector2.ZERO, 16, Color("ffd2a8"), sw, true, HORIZONTAL_ALIGNMENT_CENTER, 54)
+	fit(text(f, tr("fightBtn" if mode == "duel" else "siegeGo"), Vector2.ZERO, 20, Color("1a0d05"), f.size.x, true, HORIZONTAL_ALIGNMENT_CENTER, 54), 20, f.size.x - 16, 12)
 
 
 func refresh() -> void:
@@ -503,11 +490,6 @@ func go() -> void:
 	fight.emit(loadout.duplicate())
 
 
-func go_siege() -> void:
-	ui.emit("start")
-	siege.emit(loadout.duplicate())
-
-
 func point() -> void:
 	var on := cards.filter(func(c): return selected(c[2]))
 	(on[0] if on else cards[0])[0].grab_focus()
@@ -547,7 +529,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		JOY_BUTTON_START:
 			go()
 		JOY_BUTTON_BACK:
-			next_difficulty()
+			if mode == "duel":
+				next_difficulty()
+		JOY_BUTTON_B:
+			go_back()
 		_:
 			return
 	get_viewport().set_input_as_handled()
@@ -561,6 +546,8 @@ func _unhandled_key_input(e: InputEvent) -> void:
 			select_tab((tab + (SLOTS.size() - 1 if e.shift_pressed else 1)) % SLOTS.size())
 		KEY_ENTER, KEY_KP_ENTER:
 			go()
+		KEY_ESCAPE:
+			go_back()
 		KEY_L:
 			I18n.toggle()
 			build()

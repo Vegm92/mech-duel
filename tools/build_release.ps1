@@ -9,7 +9,7 @@ foreach ($t in "sim_rules_test", "garage_parts_test", "sound_test", "hype_test",
 	if ($LASTEXITCODE -ne 0) { throw "$t failed" }
 }
 
-foreach ($v in @(@{ Preset = "Windows Desktop"; Name = "MechDuel-v$V-windows" }, @{ Preset = "Windows Desktop (Full)"; Name = "MechDuel-v$V-full-windows" })) {
+foreach ($v in @(@{ Preset = "Windows Desktop"; Name = "MechDuel-v$V-windows" })) {
 	$D = "$B\$($v.Name)"
 	New-Item -ItemType Directory -Force "$D\licenses" | Out-Null
 	& $G --headless --path $P --export-release $v.Preset "$D\MechDuel.exe" 2>&1 | Out-Null

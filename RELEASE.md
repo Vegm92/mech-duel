@@ -2,11 +2,12 @@
 
 ## Scope (decided 2026-10-28)
 
-V1 comes in two builds from the same code:
+V1 is one build (`MechDuel-v<version>-windows.zip`). It opens on a mode menu (Victor 2026-10-29: "chose game mode first"):
 
-- **Duel** (`MechDuel-v<version>-windows.zip`): you against an AI rival, first to 3 rounds, in the garage → fight → claim a part → garage loop. Garage (63 parts, 20 weapons, 12 sets), Salvage unlocks, the 12-rival ladder, kill cam, crowd, sound, keyboard + mouse and gamepad, English and Spanish.
-- **Full** (`MechDuel-v<version>-full-windows.zip`, Victor 2026-10-28: "one version with the other mode too"): Duel plus **Core Siege** (co-op wave defense with an AI ally, from the CORE SIEGE button). Same exe; the export preset `Windows Desktop (Full)` adds the feature tag `siege`, and `main.gd` shows the button when `OS.has_feature("siege")` (or `--siege`).
-- Not in V1: multiplayer, more modes, a settings screen (pause menu sliders and M/N/L keys cover sound and language).
+- **Duel**: you against an AI rival, first to 3 rounds, in the garage → fight → claim a part → garage loop. Garage (63 parts, 20 weapons, 12 sets), Salvage unlocks, the 12-rival ladder, kill cam, crowd, sound, keyboard + mouse and gamepad, English and Spanish.
+- **Core Siege**: co-op wave defense with an AI ally (Victor 2026-10-28: "one version with the other mode too").
+- **V1 waits for the new menu** (Victor 2026-10-29): step 1 (mode menu) is done; next are local players (up to 4 on one PC), Duel setup and Core Siege setup.
+- Not in V1: online play, more modes, a settings screen (pause menu sliders and M/N/L keys cover sound and language).
 
 ## V1 changes
 
@@ -15,7 +16,8 @@ V1 comes in two builds from the same code:
 - Dev keys (F freeze, C cameras, Tab, T, K, J) are off in exported builds (`OS.is_debug_build()`).
 - **Difficulty: Easy / Normal / Hard**, a button next to FIGHT (pad: Back), saved in `user://loadout.cfg`, shown on the rival's HUD plate. Knobs per level in `bot.gd` `LEVELS`: aim error, prediction (`lead`), reaction, dodging, shielding (`block`), top speed (`move`), fire pauses, heat limit, strafe rhythm.
 - Measured by `tests/difficulty_test.gd` (8 mirror matches vs the old bot, 2026-10-28): rival round wins Easy 7/30, Normal 12/33, Hard 22/32; old bot 18/32. Normal is gentler than the old bot, Hard is tougher.
-- Tests: `garage_parts_test` help/siege test, `difficulty_test`.
+- **Mode menu** (`menu.gd`): Duel / Core Siege / Quit. The garage gets BACK (Esc, pad B) instead of Quit, and no CORE SIEGE button. Evidence: `menu-*-2026-10-29.png`.
+- Tests: `garage_parts_test` (menu → garage → match in both modes, help, Esc back), `difficulty_test`.
 
 ## Build
 
@@ -25,7 +27,7 @@ Needs Godot 4.7.2 at `C:\Users\victo\Tools\Godot\` with the 4.7.2 export templat
 & "C:\Users\victo\Proyectos\Claude-Code-Game-Studios\games\mech-duel\tools\build_release.ps1"
 ```
 
-It runs the 11 test suites (duel and siege), exports both builds to `build\MechDuel-v<version>-windows\` and `build\MechDuel-v<version>-full-windows\` (exe + `CREDITS.txt` + `licenses\`) and zips them. To bump the version, change `config/version` in `godot/project.godot` and the two version lines in `godot/export_presets.cfg`.
+It runs the 11 test suites (duel and siege), exports the build to `build\MechDuel-v<version>-windows\` (exe + `CREDITS.txt` + `licenses\`) and zips it. To bump the version, change `config/version` in `godot/project.godot` and the two version lines in `godot/export_presets.cfg`.
 
 ## Release checklist
 
@@ -39,7 +41,7 @@ It runs the 11 test suites (duel and siege), exports both builds to `build\MechD
 | 6 | No crashes in tests | done | 11 suites ALL PASSED, 2026-10-28 |
 | 6b | Core Siege from the full exe: garage button, help, waves 2 and 8 | done (autopilot), **not human-tested** | `v1-full-*-2026-10-28.png` |
 | 7 | UI at 16:9, 21:9, 4:3 | done | `v1-exe-ultrawide`, `v1-exe-4x3-*` |
-| 8 | Reproducible build + version | done | `tools/build_release.ps1`, v1.0.0, built from commit `c90378f`: duel zip SHA-256 `E1D0CBFA…756463AE`, full zip `F9CC79D8…C708CD2C` |
+| 8 | Reproducible build + version | **rebuild after the menu work** (last build below is pre-menu) | `tools/build_release.ps1`, v1.0.0, built from commit `c90378f`: duel zip SHA-256 `E1D0CBFA…756463AE`, full zip `F9CC79D8…C708CD2C` |
 | 9 | Store page text + screenshots | done (draft) | `production/store/itch-page.md`, `production/store/screens/` |
 | 10 | Licences, secrets | done | `CREDITS.txt`; no keys in repo, no network code |
 | 11 | A human plays 2 full matches from the zip | **open (Victor)** | |

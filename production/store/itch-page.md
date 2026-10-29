@@ -3,7 +3,7 @@
 - **Title:** Mech Duel
 - **Kind:** Downloadable game, Windows
 - **Price:** free (no payments set up)
-- **Upload:** `build/MechDuel-v1.0.0-full-windows.zip` (Duel + Core Siege), tagged Windows, display name "Mech Duel 1.0.0 (Windows)". Optional second file: `build/MechDuel-v1.0.0-windows.zip`, display name "Duel only".
+- **Upload:** `build/MechDuel-v1.0.0-windows.zip` (Duel + Core Siege), tagged Windows, display name "Mech Duel 1.0.0 (Windows)".
 - **Genre:** Action. **Tags:** mechs, robots, arena, top-down, twin-stick, pve, singleplayer, gamepad, tower-defense
 - **Screenshots (in order):** `screens/1-fight.png`, `screens/5-core-siege.png`, `screens/4-artillery.png`, `screens/2-killcam.png`, `screens/3-garage-sets.png`
 - **Cover (630×500):** crop of `screens/1-fight.png`

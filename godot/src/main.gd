@@ -8,6 +8,7 @@ const Hud = preload("res://src/hud.gd")
 const I18n = preload("res://src/i18n.gd")
 const PartView = preload("res://src/part_view.gd")
 const Garage = preload("res://src/garage.gd")
+const Menu = preload("res://src/menu.gd")
 const Progress = preload("res://src/progress.gd")
 const Claim = preload("res://src/claim.gd")
 const CrowdSound = preload("res://src/crowd_sound.gd")
@@ -78,6 +79,8 @@ var garage_arg := -1
 var hover_arg := ""
 var loadout: Dictionary
 var garage: CanvasLayer
+var menu: CanvasLayer
+var first_help := false
 var claim: CanvasLayer
 var progress := Progress.new()
 var progress_arg := ""
@@ -235,7 +238,7 @@ func _ready() -> void:
 	loadout = flag_loadout()
 	garage = Garage.new()
 	garage.progress = progress
-	garage.siege_btn = siege or OS.has_feature("siege")
+	garage.mode = "siege" if siege else "duel"
 	var saved := ConfigFile.new()
 	saved.load(SAVE)
 	var d := str(saved.get_value("garage", "difficulty", "normal"))
@@ -245,8 +248,12 @@ func _ready() -> void:
 	add_child(claim)
 	claim.picked.connect(claimed)
 	claim.ui.connect(sfx.ui)
-	garage.fight.connect(start)
-	garage.siege.connect(start.bind(true))
+	garage.fight.connect(func(lo: Dictionary) -> void: start(lo, garage.mode == "siege"))
+	garage.back.connect(to_menu)
+	menu = Menu.new()
+	add_child(menu)
+	menu.picked.connect(pick_mode)
+	menu.ui.connect(sfx.ui)
 	hud.resume.connect(resume)
 	hud.restart.connect(new_match)
 	hud.quit.connect(to_garage)
@@ -254,11 +261,13 @@ func _ready() -> void:
 	garage.ui.connect(sfx.ui)
 	if sandbox and gun < 0:
 		gun = maxi(0, Sim.WEAPONS.keys().find(loadout.left))
-	if garage_arg >= 0 or not (autopilot or shot_at >= 0 or sandbox):
+	first_help = real and not FileAccess.file_exists(SAVE)
+	if garage_arg >= 0:
 		to_garage()
-		if real and not FileAccess.file_exists(SAVE):
-			garage.show_help()
+	elif not (autopilot or shot_at >= 0 or sandbox):
+		to_menu()
 	else:
+		menu.visible = false
 		garage.visible = false
 		new_match()
 		if claim_arg:
@@ -336,7 +345,7 @@ func resume() -> void:
 	tapped.clear()
 
 
-func to_garage() -> void:
+func leave_match() -> void:
 	end_replay()
 	paused = false
 	crowd_sound.update([], 0.0, false, false)
@@ -345,6 +354,29 @@ func to_garage() -> void:
 	view.visible = false
 	hud.visible = false
 	get_viewport().disable_3d = true
+
+
+func to_menu() -> void:
+	leave_match()
+	garage.visible = false
+	menu.open()
+	if shot_path != "":
+		for i in 8:
+			await get_tree().process_frame
+		take_shot()
+
+
+func pick_mode(mode: String) -> void:
+	garage.mode = mode
+	to_garage()
+	if first_help:
+		first_help = false
+		garage.show_help()
+
+
+func to_garage() -> void:
+	leave_match()
+	menu.visible = false
 	garage.open(loadout, garage_arg)
 	if hover_arg != "":
 		garage.set_hover({"set": hover_arg} if garage.SLOTS[garage.tab] == "set" else {"slot": garage.SLOTS[garage.tab], "key": hover_arg})
@@ -523,7 +555,7 @@ func aim_point() -> Vector3:
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode in [KEY_M, KEY_N]:
 		Sfx.toggle("muted" if event.physical_keycode == KEY_M else "music_on")
-	if garage.visible or claim.visible:
+	if garage.visible or claim.visible or menu.visible:
 		return
 	if event is InputEventMouseMotion:
 		on_pad = false
@@ -619,7 +651,7 @@ func _notification(what: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if garage.visible or claim.visible:
+	if garage.visible or claim.visible or menu.visible:
 		return
 	aim = aim_point()
 	var held := stop > 0

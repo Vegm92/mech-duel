@@ -148,7 +148,9 @@ $P = "$R\godot"
   every tab switch); the first pad press shows it and moves it. The cursor is the white `focus`
   ring in `paint` (Godot hides it on mouse clicks by default). Evidence:
   `godot-garage-pad-2026-10-26.png`.
-- **Flow (same as JS):** the game opens on the garage; FIGHT saves your bot to
+- **Flow:** the game opens on the mode menu (`menu.gd`: Duel, Core Siege, Quit; Victor
+  2026-10-29). A mode opens the garage in that mode (`garage.mode`; siege hides the difficulty
+  button and FIGHT reads START SIEGE); BACK, Esc or pad B goes back to the menu. FIGHT saves your bot to
   `user://loadout.cfg` (`ConfigFile`, read back through `Sim.normalize`) and starts the match.
   Esc pauses with three buttons in hud.gd (Resume, Restart match, Quit to garage); Enter after
   the match goes back to the garage (main marks that Enter handled, or the garage would take it
@@ -185,7 +187,7 @@ $P = "$R\godot"
   claim screen for the first rival; look check). Not built: stakes, coop, PvP, the nemesis.
 - **Core Siege** (Victor 2026-10-28; spec `CORE_SIEGE_DESIGN.md`, who edits what
   `CORE_SIEGE_SPLIT.md`): co-op wave defense, up to 4 mechs (you + `bot.gd` allies) hold a Reactor
-  Core against grey enemy bots on 4 lanes. The garage's CORE SIEGE button starts a run (`start(lo,
+  Core against grey enemy bots on 4 lanes. Core Siege on the menu, then START SIEGE in the garage, starts a run (`start(lo,
   true)`; `make_view` rebuilds the view when the mode changes), `--siege` starts look checks in it.
   View: `view.build(true)` keeps only marks and the reticle; `siege_view` (arena, core, gates,
   pads, crowd on the blocks, 4 floodlight towers whose spots join `view.towers`, crowd material
