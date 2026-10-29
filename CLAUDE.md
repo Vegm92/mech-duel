@@ -46,6 +46,7 @@ $P = "$R\godot"
 & $G --path $P -- --unlock-all                                  # dev mode: every part open, nothing saved
 & $G --path $P -- --replay=0 --seed=1                           # watch a kill cam right away
 & $G --path $P --resolution 1920x1080 -s "$R\tools\perf_probe.gd" -- --autopilot --seed=3   # speed: one PERF line after ~40 s
+& $G --path $P --resolution 1920x1080 -s "$R\tools\siege_stress.gd" -- --siege --autopilot --team=4 --seed=3   # siege load: 20 -> 200 enemies (+10 every 4 s, --from/--step/--top/--hold), one BOTS line per step with ms per part; --near=1 spawns them around you (on screen), --steps=1 = one tick per frame (no catch-up), --own=0 = the real main loop (only fps/render numbers), --hide=particles|bots|legs|bars|botshadow|sharemat|shadows|hud|sound|interp to isolate a cost
 & $G --path $P --resolution 1920x1080 -s "$R\tools\arena_shot.gd" -- --autopilot --seed=3 --tick=700 "--out=$env:TEMP\arena.png"   # arena-only still (--top: whole arena)
 ```
 
@@ -66,7 +67,11 @@ $P = "$R\godot"
 - **Effects** follow `FX_DESIGN.md` ("punch, not glow", Victor 2026-10-26): `fx.gd` holds the
   recipes and their knobs (`Fx.HIT`), drawn with `Mech.flat` (unshaded, no emission, so effects
   never bloom). Hit-stop: `view.stop` asks main.gd to hold sim + view for N physics frames
-  (`view.process_mode` disabled, camera shake keeps going). Rebuilt in the crisp neon look
+  (`view.process_mode` disabled, camera shake keeps going). Core Siege has no hit-stop at all (Victor
+  2026-10-29: freezes on every hit felt like lag with many enemies): `Siege.step` zeroes
+  `state.hitstop` and `view.sync` zeroes `view.stop`. Crowds trim small effects there too: `view.fx_load`
+  over `FX_BUDGET.max` skips wall pings, cuts hits on bots to sparks + star and hits on players to
+  the star (`Fx.hit` `lite`); booms and the numbers stay (Victor 2026-10-29: 60 fps with 100 bots). Rebuilt in the crisp neon look
   (additive `Mech.flat(c, true)`, team colors): hit, muzzle, bolts, flame, missile, laser, lance,
   rail, tesla, boom (+ scorch marks in `view.marks`), mortar warning, parry, break, K.O. (+ slow-mo:
   `view.slow` → main.gd sets `Engine.time_scale`), land, dash (+ `Fx.ghost` afterimages), booster
@@ -230,9 +235,14 @@ $P = "$R\godot"
   rotating. Look flags: `--top` (whole map, dist 205), `--core=<pct>` (start the core lower),
   `--shot-on=<fx kind>` (save the still when that fx fires, e.g. `ring`, `coreDown`),
   `--team=1..4`, `--wave=<n>` (dev: start at wave n). Sim: `siege.gd` (`create`, `step`, wave
-  director `direct`/`plan`, bot AI `drive`, core rings + repair + respawn in `settle`) on top of
+  director `direct`/`plan`, bot AI `drive` (a bot re-picks its `target` every other tick, staggered by id; in between it keeps chasing `e.seek` while that mech stands; Victor 2026-10-29), core rings + repair + respawn in `settle`) on top of
   `sim.gd`; constants and the view contract in `siege_state.gd`; the views read only
-  `state.siege` (`siege_view.gd` arena/core, `siege_bots.gd` bots; owned by the art sessions).
+  `state.siege` (`siege_view.gd` arena/core, `siege_bots.gd` bots; owned by the art sessions). Bots draw in
+  batches (Victor 2026-10-29, for 60 fps with 100 on screen): each rig is a tree of plain `Node3D`
+  joints that `pose` animates as before, and `draw` copies every joint into its part's shared
+  `MultiMesh` slot (`batch`, `slot`); body tint + hit flash ride the instance color, eye color + glow
+  the custom data (`BODY_SHADER`, `GLOW_SHADER`); `r.body` / `r.glow` are plain value dicts. Rigs off
+  camera (`seen`, `VIEW_MARGIN`) skip posing and snap back when they come into view.
   Every bot also has a body in `state.mechs` (team 1, key `bot`, armor all in `head`, legs top
   ÷ `MOVE.jammed` because its leg pool is 0), so every player weapon, skill and dash hits it with no
   special case; dead bodies are recycled (`gone`). Arena shape lives in `state.geo` (walls,
@@ -506,7 +516,7 @@ $P = "$R\godot"
   slot is a team-color light on a black base (0.9); every match mech gets a team ring on the
   floor, a ▼ over its head and a 2 px screen-space rim in its team color (`view.gd` `MARK` and
   `mark()`, `look.gd` `RIM`; not in the garage), all off while the mech hides in smoke
-  (`Sim.hidden`); the lance/rail wind-up bar is `Mech.flat`, so it no longer blooms. **Atmosphere** (M4): `godot/src/decor.gd` adds seeded scorch marks, metal scraps, floor grates, grime at the wall bases and floating dust, built once by `view.build`; `Decor.clear` keeps every piece 1.5 m off pads, spawns, trap warnings and oil (re-checked in `garage_parts_test`), and nothing on the floor moves. **HUD** (M5, reference `docs/reference/impact-numbers.webp`): two fonts, each with its `OFL.txt` in `godot/assets/fonts/<family>/`: Saira for the HUD, garage and menus, Exo 2 for the feedback in game (impact numbers and the big calls; Victor 2026-10-28) (`look.gd` `FONT`, `Look.font(weight, italic, family)`, Saira set as the default by `Look.ui()` first thing in main.gd); impact numbers are 2D text drawn by `hud.gd` from `view.pops` in the sheet's colors (`look.gd` `POP`: hit white, head orange, BLOCKED blue when a shield takes a hit, heal green), never `Label3D` (AgX dulls 3D text); every plate is `Garage.plate`, team score tags around an m:ss clock, a compact skill bar, callouts on plates (a broken part under its owner's panel, arena calls under the clock); the aim reticle is `Mech.flat`. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
+  (`Sim.hidden`); the lance/rail wind-up bar is `Mech.flat`, so it no longer blooms. **Atmosphere** (M4): `godot/src/decor.gd` adds seeded scorch marks, metal scraps, floor grates, grime at the wall bases and floating dust, built once by `view.build`; `Decor.clear` keeps every piece 1.5 m off pads, spawns, trap warnings and oil (re-checked in `garage_parts_test`), and nothing on the floor moves. **HUD** (M5, reference `docs/reference/impact-numbers.webp`): two fonts, each with its `OFL.txt` in `godot/assets/fonts/<family>/`: Saira for the HUD, garage and menus, Exo 2 for the feedback in game (impact numbers and the big calls; Victor 2026-10-28) (`look.gd` `FONT`, `Look.font(weight, italic, family)`, Saira set as the default by `Look.ui()` first thing in main.gd); impact numbers are 2D text drawn by `hud.gd` from `view.pops` in the sheet's colors (`look.gd` `POP`: hit white, head (crit) orange and bigger with more pop, hurt red = damage a human player takes, BLOCKED blue when a shield takes a hit, heal green; Victor 2026-10-29: small, well above the target, quick hits on one mech climb a stair (`view.STAIR`, `hud.NUMBER.step`), gone in ~0.5 s, at most `view.POPS_MAX` on screen), never `Label3D` (AgX dulls 3D text); every plate is `Garage.plate`, team score tags around an m:ss clock, a compact skill bar, callouts on plates (a broken part under its owner's panel, arena calls under the clock); the aim reticle is `Mech.flat`. Tools: `tools/perf_probe.gd` (GPU ms, draw calls; `-s <absolute path>` with
   `--autopilot`), `tools/arena_shot.gd` (arena-only still with effects and the wind-up bar
   hidden, where bright is measured; `--top` = the whole arena; `-s <absolute path>`, `--tick=N
   --out=<abs png>`), `tools/look_stats.py` (look numbers vs the reference),
