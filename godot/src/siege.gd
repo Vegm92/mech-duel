@@ -494,7 +494,13 @@ static func drive(state, sg: Dictionary, e: Dictionary, b: Dictionary) -> void:
 			Sim.hit(state, b, t, scaled(e, k.dmg), "LEGS", k.impact, atan2(b.y - t.y, b.x - t.x), Sim.next_cast(state))
 		act(e, "attack")
 		return
-	var tgt := target(state, sg, e, b, k)
+	var tgt: Dictionary
+	var keep = state.mechs[e.seek] if e.get("seek", -1) >= 0 and (e.id + state.tick) % 2 == 1 else null
+	if keep != null and not keep.ko:
+		tgt = {"x": keep.x, "y": keep.y, "r": Sim.rad(keep), "mech": keep}
+	else:
+		tgt = target(state, sg, e, b, k)
+	e.seek = tgt.mech.id if tgt.has("mech") else -1
 	var dest := route(state, sg, e, b, k, tgt)
 	var inp := {"mx": 0.0, "my": 0.0}
 	var dx: float = dest.x - b.x
