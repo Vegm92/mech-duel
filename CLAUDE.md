@@ -282,7 +282,7 @@ $P = "$R\godot"
   style, cube head + spike, visor eyes, grey pads, wheel-heel feet), made in Blender
   (`art/light.blend`; build script = text block `light_build.py`; re-run it, then export the
   Light collection as .glb). Objects: Head (pivot at the neck, 1.44), Chest_light /
-  Chest_standard / Chest_heavy (incl. shoulder pads and the core socket), Hips,
+  Chest_standard / Chest_heavy (incl. the core socket; shoulder pads come with the core), Hips,
   UpperArm_L/R (pivot at the shoulder) + Forearm_L/R (pivot at the elbow, incl. the fist), both modeled hanging down, Leg_L/R (pivot at the hip). The light `Head`,
   `UpperArm_*`, `Forearm_*` and `Leg_*` objects are no longer loaded: heads come from `heads.glb`,
   arms from `arms.glb`, legs from `legs.glb` (below).
@@ -311,6 +311,15 @@ $P = "$R\godot"
   (`WHIRL`: `flywheel_disc`, `gravity_ring`; separate objects built around their spin center).
   Evidence: `production/qa/evidence/godot-cores-2026-10-26.png`. At the game camera a core is a
   few pixels: chest width and glow color are what read there, the shapes read in close-ups.
+  **Shoulder pads belong to the core (Victor 2026-10-29: "more differentiation for the chest
+  parts").** The chests carry no pads; `pad(core, s)` in `cores_build.py` builds both into the
+  core's mesh, one shape per core echoing its add-on (volt coil, coolant tank, aegis shield,
+  bastion battlements…). Each keeps the pad top at y 1.47 over the shoulder pivot so shoulder guns
+  sit on it; extras go on the outer side, front or back. **Edge wear:** a seeded ~60% of the bevel
+  faces on chest and pad body/trim pieces use material `edge` (bare steel, `Mech.EDGE`,
+  `SKIN.edge`); `add_part` paints `edge` as `trim` when a material set has no `edge`. Evidence:
+  `godot-core-pads-2026-10-29.png`, `godot-core-pads-guns-2026-10-29.png`,
+  `godot-edge-wear-close-2026-10-29.png`.
 - **Arms (Victor 2026-10-26: "the lower the armor the more skinny it has to look").** One
   `<id>_upper_L/R` (pivot at the shoulder) + `<id>_fore_L/R` (pivot at the elbow, incl. the fist)
   per arms id in `godot/assets/models/arms.glb` (`art/arms.blend`, build script = text block
