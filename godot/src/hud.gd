@@ -626,8 +626,9 @@ func slot(m: Dictionary, key: String, r: Rect2) -> void:
 		for p in Geometry2D.intersect_polygons(rect_poly(f), shape):
 			poly(p, c)
 	if jam:
-		for p in Geometry2D.intersect_polygons(rect_poly(Rect2(r.position.x, r.end.y - 3, r.size.x, 3)), shape):
-			poly(p, A.danger)
+		var jr := Rect2(r.position.x, r.end.y - 6, r.size.x, 6)
+		for p in Geometry2D.intersect_polygons(rect_poly(jr), shape):
+			stripes(p, jr, A.danger, A.jam_dark, 4.0, 6.0)
 	if lit:
 		canvas.draw_polyline(shape + PackedVector2Array([shape[0]]), ac(Color.WHITE), 1.5, true)
 	icon(kind, Vector2(r.get_center().x, r.position.y + (12.5 if key == "dash" else 15.5)), 0.6, ink)
