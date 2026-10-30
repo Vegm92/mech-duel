@@ -44,6 +44,10 @@ const A := Look.ARCADE
 const BAR := Vector2(580, 180)
 const GROUPS := [["larm", "barLarm", ["left"]], ["head", "barHead", ["hook"]], ["core", "barCore", ["shield", "ult"]], ["rarm", "barRarm", ["right"]], ["legs", "barLegs", ["dash"]]]
 const BOT := [["head", Rect2(18, 2, 17, 14)], ["core", Rect2(13, 20, 26, 34)], ["larm", Rect2(1, 22, 10, 36)], ["rarm", Rect2(42, 22, 10, 36)], ["legs", Rect2(14, 58, 11, 38)], ["legs", Rect2(28, 58, 11, 38)]]
+const SIDE := Vector2(340, 420)
+const DIAGRAM := [["head", Rect2(88, 4, 64, 44)], ["larm", Rect2(22, 54, 40, 100)], ["rarm", Rect2(178, 54, 40, 100)], ["legs", Rect2(76, 134, 42, 100)], ["legs", Rect2(122, 134, 42, 100)]]
+const MINI := [["head", Rect2(23, 0, 14, 10)], ["larm", Rect2(9, 12, 8, 24)], ["rarm", Rect2(43, 12, 8, 24)], ["legs", Rect2(20, 30, 9, 22)], ["legs", Rect2(31, 30, 9, 22)]]
+const SLOT_KEYS := ["left", "right", "shield", "hook", "dash", "ult"]
 const KEYS := {"left": ["kLmb", "capLt"], "right": ["kRmb", "capRt"], "shield": ["capQ", "capRb"], "hook": ["capE", "capL3"], "dash": ["capSpace", "capLb"], "ult": ["capR", "capR3"]}
 const SLOTS := [["left", "capLmb", "capLt"], ["right", "capRmb", "capRt"], ["shield", "capQ", "capRb"], ["hook", "capE", "capL3"], ["dash", "capSpace", "capLb"], ["ult", "capR", "capR3"]]
 
@@ -325,7 +329,7 @@ func mech_name(i: int) -> String:
 func skill_bars(size: Vector2) -> void:
 	var ms: Array = state.mechs
 	if ms.size() <= 2:
-		skill_bar(ms[0], Vector2((size.x - BAR.x * 0.88) / 2.0, size.y - 16 - BAR.y * 0.88), 0.88, true)
+		side_panel(ms[0], Vector2(16, size.y - 16 - SIDE.y))
 		return
 	var k := 0.7
 	var w := BAR.x * k
@@ -489,7 +493,7 @@ func top_bar(size: Vector2) -> void:
 			for i in n:
 				var px := r.end.x - 24 - 11 - (n - 1 - i) * 16.0 if side == 0 else r.position.x + 24 + i * 16.0
 				canvas.draw_rect(Rect2(px, 38, 11, 20), Color(A.ground, 1.0 if state.score[ms[side].team] > i else 0.25))
-		rival_chips(ms[1], Vector2(cx + 68 + 7, 76), 266.0)
+		rival_bot(ms[1], Vector2(cx + 356.0, 18.0))
 	else:
 		for side in 2:
 			var teams := [0, 2] if side == 0 else [1, 3]
@@ -506,43 +510,204 @@ func top_bar(size: Vector2) -> void:
 	txt("%d:%02d" % [floori(secs / 60.0), secs % 60], h + Vector2(0, 47), 32, A.ground if secs > 10 else A.danger, HORIZONTAL_ALIGNMENT_CENTER, 112.0, heavy)
 
 
-func rival_chips(m: Dictionary, at: Vector2, width: float) -> void:
-	var items := []
-	for g in GROUPS:
-		if g[0] != "core":
-			items.append([tr(g[1]), g[0]])
-	items.append(["R", "surge"])
-	var gap := 3.0
-	var texts := []
-	var colors := []
-	var jams := []
-	var total := 0.0
-	for it in items:
-		var part: String = it[1]
-		var s: String
-		var jam := false
-		var c := A.surge_text
-		if part == "surge":
-			s = "%s %d" % [it[0], int(m.surge)]
-		else:
-			jam = m.armor[part] <= 0 and part != "head"
-			s = "%s %s" % [it[0], tr("jam") if jam else str(ceili(100.0 * maxf(0.0, m.armor[part]) / m.max[part]))]
-			c = tone(maxf(0.0, m.armor[part]) / float(m.max[part]))
-		texts.append(s)
-		colors.append(c)
-		jams.append(jam)
-		total += label_f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
-	var pad := (width - gap * (items.size() - 1) - total) / items.size()
-	var x := at.x
-	for i in items.size():
-		var w := label_f.get_string_size(texts[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + pad
-		var r := Rect2(x, at.y, w, 20)
-		if jams[i]:
-			stripes(rect_poly(r), r, A.danger, A.jam_dark, 8.0, r.size.y)
-		else:
-			poly(rect_poly(r), A.raised)
-		txt(texts[i], Vector2(x, at.y + 14), 10, Color.WHITE if jams[i] else colors[i], HORIZONTAL_ALIGNMENT_CENTER, w, null, 1.0 if jams[i] else 0.0)
-		x += w + gap
+func armor_frac(m: Dictionary, part: String) -> float:
+	return maxf(0.0, m.armor[part]) / float(m.max[part])
+
+
+func armor_c(f: float) -> Color:
+	return A.good if f > 0.5 else (A.hazard if f > 0.25 else A.danger)
+
+
+func is_jam(m: Dictionary, part: String) -> bool:
+	return m.armor[part] <= 0 and part != "head"
+
+
+func part_block(m: Dictionary, part: String, r: Rect2, n: float) -> void:
+	var shape := cut(r, n) if n > 0.0 else rect_poly(r)
+	if is_jam(m, part):
+		stripes(shape, r, A.danger, A.jam_dark, 8.0, -r.size.y)
+	else:
+		poly(shape, A.line if m.armor[part] <= 0 else armor_c(armor_frac(m, part)))
+
+
+func part_number(m: Dictionary, part: String, r: Rect2) -> void:
+	var jam := is_jam(m, part)
+	var s := tr("jam") if jam else str(ceili(100.0 * armor_frac(m, part)))
+	var ink: Color = Color.WHITE if m.armor[part] <= 0 else A.ground
+	txt(s, Vector2(r.position.x, r.get_center().y + 8.0), fit(s, heavy, 22, r.size.x - 4.0), ink, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, heavy)
+
+
+func gauge(p: Vector2, f: float, c: Color, name: String, nc: Color) -> void:
+	txt(name, Vector2(p.x, p.y + 10), 10, nc, HORIZONTAL_ALIGNMENT_CENTER, 28.0)
+	var box := Rect2(p.x, p.y + 16, 28, 212)
+	canvas.draw_rect(box, ac(A.line), false, 1.0)
+	var top := box.position.y + 1.0
+	var i := 0
+	while i * 11.0 < 210.0:
+		var y := top + 210.0 - i * 11.0 - 8.0
+		if y >= top:
+			canvas.draw_rect(Rect2(box.position.x + 1.0, y, 26, 8), ac(c if i * 11.0 < f * 210.0 else A.raised))
+		i += 1
+	txt(str(roundi(f * 100.0)), Vector2(p.x, p.y + 247), 15, nc, HORIZONTAL_ALIGNMENT_CENTER, 28.0, heavy)
+
+
+func side_panel(m: Dictionary, at: Vector2) -> void:
+	var t: Color = A.team[m.team]
+	fade = 0.4 if m.ko else 1.0
+	canvas.draw_set_transform(at)
+	poly(PackedVector2Array([Vector2(18, 0), Vector2(SIDE.x, 0), Vector2(SIDE.x, SIDE.y - 18), Vector2(SIDE.x - 18, SIDE.y), Vector2(0, SIDE.y), Vector2(0, 18)]), Color(A.panel, 0.94))
+	poly(rect_poly(Rect2(18, 0, SIDE.x - 18, 4)), t)
+	var nm := mech_name(m.id).to_upper()
+	var pw := heavy.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 21).x + 36.0
+	poly(slant(Rect2(16, 18, pw, 33), -15.3), t)
+	txt(nm, Vector2(16, 42), 21, A.ground, HORIZONTAL_ALIGNMENT_CENTER, pw, heavy)
+	txt(tr("whoYou") if m.id == 0 else tr("whoBot").format({"n": m.id + 1}), Vector2(16, 40), 11, A.dim, HORIZONTAL_ALIGNMENT_RIGHT, SIDE.x - 32.0)
+	var g := Vector2(16, 65)
+	gauge(g, clampf(m.heat / float(Sim.HEAT.max), 0.0, 1.0), A.heat, tr("barHeat"), A.heat_text)
+	gauge(Vector2(SIDE.x - 44.0, g.y), clampf(m.surge / float(Sim.SURGE.max), 0.0, 1.0), A.surge, tr("capR"), A.surge_text)
+	var d := g + Vector2(36, 4)
+	canvas.draw_rect(Rect2(d + Vector2(112, 46), Vector2(16, 10)), ac(A.line))
+	poly(cut(Rect2(d + Vector2(72, 54), Vector2(96, 74)), 8), A.core)
+	canvas.draw_rect(Rect2(d + Vector2(104, 72), Vector2(32, 38)), ac(A.raised))
+	for b in DIAGRAM:
+		var r: Rect2 = b[1]
+		r.position += d
+		part_block(m, b[0], r, 6.0)
+	for b in DIAGRAM.slice(0, 3):
+		part_number(m, b[0], Rect2(d + b[1].position, b[1].size))
+	part_number(m, "legs", Rect2(d + Vector2(76, 134), Vector2(88, 100)))
+	var gap := (SIDE.x - 32.0 - 46.0 * 6.0) / 5.0
+	for i in SLOT_KEYS.size():
+		slot(m, SLOT_KEYS[i], Rect2(16.0 + i * (46.0 + gap), g.y + 276.0, 46, 60))
+	if m.ko:
+		fade = 1.0
+		canvas.draw_set_transform(at + Vector2(170, 190), deg_to_rad(-4))
+		canvas.draw_rect(Rect2(-50, -20, 100, 40), A.danger)
+		txt(tr("ko"), Vector2(-50, 8), 22, A.ground, HORIZONTAL_ALIGNMENT_CENTER, 100.0, heavy)
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+	fade = 1.0
+
+
+func slot(m: Dictionary, key: String, r: Rect2) -> void:
+	var cd: float = m.cd.get(key, 0.0)
+	var jam: bool = Sim.ARM_OF.has(key) and Sim.jammed(m, Sim.ARM_OF[key])
+	var bg: Color = A.team[m.team]
+	var ink: Color = A.ground
+	var kind := key
+	var num := ""
+	var lit := false
+	var fill := 0.0
+	var pips := 0
+	match key:
+		"left", "right":
+			kind = "blade" if Sim.weapon(m, key).kind == "melee" else "gun"
+		"shield":
+			bg = A.raised
+			ink = A.soft
+			lit = Sim.shield_up(m)
+		"hook":
+			if Sim.e_skill(m) == "":
+				poly(cut(r, 8), Color(A.raised, 0.4))
+				return
+			kind = "skill"
+			bg = A.raised
+			ink = A.soft
+			lit = Sim.e_active(m)
+		"dash":
+			bg = A.raised
+			ink = A.soft
+			pips = Sim.charges(m.loadout)
+			cd = 0.0 if m.dashes > 0 else 1.0
+		"ult":
+			cd = 0.0
+			var ready: bool = m.surge >= Sim.SURGE.max
+			bg = A.surge if ready else A.raised
+			ink = A.ground if ready else A.soft
+			if not ready:
+				fill = m.surge / float(Sim.SURGE.max)
+				num = str(int(m.surge))
+				if fill > 0.5:
+					ink = A.ground
+	if cd > 0.0:
+		bg = A.line
+		ink = Color.WHITE
+		if key != "dash":
+			num = "%.1f" % (cd / Sim.TICKS)
+	if jam and num == "":
+		num = "×2"
+	var shape := cut(r, 8)
+	poly(shape, bg)
+	if fill > 0.0:
+		var f := Rect2(r.position.x, r.end.y - r.size.y * fill, r.size.x, r.size.y * fill)
+		for p in Geometry2D.intersect_polygons(rect_poly(f), shape):
+			poly(p, Color(A.surge, 0.85))
+	if jam:
+		for p in Geometry2D.intersect_polygons(rect_poly(Rect2(r.position.x, r.end.y - 4, r.size.x, 4)), shape):
+			poly(p, A.danger)
+	if lit:
+		canvas.draw_polyline(shape + PackedVector2Array([shape[0]]), ac(Color.WHITE), 2.0, true)
+	var tall := num != "" or pips > 0
+	icon(kind, Vector2(r.get_center().x, r.position.y + (24.0 if tall else 30.0)), 1.07 if key == "left" or key == "right" else 0.93, ink)
+	if num != "":
+		txt(num, Vector2(r.position.x, r.position.y + 51), 14, ink, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, heavy)
+	for i in pips:
+		var px := r.get_center().x + (i - (pips - 1) / 2.0) * 12.0 - 4.0
+		canvas.draw_rect(Rect2(px, r.position.y + 44, 8, 8), ac(A.hazard if i < m.dashes else Color(A.ground, 0.7)))
+
+
+func ring(c: Vector2, rad: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in 17:
+		pts.append(c + Vector2.from_angle(TAU * i / 16.0) * rad)
+	return pts
+
+
+func icon_lines(kind: String) -> Array:
+	match kind:
+		"gun":
+			return [PackedVector2Array([Vector2(3, 11), Vector2(16, 11), Vector2(16, 19), Vector2(3, 19), Vector2(3, 11)]), PackedVector2Array([Vector2(16, 13), Vector2(25, 13), Vector2(25, 17), Vector2(16, 17)]), PackedVector2Array([Vector2(7, 19), Vector2(7, 24), Vector2(12, 24), Vector2(12, 19)])]
+		"blade":
+			return [ring(Vector2(14, 14), 7.0), ring(Vector2(14, 14), 2.0), PackedVector2Array([Vector2(14, 3), Vector2(14, 7)]), PackedVector2Array([Vector2(14, 21), Vector2(14, 25)]), PackedVector2Array([Vector2(3, 14), Vector2(7, 14)]), PackedVector2Array([Vector2(21, 14), Vector2(25, 14)]), PackedVector2Array([Vector2(6.2, 6.2), Vector2(9, 9)]), PackedVector2Array([Vector2(19, 19), Vector2(21.8, 21.8)]), PackedVector2Array([Vector2(6.2, 21.8), Vector2(9, 19)]), PackedVector2Array([Vector2(19, 9), Vector2(21.8, 6.2)])]
+		"shield":
+			return [PackedVector2Array([Vector2(14, 3), Vector2(23, 6), Vector2(23, 13), Vector2(14, 25), Vector2(5, 13), Vector2(5, 6), Vector2(14, 3)])]
+		"dash":
+			return [PackedVector2Array([Vector2(14, 3), Vector2(18, 8), Vector2(18, 17), Vector2(10, 17), Vector2(10, 8), Vector2(14, 3)]), PackedVector2Array([Vector2(10, 14), Vector2(6, 19), Vector2(10, 19)]), PackedVector2Array([Vector2(18, 14), Vector2(22, 19), Vector2(18, 19)]), PackedVector2Array([Vector2(14, 21), Vector2(14, 25)])]
+		"ult":
+			return [PackedVector2Array([Vector2(16, 3), Vector2(7, 16), Vector2(13, 16), Vector2(11, 25), Vector2(21, 11), Vector2(15, 11), Vector2(16, 3)])]
+	return [PackedVector2Array([Vector2(14, 3), Vector2(24, 14), Vector2(14, 25), Vector2(4, 14), Vector2(14, 3)]), PackedVector2Array([Vector2(14, 10), Vector2(18, 14), Vector2(14, 18), Vector2(10, 14), Vector2(14, 10)])]
+
+
+func icon(kind: String, c: Vector2, k: float, col: Color) -> void:
+	for line in icon_lines(kind):
+		var pts := PackedVector2Array()
+		for p in line:
+			pts.append(c + (p - Vector2(14, 14)) * k)
+		canvas.draw_polyline(pts, ac(col), 2.2 * k, true)
+
+
+func rival_bot(m: Dictionary, at: Vector2) -> void:
+	fade = 0.4 if m.ko else 1.0
+	canvas.draw_set_transform(at)
+	poly(PackedVector2Array([Vector2(0, 0), Vector2(132, 0), Vector2(132, 50), Vector2(122, 60), Vector2(0, 60)]), Color(A.panel, 0.94))
+	poly(rect_poly(Rect2(0, 0, 132, 3)), A.team[m.team])
+	var o := Vector2(10, 5)
+	poly(rect_poly(Rect2(o + Vector2(19, 12), Vector2(22, 16))), A.core)
+	for b in MINI:
+		var r: Rect2 = b[1]
+		r.position += o
+		part_block(m, b[0], r, 0.0)
+	var worst := 1.0
+	var wp := "head"
+	for p in PARTS:
+		var f := armor_frac(m, p)
+		if f < worst:
+			worst = f
+			wp = p
+	var s := tr("jam") if is_jam(m, wp) else str(ceili(100.0 * worst))
+	txt(s, Vector2(78, 36), fit(s, heavy, 22, 48.0), armor_c(worst), HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy)
+	txt("%s %d" % [tr("capR"), int(m.surge)], Vector2(78, 53), 10, A.surge_text)
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+	fade = 1.0
 
 
 func callout(s: String, c: Color, cx: float, y: float, px: int, alpha := 1.0) -> float:
