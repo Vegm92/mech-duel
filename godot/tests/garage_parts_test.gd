@@ -385,6 +385,10 @@ func test_claim_panel_lists_changed_stats_and_the_new_skill() -> int:
 	await process_frame
 	t = texts.call()
 	bad += ensure(t.any(func(x): return x.begins_with("R ·")), "a new core names its R skill")
+	c.open([{"slot": "left", "key": "rivet"}], "tank", 1, Progress.new(), Sim.DEFAULT_LOADOUT)
+	await process_frame
+	t = texts.call()
+	bad += ensure(t.any(func(x): return x.contains("Mk 1") and x.contains("Mk 2")) and t.any(func(x): return x.contains("▲")), "a weapon level-up shows the Mk step and what gets better")
 	c.queue_free()
 	await process_frame
 	return int(bad > 0)

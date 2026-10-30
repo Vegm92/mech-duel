@@ -179,24 +179,21 @@ func changes() -> void:
 		c.queue_free()
 	var it: Dictionary = items[sel]
 	var lvl: int = prog.level(it.slot, it.key)
-	var head := tr("p_" + lo[it.slot]).to_upper() + "  →  " + tr("p_" + it.key).to_upper()
-	if lo[it.slot] == it.key:
-		head = tr("p_" + it.key).to_upper() + "  ·  " + tr("claimUp").format({"a": lvl, "b": lvl + 1})
+	var head := tr("p_" + it.key).to_upper()
+	if lo[it.slot] != it.key:
+		head = tr("p_" + lo[it.slot]).to_upper() + "  →  " + head
+	if lvl > 0:
+		head += "  ·  " + tr("claimUp").format({"a": lvl, "b": lvl + 1})
 	label(panel, head, Rect2(16, 8, PW - 32, 18), 12, Garage.A_HAZARD, true)
-	var now := Garage.sheet(prog.with_levels(lo))
-	var then := Garage.sheet(after(it))
 	var n := 0
-	for i in now.size():
-		var row: Array = now[i]
-		var d: float = then[i][1] - row[1]
-		var t := Garage.trend(d, row[2], row[3])
-		if t == 0 or n >= ROWS:
-			continue
+	for row in diffs(it):
+		if n >= ROWS:
+			break
 		var y := 32.0 + n * ROW
-		var col: Color = Garage.A_GOOD if t > 0 else Garage.A_SOFT
+		var col: Color = Garage.A_GOOD if row[4] > 0 else Garage.A_SOFT
 		label(panel, tr(row[0]), Rect2(16, y, 100, ROW), 13, Garage.A_DIM)
-		label(panel, "%s → %s" % [stat(row[0], row[1], row[2]), stat(row[0], then[i][1], row[2])], Rect2(116, y, 130, ROW), 13, Color.WHITE, true)
-		label(panel, "%s%s" % ["▲" if d > 0 else "▼", Garage.num(absf(d), row[2])], Rect2(246, y, 60, ROW), 13, col, true)
+		label(panel, "%s → %s" % [stat(row[0], row[1], row[3]), stat(row[0], row[2], row[3])], Rect2(116, y, 130, ROW), 13, Color.WHITE, true)
+		label(panel, "%s%s" % ["▲" if row[2] > row[1] else "▼", Garage.num(absf(row[2] - row[1]), row[3])], Rect2(246, y, 60, ROW), 13, col, true)
 		n += 1
 	var was := skill(it.slot, lo[it.slot])
 	var gets := skill(it.slot, it.key)
@@ -208,6 +205,34 @@ func changes() -> void:
 	var l := label(panel, "", Rect2(326, y, PW - 342, PH - y - 6), 12, Garage.A_INK)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.text = tr("d_" + it.key)
+
+
+func diffs(it: Dictionary) -> Array:
+	var a: Dictionary = prog.with_levels(lo)
+	var b := after(it)
+	var out := []
+	if it.slot == "left" or it.slot == "right":
+		var x := gun(a, it.slot)
+		var y := gun(b, it.slot)
+		for i in 3:
+			var dec: int = [0, 1, 2][i]
+			if absf(y[i] - x[i]) >= 0.5 * pow(10.0, -dec):
+				out.append([["stDamage", "stRange", "stRate"][i], x[i], y[i], dec, 1 if y[i] > x[i] else -1])
+		return out
+	var now := Garage.sheet(a)
+	var then := Garage.sheet(b)
+	for i in now.size():
+		var t := Garage.trend(then[i][1] - now[i][1], now[i][2], now[i][3])
+		if t != 0:
+			out.append([now[i][0], now[i][1], then[i][1], now[i][2], t])
+	return out
+
+
+func gun(lx: Dictionary, slot: String) -> Array:
+	var p := Sim.tuned(slot, lx[slot], lx.get("lv", {}).get(slot, 1))
+	if Sim.is_gun(p):
+		return [p.get("pellets", 1) * p.dmg, p.range, float(Sim.TICKS) / p.cd]
+	return [p.dmg * p.get("hits", 1), p.range, float(Sim.TICKS) / (p.cd + p.windup)]
 
 
 func skill(slot: String, key: String) -> String:
@@ -224,7 +249,8 @@ func skill(slot: String, key: String) -> String:
 
 
 func stat(key: String, v: float, dec: int) -> String:
-	return tr(Garage.UNIT[key]).format({"n": Garage.num(v, dec)}) if Garage.UNIT.has(key) else Garage.num(v, dec)
+	var unit: String = Garage.UNIT.get(key, "vM" if key == "stRange" else "")
+	return tr(unit).format({"n": Garage.num(v, dec)}) if unit != "" else Garage.num(v, dec)
 
 
 func keep() -> void:
