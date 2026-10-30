@@ -1015,8 +1015,7 @@ func siege_shop(size: Vector2) -> void:
 		var can: bool = cost >= 0 and sg.fund >= cost
 		var r := Rect2(x, 36 + i * 34, 250, 30)
 		poly(rect_poly(r), Color(A.panel, 0.92))
-		poly(rect_poly(Rect2(r.position + Vector2(10, 5), Vector2(20, 20))), A.hazard if can else A.line)
-		txt(tr("shop_" + k).format({"t": sg.garrison.tier + 1}), r.position + Vector2(40, 20), 12, Color.WHITE if can else A.dim)
+		txt(tr("shop_" + k).format({"t": sg.garrison.tier + 1}), r.position + Vector2(12, 20), 12, Color.WHITE if can else A.dim)
 		if cost >= 0:
 			txt(str(cost), Vector2(r.position.x, r.position.y + 21), 14, Color.WHITE if can else A.dim, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 10.0, heavy)
 	poly(rect_poly(Rect2(x, 36 + SHOP.size() * 34, 250, 22)), Color(A.panel, 0.92))
