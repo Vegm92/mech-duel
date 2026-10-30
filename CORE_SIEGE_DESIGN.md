@@ -103,9 +103,10 @@ Rules shared by every bot:
 
 ## 5. Scrap and the build phase (tune later)
 
-- Kills drop scrap = 5 × the bot's cost, shared by the team. A wave cleared with the core above 75%
-  adds +20%.
-- Between waves (**build phase**, 25 s, 15 s from wave 21) the team spends scrap. **Where you buy it**
+- Kills drop scrap = 5 × the bot's cost, paid to the mech that lands the killing blow (Victor
+  2026-10-30: one personal wallet, last hit like LoL). A wave cleared with the core above 75% pays each
+  living player +20% of the wave's total.
+- Between waves (**build phase**, 25 s, 15 s from wave 21) every player spends their own wallet. **Where you buy it**
   (Victor 2026-10-30: "go to the lane I want to reinforce and, from the squares available there,
   approach and with the same Shift buy and apply a buildable"): hold Shift (pad Y) and the radial that
   opens depends on where you stand.
@@ -122,19 +123,24 @@ Rules shared by every bot:
 | Rail post | 120 | a post the player stands on and fires by hand: a 120 dmg rail on the player's own aim, 4 s cooldown | square wheel |
 | Auto turret | 180 | aims at the nearest bot within 22 m and fires on its own, 30 dmg/s, 600 HP; bots shoot it down like a wall | square wheel |
 
-- **Square wheel:** an empty pad, or the same module rebuilt once destroyed. Entries dim when the fund
+- **Square wheel:** an empty pad, or the same module rebuilt once destroyed. Entries dim when your wallet
   cannot pay. **Gate wheel:** fixes only the gate you stand at, not the worst one. **Plaza wheel**
   (§8b2): weapons, upgrades, consumables, parts, and a Team wedge with only Core ring and Garrison.
   The 1-8 keys build nothing; the build-phase list on the right shows what the plaza Team wedge sells
   plus a hint line. AI allies walk to the gate they fix. Numbers: `MODULE` in `siege.gd`
   (`pad`, `gate` reach; `turret`: cost, hp, range, dmg, every).
 
-- **Call next wave early:** press the call key in the build phase; bonus scrap = 2 × seconds left.
+- **Call next wave early:** press the call key in the build phase; bonus scrap = 2 × seconds left, paid to the player who called it.
 
 ## 6. Waves (tune later)
 
 **Budget** for wave n: `B(n) = 2.7 + 1.98n + 0.144n²` (×0.9 on 2026-10-28 after the duel balance pass), × `1 + 0.4` per extra mech on the team (AI
 teammates count). Wave 1 ≈ 5, wave 10 ≈ 37, wave 20 ≈ 100, wave 30 ≈ 190 points for one mech.
+
+**Fuller waves** (Victor 2026-10-30: "the waves feel low in complexity; sometimes there are very few
+enemies"). After the budget is spent, a wave is topped up with squads from its pool until it has
+`FILL.lane` (6) bodies per active lane (a swarm cube counts), and from wave `FILL.mix` (3) on it
+carries at least 2 bot kinds. The **Director is on by default** (`--director=off` turns it off).
 
 **Squads** (cost):
 
@@ -228,14 +234,17 @@ ring road's outer wall (26 to 27.5 m) gets one 6 m arch per yard on the 45° dia
 reached only from the ring road. Inside: 5 camps, 3 salvage crates, scrap heaps (cover), a steam
 patch (hides a mech, like smoke), a crush plate and 2 EMP zones (they hit bots too).
 
-**Two currencies.**
-- **Fortress fund** (shared): lane bot kills pay 3 × cost (was 5), a clean wave +20%, calling the
-  wave early +2 per second skipped. Pays for gates, core rings, pad modules and the Garrison.
-- **Wallet** (one per player): yard camps and crates. Spent in the plaza (within 14 m of the
-  core) at any time: mech repair 30, part upgrade (+1 level to your lowest part for this run, 80 ×
+**One currency** (Victor 2026-10-30, after a playtest where the wallet had 80 and the shared fund 0, so
+every build item was red: "fund and wallet should be one single, personal currency"). There is no
+shared fund. The wallet (one per player) pays for everything: gates, core rings, pad modules, the
+Garrison and the plaza items. Income: **only the killer is paid**: a lane, camp, raid or Elite kill
+pays whoever landed the last hit (5 × cost); a pad module's kill pays the player who built it; a
+Garrison kill pays whoever bought its current tier; hazards and raids that wipe a camp pay nobody.
+Camp scrap and tokens go to the player who killed the camp's last bot; crates pay who opens them;
+a clean wave pays each living player +20% of the wave's earnings; calling a wave early pays the caller.
+Plaza items (spent within 14 m of the core) at any time: mech repair 30, part upgrade (+1 level to your lowest part for this run, 80 ×
   new level), reinforce (+15% max armor for this run, 100 scrap or 1 token), revive (bring a downed
-  teammate back now, 50, from anywhere). Hold V at the core to donate wallet scrap to the fund
-  (10 per 0.25 s), so farmers feed the fortress.
+  teammate back now, 50, from anywhere). V only opens crates.
 - This makes roles: lane holders, farmers, a floater at the core. Core repair still needs someone
   standing at the core.
 
@@ -251,9 +260,9 @@ up to 18 m from their camp, then walk home and heal to full.
 | Elite Titan Hulk (1 per yard) | 1 heavy mech | 120 + 1 reinforce token |
 | Salvage crate (×3 per yard) | hold V 3 s, stand still | 15 |
 
-The scrap goes to the player closest to the camp (within 25 m) when its last bot dies. Camps and
+The scrap goes to the player who killed the camp's last bot. Camps and
 crates refill at the start of every wave; the Elite only every 5 waves. One yard pays about 135 per
-wave (+120 from the Elite every 5 waves); lane kills at wave 10 pay about 190 to the fund for 2
+wave (+120 from the Elite every 5 waves); lane kills at wave 10 pay about 190 in total for 2
 players. Yards out-earn lanes about 3 to 1 but clearing all 4 takes most of a wave.
 
 **Risks.** Spiders pop out of the side vents into the yard, flyers cross it from the air corners,
@@ -295,8 +304,8 @@ more = 300). Parts you don't own stay locked. The parts bay prop stands at `BAY`
 **Instant buys** (wallet): repair kit 40 (full armor), coolant 20 (heat to 0), surge cell 60 (+50 R
 charge), reinforce 100 or a token (+15% max armor for the run), revive 50 (a downed teammate now).
 
-**Wallet income.** Every run starts with 120 in each wallet. Each lane kill also pays every player
-1 × the bot's cost (the fund still gets 3 ×). Yards stay the big earner.
+**Wallet income.** Every run starts with 120 in each wallet (a barricade is 60, a mine field 80).
+Yards stay the big earner.
 
 **Recall.** Hold B (pad X) 3 s, broken by taking damage: you appear at your plaza spot. 25 s
 cooldown. Makes the yard ↔ plaza loop work.
@@ -304,7 +313,7 @@ cooldown. Makes the yard ↔ plaza loop work.
 **Radial shop.** Hold Shift (pad Y) in the plaza (within 14 m of the core), move the mouse or stick
 toward a wedge, release or click to buy, right click / Esc / pad B goes back. The sim keeps running.
 Level 1: Weapons, Plating (head, arms, legs), Engine (legs, booster), Core, Heal (kit, coolant, surge
-cell), Parts (swap), Team (Core ring, Garrison; fund), Reinforce, Revive. Victor 2026-10-30: modules
+cell), Parts (swap), Team (Core ring, Garrison), Reinforce, Revive. Victor 2026-10-30: modules
 and gate fixes moved out of the plaza: Shift next to a lane square opens a Build wheel (barricade, mine
 field, lane laser, rail post, auto turret) and Shift next to a gate opens a Gate wheel (repair +20%,
 rebuild at 50%), both build phase only (§5). Level 2 shows cost (dimmed when you can't pay) and the stat change. Keys checked
@@ -343,7 +352,7 @@ rule (about player input) is not touched.
 - Built from the players' part catalog (no new model), team 0, a core-colored glow and team ring,
   docked at `GARRISON_DOCK` (9, 9) in the plaza.
 
-| Tier | Fund cost | Build | Part level |
+| Tier | Cost (wallet) | Build | Part level |
 |---|---|---|---|
 | 1 | 150 | light frame: Wire arms, Greaves, Flicker, Rivet + Bash (one gun) | 1 |
 | 2 | 400 | + Brace arms, Treads | 2 |
@@ -356,7 +365,7 @@ rule (about player input) is not touched.
   (armor pools, breaks), rebuilds at its dock after 20 s × tier, free.
 - It must not hold waves alone: a bot-only run at wave 15 and 25 with a tier-5 Garrison and no
   players still loses (a test checks it).
-- HUD: tier and the next tier's cost in the shop; the buy is a fund item.
+- HUD: tier and the next tier's cost in the shop; paid from your wallet; the buyer of the current tier is paid for its kills.
 - VS: each team has its own Garrison.
 
 ## 9. VS variant (design only, not built)
