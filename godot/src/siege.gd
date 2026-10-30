@@ -1537,10 +1537,15 @@ static func owned_level(sg: Dictionary, i: int, slot: String, key: String) -> in
 
 static func outfit(m: Dictionary, tiers: Dictionary, boost: int) -> void:
 	var lo: Dictionary = m.loadout
-	var lv: Dictionary = lo.get("lv", {})
+	var base := Sim.rows_of(lo)
+	var kit := Sim.set_of(lo)
+	if kit != "":
+		m.set = kit
+	else:
+		m.erase("set")
 	var rows := {}
 	for slot in Sim.DEFAULT_LOADOUT:
-		var row := Sim.tuned(slot, lo[slot], lv.get(slot, 1)).duplicate()
+		var row: Dictionary = base[slot].duplicate()
 		var t: int = tiers.get(slot, 0)
 		var fx: Dictionary = TIER.hand if Sim.HANDS.has(slot) else TIER[slot]
 		for key in fx:
