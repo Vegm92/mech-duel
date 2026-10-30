@@ -285,7 +285,15 @@ $P = "$R\godot"
   corner (`skill_bar`: `robot` + `group` + `key_cap`, K.O.'d ones faded), `top_bar` (skewed team tags + hex
   clock; score chips with more than 2 mechs), `callout` (Exo 2 between hazard stripes, -3°), `slam` (round end), `match_over`
   (round list from `rounds`, tracked in `_process`), `pause_screen` (slabs drawn over empty Buttons so focus
-  and the pad still work), `replay_bars`. Siege still uses the old `mech_panel` / `slots` until its restyle.
+  and the pad still work), `replay_bars`. Core Siege uses the same arcade look (2026-10-30 night job): `siege_top` (wave plate + core bar with ring ticks),
+  `siege_left` (fund / wallet / tokens chips, garrison chip, `ally_row` strip: ally color, mini health-bar diagram,
+  status dot / red X / blue recall arc, `siege_tiers`), the same `side_panel` bottom-left for you, `siege_shop`
+  (team shop list + hint tags, build phase only), `siege_calls` (colored `callout`s), `siege_over` (CORE LOST band),
+  `marker` / `edge_arrow` / `ally_marks` (gate tags, hurt rings, allies get a numbered chevron in their color
+  or an edge arrow; `siege_box` keeps arrows clear of the left column, the wave plate and the team shop;
+  ally colors are `A.team[i]`). `radial.gd` is restyled to the same palette (Exo 2 names, yellow hot wedge, wallet
+  chips fed by `hud.siege_left`, breadcrumb, hints); the hud hides its own chips and shop list while it is open.
+  Not restyled: the wave 10 / 20 / 30 reward screen (`claim.gd`, other session).
   Look flags: `--format=ffa|2v2` (4 mechs, extra bots; no kill cam), `--pause` (pause at `--at`), `--lang=en`.
   Evidence: `production/qa/evidence/arcade-{before,after}-*-2026-10-30.png`. Test: `tests/hud_test.gd`.
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`

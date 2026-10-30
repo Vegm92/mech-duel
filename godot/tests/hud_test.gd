@@ -3,7 +3,7 @@ extends SceneTree
 const Sim = preload("res://src/sim.gd")
 const Look = preload("res://src/look.gd")
 
-const KEYS := ["nameMech0", "nameMech1", "nameMech2", "nameMech3", "whoYou", "whoBot", "barLarm", "barHead", "barCore", "barRarm", "barLegs", "jam", "heatN", "kLmb", "kRmb", "kcTag", "kcSkipOr", "backGarage", "keyEnter", "soundTitle", "capQ", "capE", "capR", "capSpace", "capLt", "capRt", "capLb", "capRb", "capL3", "capR3", "slotShield", "round", "go", "ko", "timeUp", "victory", "defeat", "mPaused", "mResume", "mRestart", "mGarage", "closing", "ventsOn", "healReady", "overheat"]
+const KEYS := ["nameMech0", "nameMech1", "nameMech2", "nameMech3", "whoYou", "whoBot", "barLarm", "barHead", "barCore", "barRarm", "barLegs", "jam", "heatN", "kLmb", "kRmb", "kcTag", "kcSkipOr", "backGarage", "keyEnter", "soundTitle", "radialShop", "radialNote", "radialHint", "siegeWave", "siegeBest", "siegeTiers", "siegeRecall", "siegeCrate", "siegeShop", "siegeKeys", "siegeLost", "siegeHeld", "capQ", "capE", "capR", "capSpace", "capLt", "capRt", "capLb", "capRb", "capL3", "capR3", "slotShield", "round", "go", "ko", "timeUp", "victory", "defeat", "mPaused", "mResume", "mRestart", "mGarage", "closing", "ventsOn", "healReady", "overheat"]
 
 var failed := 0
 var filter := ""
@@ -19,6 +19,7 @@ func _initialize() -> void:
 	await run("pause_shows_three_slabs_and_five_sliders_only_while_paused", test_pause)
 	await run("a_round_win_is_remembered_for_the_match_over_list", test_rounds)
 	await run("an_ffa_match_runs_and_draws_four_bars", test_ffa)
+	await run("a_four_player_siege_shows_allies_and_keeps_its_arrows_clear_of_the_hud", test_siege)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -50,6 +51,40 @@ func start(seed: int, fmt := "1v1"):
 	root.add_child(m)
 	await process_frame
 	return m
+
+
+func start_siege(n: int):
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	m.seed_arg = 3
+	m.siege = true
+	m.team_n = n
+	root.add_child(m)
+	await process_frame
+	return m
+
+
+func test_siege() -> int:
+	var m = await start_siege(4)
+	var hud = m.hud
+	var bad := ensure(hud.state.has("siege") and hud.state.siege.team == 4, "a siege with 4 players")
+	bad += ensure(hud.ally_status(1) == "alive", "an ally in the fight is alive")
+	m.state.mechs[2].ko = true
+	bad += ensure(hud.ally_status(2) == "down", "a knocked out ally is down")
+	m.state.siege.recall.append({"player": 3, "t": 10, "max": 100})
+	bad += ensure(hud.ally_status(3) == "recall", "an ally holding a recall is recalling")
+	for i in 3:
+		await process_frame
+	var size := Vector2(1280, 720)
+	var box: Rect2 = hud.siege_box(size)
+	var reserved := {"ally strip and upgrades": Rect2(16, 16, 210, 420), "skill panel": Rect2(16, size.y - 16 - hud.SIDE.y, hud.SIDE.x, hud.SIDE.y), "wave plate and core bar": Rect2(420, 14, 440, 70)}
+	for k in reserved:
+		bad += ensure(not box.intersects(reserved[k]), "edge arrows stay clear of the %s" % k)
+	m.state.siege.wave.live = false
+	box = hud.siege_box(size)
+	bad += ensure(not box.intersects(Rect2(size.x - 266, 16, 250, 300)), "edge arrows stay clear of the team shop in the build phase")
+	m.queue_free()
+	return bad
 
 
 func test_strings() -> int:
