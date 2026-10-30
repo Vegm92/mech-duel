@@ -104,6 +104,7 @@ var wave_arg := 1
 var director_on := false
 var spawn_arg := ""
 var modules_arg := false
+var down_arg := false
 var turret_arg := false
 var top_arg := false
 var guard_arg := 0
@@ -196,6 +197,8 @@ func _ready() -> void:
 			shot_on = a.substr(10)
 		elif a == "--modules":
 			modules_arg = true
+		elif a == "--down":
+			down_arg = true
 		elif a == "--turret":
 			turret_arg = true
 		elif a.begins_with("--spawn="):
@@ -420,6 +423,8 @@ func new_match() -> void:
 		if core_arg_pct >= 0.0:
 			state.siege.core.hp = state.siege.core.max * core_arg_pct / 100.0
 			Siege.rings(state, state.siege)
+		if down_arg:
+			state.mechs[0].armor.head = 0
 		if modules_arg:
 			for b in [[0, "wall"], [1, "mine"], [2, "laser"], [3, "post"]]:
 				Siege.build(state, state.siege.pads[b[0]], b[1])

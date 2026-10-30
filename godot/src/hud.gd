@@ -235,6 +235,7 @@ func paint() -> void:
 			siege_crate(size)
 		if state.phase != "over":
 			siege_calls(size)
+			siege_down(size)
 		else:
 			calls_bottom = 0.0
 			siege_over(size)
@@ -1205,6 +1206,16 @@ func siege_calls(size: Vector2) -> void:
 				txt(sub, Vector2(0, cy + h + 24.0), 20, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, size.x, heavy, 2.0)
 			cy += h + (40.0 if sub != "" else 14.0)
 			calls_bottom = cy
+
+
+func siege_down(size: Vector2) -> void:
+	var left = state.siege.down.get(0)
+	if not state.mechs[0].ko or left == null:
+		return
+	var y := size.y * 0.42
+	var h := callout(tr("siegeDown").to_upper(), A.danger, size.x / 2.0, y, 44)
+	txt(tr("siegeBackIn"), Vector2(0, y + h + 34.0), 22, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, size.x, heavy, 2.0)
+	txt(str(int(ceil(left / float(Sim.TICKS)))), Vector2(0, y + h + 130.0), 96, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, size.x, heavy, 4.0)
 
 
 func siege_over(size: Vector2) -> void:

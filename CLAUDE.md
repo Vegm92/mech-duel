@@ -194,7 +194,8 @@ $P = "$R\godot"
   Camera (`SIEGE_CAM`): follows only you, dist 48 (wheel 36-64), focus clamped to ±62, never
   rotating. Look flags: `--top` (whole map, dist 205), `--core=<pct>` (start the core lower),
   `--shot-on=<fx kind>` (save the still when that fx fires, e.g. `ring`, `coreDown`),
-  `--team=1..4`, `--wave=<n>` (dev: start at wave n). Sim: `siege.gd` (`create`, `step`, wave
+  `--team=1..4`, `--wave=<n>` (dev: start at wave n), `--down` (you start knocked out: the HUD shows
+  `siege_down`, a big respawn countdown; evidence `production/qa/evidence/siege-down-countdown-2026-10-30.png`). Sim: `siege.gd` (`create`, `step`, wave
   director `direct`/`plan`, bot AI `drive`, core rings + repair + respawn in `settle`) on top of
   `sim.gd`; constants and the view contract in `siege_state.gd`; the views read only
   `state.siege` (`siege_view.gd` arena/core, `siege_bots.gd` bots; owned by the art sessions).
