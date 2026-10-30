@@ -80,7 +80,7 @@ static func tiers() -> Dictionary:
 
 
 static func garrison() -> Dictionary:
-	return {"tier": 0, "hp": 0.0, "max": 0.0, "x": GARRISON_DOCK.x, "y": GARRISON_DOCK.y, "face": GARRISON_DOCK.face, "act": "idle", "respawn_in": 0}
+	return {"tier": 0, "hp": 0.0, "max": 0.0, "x": GARRISON_DOCK.x, "y": GARRISON_DOCK.y, "face": GARRISON_DOCK.face, "act": "idle", "respawn_in": 0, "buyer": -1}
 
 
 static func ring_hp(rings_left: int) -> Array:
@@ -120,6 +120,6 @@ static func stub(rings_left := 4) -> Dictionary:
 		"tick": 0, "wave": {"n": 1, "next_in": 480, "lanes_open": [true, false, false, false]},
 		"core": {"x": 0.0, "y": 0.0, "hp": hp, "max": CORE.hp, "rings": rings, "repairing": false},
 		"gates": gates, "pads": pads(), "enemies": enemies, "yards": yards(),
-		"fund": 0, "wallets": [120], "tokens": [0], "garrison": garrison(),
+		"wallets": [120], "tokens": [0], "garrison": garrison(),
 		"tiers": [tiers()], "recall": [], "shop_open": [false],
 	}

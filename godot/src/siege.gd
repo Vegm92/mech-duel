@@ -8,7 +8,7 @@ const RUN := {
 	"first": 10 * Sim.TICKS, "build": 25 * Sim.TICKS, "warn": 8 * Sim.TICKS, "cap": 90 * Sim.TICKS, "gap": 30,
 	"respawn": 8 * Sim.TICKS, "respawnWave": 30, "repairDelay": Sim.TICKS, "repair": 25.0 / Sim.TICKS,
 	"buildLate": 15 * Sim.TICKS, "gateSoak": 0.5, "late": 20, "ranged": 5 * Sim.TICKS, "call": 2, "clear": 0.2,
-	"scrap": 3, "aggro": 6.0, "post": 21.0, "leash": 14.0, "corpse": 90, "spawnRing": 7.0, "players": 0.4,
+	"scrap": 5, "aggro": 6.0, "post": 21.0, "leash": 14.0, "corpse": 90, "spawnRing": 7.0, "players": 0.4,
 }
 const MODULE := {"pad": 4.0, "gate": 4.5, "wall": {"hp": 800, "depth": 1.0, "len": 6.0}, "mine": {"n": 4, "spread": 2.5, "dmg": 60, "arm": 30},
 	"laser": {"every": 180, "warn": 60, "dmg": 80, "half": 0.6}, "post": {"dmg": 120, "cd": 240, "reach": 2.0, "range": 40.0, "half": 0.5},
@@ -20,12 +20,12 @@ const TIER := {
 	"base": {"left": 40, "right": 40, "head": 35, "arms": 35, "legs": 35, "booster": 30, "core": 45},
 	"hand": {"dmg": 0.25, "cd": -0.06}, "head": {"armor": 0.15, "surge": 0.08}, "arms": {"armor": 0.15, "handling": -0.04},
 	"legs": {"armor": 0.15, "top": 0.05}, "booster": {"dashCd": -0.1}, "core": {"surgeGain": 0.15, "dmg": 0.06},
-	"wallet": 120, "share": 2, "surge": 50,
+	"wallet": 120, "surge": 50,
 }
 const AI_SHOP := {"order": ["left", "right", "arms", "head", "legs", "booster", "core"], "recallAt": 0.35, "kitAt": 0.6, "rich": 300}
 const SWAP := {"light": 60, "standard": 150, "heavy": 300, "loads": [14, 18]}
-const YARD := {"wake": 8.0, "leash": 18.0, "wakeTime": 30, "pay": 25.0, "elite": 5, "raidFrom": 15, "raid": ["scoutPack", "ambush"],
-	"reinforce": 1.15, "donate": 10, "donateEvery": 15, "crush": {"every": 360, "warn": 60, "dmg": 60}, "emp": {"every": 480, "on": 120, "tick": 30, "dmg": 10, "slow": 40},
+const YARD := {"wake": 8.0, "leash": 18.0, "wakeTime": 30, "elite": 5, "raidFrom": 15, "raid": ["scoutPack", "ambush"],
+	"reinforce": 1.15, "crush": {"every": 360, "warn": 60, "dmg": 60}, "emp": {"every": 480, "on": 120, "tick": 30, "dmg": 10, "slow": 40},
 	"farmLeash": 22.0, "raidAt": [72.0, 48.0]}
 const SQUADS := {
 	"scoutPack": [["scout", 4]], "swarmCloud": [["swarm", 2]], "raiders": [["scout", 2], ["flyer", 1]], "ambush": [["spider", 3]],
@@ -94,6 +94,7 @@ const TACTICS := {
 	"siege": {"tier": 2, "from": 12, "team": 1, "need": [["firebase", "sniperNest", "barrage", "shieldWall"]], "siege": 12 * Sim.TICKS, "call": 0},
 	"hammer": {"tier": 3, "from": 15, "team": 2, "need": [["ambush"], ["airWing", "raiders"]], "pincer": true, "vent": 25 * Sim.TICKS, "air": 20 * Sim.TICKS, "call": 0},
 }
+const FILL := {"lane": 6, "mix": 3, "budget": 1.0}
 const TANKS := ["heavy", "jugg", "walker"]
 const RANGED := ["turret", "tripod", "quadheavy"]
 const MK := [{"hp": 1.0, "dmg": 1.0, "speed": 1.0}, {"hp": 1.5, "dmg": 1.25, "speed": 1.0}, {"hp": 2.2, "dmg": 1.5, "speed": 1.1}]
@@ -112,7 +113,23 @@ const BOTS := {
 
 
 static func budget(n: int, team: int) -> float:
-	return (2.7 + 1.98 * n + 0.144 * n * n) * (1 + RUN.players * (team - 1))
+	return (2.7 + 1.98 * n + 0.144 * n * n) * FILL.budget * (1 + RUN.players * (team - 1))
+
+
+static func bodies(key: String) -> int:
+	var n := 0
+	for u in SQUADS[key]:
+		n += u[1] * BOTS[u[0]].get("pack", 1)
+	return n
+
+
+static func kinds(chosen: Array) -> Array:
+	var out := []
+	for key in chosen:
+		for u in SQUADS[key]:
+			if not out.has(u[0]):
+				out.append(u[0])
+	return out
 
 
 static func geo_of(sg: Dictionary) -> Dictionary:
@@ -197,7 +214,7 @@ static func create(loadouts: Array, seed := 1) -> Dictionary:
 	var core := {"x": 0.0, "y": 0.0, "r": S.CORE.r, "hp": float(S.CORE.hp), "max": S.CORE.hp, "rings": S.ring_hp(4), "repairing": false, "only": 1, "broken": 0}
 	state.siege = {
 		"tick": 0, "wave": {"n": 0, "next_in": RUN.first, "lanes_open": [false, false, false, false], "live": false},
-		"core": core, "gates": gates, "pads": S.pads(), "enemies": [], "queue": [], "fund": 0, "next": 0,
+		"core": core, "gates": gates, "pads": S.pads(), "enemies": [], "queue": [], "next": 0,
 		"lost": false, "down": {}, "calm": {}, "was": {}, "team": loadouts.size(), "earned": 0, "mutators": [],
 		"yards": S.yards(), "wallets": [], "tokens": [], "boost": [], "opening": {}, "raid": -1,
 		"garrison": S.garrison(), "guard": loadouts.size(), "gbrain": Bot.create_brain(seed + 99), "buys": 0, "kills": 0,
@@ -260,7 +277,7 @@ static func step(state, inputs: Array):
 		recall(state, sg, i, inp.get("recall", false))
 		sg.shop_open[i] = inp.get("shop", false)
 		if inp.get("call", false):
-			call_wave(state, sg)
+			call_wave(state, sg, i)
 	modules(state, sg)
 	hazards(state, sg)
 	for e in sg.enemies:
@@ -303,7 +320,7 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 	var mend: bool = not sg.wave.live and c.hp < c.max * (4 - c.broken) / 4.0
 	if mend or (not sg.wave.live and next_buy(sg, m) != ""):
 		post = S.at(id % 4, S.CORE.repair - 1.5)
-	var chore := chore_for(sg)
+	var chore := chore_for(sg, m)
 	if not chore.is_empty():
 		post = chore.at
 		mend = true
@@ -326,17 +343,17 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 	ai_wallet(state, sg, m, inp)
 	if not chore.is_empty() and Sim.hypot(chore.at.x - m.x, chore.at.y - m.y) <= 2.0:
 		inp.buy = chore.item
-	elif not sg.wave.live and c.broken > 0 and sg.fund >= SHOP.ring:
+	elif not sg.wave.live and c.broken > 0 and sg.wallets[id] >= SHOP.ring:
 		inp.buy = "ring"
 	return inp
 
 
-static func chore_for(sg: Dictionary) -> Dictionary:
+static func chore_for(sg: Dictionary, m: Dictionary) -> Dictionary:
 	if sg.wave.live:
 		return {}
 	for item in ["rebuild", "gate"]:
 		for g in sg.gates:
-			if sg.fund >= SHOP[item] and (g.hp <= 0 if item == "rebuild" else g.hp > 0 and g.hp < g.max * 0.6):
+			if sg.wallets[m.id] >= SHOP[item] and (g.hp <= 0 if item == "rebuild" else g.hp > 0 and g.hp < g.max * 0.6):
 				return {"item": item, "at": {"x": g.x, "y": g.y}}
 	return {}
 
@@ -369,7 +386,10 @@ static func next_buy(sg: Dictionary, m: Dictionary) -> String:
 	for slot in AI_SHOP.order:
 		if sg.tiers[i][slot] < S.RUN_TIERS and (best == "" or sg.tiers[i][slot] < sg.tiers[i][best]):
 			best = slot
-	if best != "" and price_of(sg, m, "tier:" + best) <= sg.wallets[i]:
+	if best == "":
+		return ""
+	var price := price_of(sg, m, "tier:" + best)
+	if price <= sg.wallets[i] and (sg.core.broken == 0 or sg.wallets[i] - price >= SHOP.ring):
 		return "tier:" + best
 	return ""
 
@@ -876,6 +896,7 @@ static func body(state, kind: String, lane: int, side: float, mk: int, at := {},
 	rows.legs = rows.legs.merged({"top": k.speed * MK[mk - 1].speed * fast / Sim.MOVE.jammed, "poise": k.poise}, true)
 	b.rows = rows
 	b.bot = kind
+	b.by = -1
 	b.r = k.r
 	if k.get("fly", false):
 		b.fly = true
@@ -895,6 +916,12 @@ static func body(state, kind: String, lane: int, side: float, mk: int, at := {},
 	return e
 
 
+static func payee(sg: Dictionary, by: int) -> int:
+	if by == sg.guard:
+		return sg.garrison.buyer
+	return by if by >= 0 and by < sg.team else -1
+
+
 static func settle(state, sg: Dictionary) -> void:
 	var keep := []
 	for e in sg.enemies:
@@ -912,14 +939,12 @@ static func settle(state, sg: Dictionary) -> void:
 				camp_down(state, sg, e)
 			elif not e.blown:
 				var gain := int(ceil(BOTS[e.kind].cost * RUN.scrap / float(BOTS[e.kind].get("pack", 1))))
-				sg.fund += gain
+				var to := payee(sg, b.by)
 				sg.earned += gain
 				sg.kills += 1
-				state.fx.append({"k": "scrap", "x": b.x, "y": b.y, "n": gain, "t": 40})
-				var share := int(ceil(BOTS[e.kind].cost * TIER.share / float(BOTS[e.kind].get("pack", 1))))
-				for i in sg.team:
-					if not state.mechs[i].ko:
-						sg.wallets[i] += share
+				if to >= 0:
+					sg.wallets[to] += gain
+					state.fx.append({"k": "scrap", "id": to, "x": b.x, "y": b.y, "n": gain, "t": 40})
 			act(e, "die")
 		elif e.act == "die":
 			e.t += 1
@@ -1050,7 +1075,9 @@ static func direct(state, sg: Dictionary) -> void:
 		var c: Dictionary = sg.core
 		if c.hp >= c.max * 0.75:
 			var bonus := int(floor(sg.earned * RUN.clear))
-			sg.fund += bonus
+			for i in sg.team:
+				if not state.mechs[i].ko:
+					sg.wallets[i] += bonus
 			state.fx.append({"k": "cleared", "n": bonus, "t": 90})
 		else:
 			state.fx.append({"k": "cleared", "n": 0, "t": 90})
@@ -1237,6 +1264,17 @@ static func plan(state, sg: Dictionary, n: int) -> void:
 		var key: String = can[int(floor(Sim.rng(state) * can.size()))]
 		chosen.append(key)
 		points -= cost(key)
+	var have := 0
+	for key in chosen:
+		have += bodies(key)
+	while have < FILL.lane * lanes.size() and not r.pool.is_empty():
+		var key: String = r.pool[int(floor(Sim.rng(state) * r.pool.size()))]
+		chosen.append(key)
+		have += bodies(key)
+	if n >= FILL.mix and kinds(chosen).size() < 2:
+		var fresh: Array = r.pool.filter(func(q): return SQUADS[q].any(func(u): return not kinds(chosen).has(u[0])))
+		if not fresh.is_empty():
+			chosen.append(fresh[int(floor(Sim.rng(state) * fresh.size()))])
 	var load := {}
 	for lane in lanes:
 		load[lane] = 0
@@ -1339,12 +1377,12 @@ static func plan(state, sg: Dictionary, n: int) -> void:
 	dr.log[n] = {"n": n, "beat": beat(n).id, "target": aim_for(n), "tactic": id, "budget": snappedf(spend, 0.1)}
 
 
-static func call_wave(state, sg: Dictionary) -> void:
+static func call_wave(state, sg: Dictionary, i := 0) -> void:
 	var w: Dictionary = sg.wave
 	if w.live or w.next_in <= RUN.warn + 1:
 		return
 	var bonus: int = RUN.call * int(ceil((w.next_in - RUN.warn) / float(Sim.TICKS)))
-	sg.fund += bonus
+	sg.wallets[i] += bonus
 	w.next_in = RUN.warn + 1
 	state.fx.append({"k": "call", "n": bonus, "t": 60})
 
@@ -1376,7 +1414,7 @@ static func buy(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
 		return spend(state, sg, item, m)
 	if item == "garrison":
 		return raise_guard(state, sg, m)
-	if sg.wave.live or not SHOP.has(item) or sg.fund < SHOP[item]:
+	if sg.wave.live or not SHOP.has(item) or sg.wallets[m.id] < SHOP[item]:
 		return false
 	var c: Dictionary = sg.core
 	match item:
@@ -1394,8 +1432,8 @@ static func buy(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
 			var pd = pad_at(sg, m, MODULE.pad)
 			if pd == null or (pd.module != "" and not (pd.module == item and pd.get("hp", 1) <= 0)):
 				return false
-			build(state, pd, item)
-	sg.fund -= SHOP[item]
+			build(state, pd, item, m.id)
+	sg.wallets[m.id] -= SHOP[item]
 	sg.buys += 1
 	state.fx.append({"k": "build", "item": item, "x": m.x, "y": m.y, "t": 30})
 	return true
@@ -1558,9 +1596,10 @@ static func next_cost(sg: Dictionary) -> int:
 
 static func raise_guard(state, sg: Dictionary, m: Dictionary) -> bool:
 	var price := next_cost(sg)
-	if sg.wave.live or price < 0 or sg.fund < price:
+	if sg.wave.live or price < 0 or sg.wallets[m.id] < price:
 		return false
-	sg.fund -= price
+	sg.wallets[m.id] -= price
+	sg.garrison.buyer = m.id
 	sg.buys += 1
 	sg.garrison.tier += 1
 	var g := guard_body(sg.guard, sg.garrison.tier)
@@ -1656,12 +1695,7 @@ static func camp_down(state, sg: Dictionary, e: Dictionary) -> void:
 	c.alive = false
 	if e.blown:
 		return
-	var best := -1
-	for i in sg.team:
-		var m = state.mechs[i]
-		var d := Sim.hypot(m.x - c.x, m.y - c.y)
-		if not m.ko and d <= YARD.pay and (best < 0 or d < Sim.hypot(state.mechs[best].x - c.x, state.mechs[best].y - c.y)):
-			best = i
+	var best := payee(sg, state.mechs[e.m].by)
 	if best < 0:
 		return
 	var t: Dictionary = S.CAMP_TIERS[c.tier]
@@ -1695,11 +1729,6 @@ static func use(state, sg: Dictionary, i: int, held: bool) -> void:
 		if key != null:
 			key.progress = 0.0
 			sg.opening.erase(i)
-		if held and Sim.hypot(m.x - sg.core.x, m.y - sg.core.y) <= S.CORE.repair and sg.wallets[i] > 0 and state.tick % YARD.donateEvery == 0:
-			var n: int = mini(YARD.donate, sg.wallets[i])
-			sg.wallets[i] -= n
-			sg.fund += n
-			state.fx.append({"k": "donate", "id": i, "n": n, "x": m.x, "y": m.y, "t": 20})
 		return
 	sg.opening[i] = crate
 	crate.progress = minf(1.0, crate.progress + 1.0 / (S.CRATE.secs * Sim.TICKS))
@@ -1709,6 +1738,11 @@ static func use(state, sg: Dictionary, i: int, held: bool) -> void:
 		sg.opening.erase(i)
 		sg.wallets[i] += S.CRATE.scrap
 		state.fx.append({"k": "loot", "id": i, "n": S.CRATE.scrap, "x": crate.x, "y": crate.y, "t": 60})
+
+
+static func unowned(m: Dictionary) -> void:
+	if m.has("bot"):
+		m.by = -1
 
 
 static func hazards(state, sg: Dictionary) -> void:
@@ -1726,6 +1760,7 @@ static func hazards(state, sg: Dictionary) -> void:
 				for m in state.mechs:
 					if not m.ko and not m.get("fly", false) and absf(m.x - p.x) < h.half + Sim.rad(m) / 2.0 and absf(m.y - p.y) < h.half + Sim.rad(m) / 2.0:
 						Sim.env_hit(state, m, C.dmg, "legs", 3, 0.0)
+						unowned(m)
 			else:
 				var E: Dictionary = YARD.emp
 				var t: int = (state.tick + q * 120) % E.every
@@ -1736,6 +1771,7 @@ static func hazards(state, sg: Dictionary) -> void:
 				for m in state.mechs:
 					if not m.ko and not m.get("fly", false) and Sim.hypot(m.x - p.x, m.y - p.y) < h.r + Sim.rad(m):
 						Sim.env_hit(state, m, E.dmg, "legs", 0, 0.0)
+						unowned(m)
 						m.buffs.slow = maxi(m.buffs.slow, E.slow)
 
 
@@ -1817,8 +1853,9 @@ static func wipe(state, sg: Dictionary, c: Dictionary) -> void:
 	state.fx.append({"k": "boom", "x": c.x, "y": c.y, "r": 2.5, "big": true, "t": 22})
 
 
-static func build(state, pd: Dictionary, item: String) -> void:
+static func build(state, pd: Dictionary, item: String, owner := 0) -> void:
 	pd.module = item
+	pd.owner = owner
 	match item:
 		"wall", "turret":
 			var W: Dictionary = MODULE[item]
@@ -1847,7 +1884,7 @@ static func arm(state, pd: Dictionary) -> void:
 	state.mines = state.mines.filter(func(mi): return mi.get("pad", -1) != pd.x * 1000 + pd.y)
 	for i in M.n:
 		var p := S.at(pd.lane, along(pd, pd.lane), (i - (M.n - 1) / 2.0) * M.spread)
-		state.mines.append({"owner": 0, "x": p.x, "y": p.y, "arm": M.arm, "life": 1 << 30, "dmg": M.dmg, "cast": Sim.next_cast(state), "pad": pd.x * 1000 + pd.y})
+		state.mines.append({"owner": pd.get("owner", 0), "x": p.x, "y": p.y, "arm": M.arm, "life": 1 << 30, "dmg": M.dmg, "cast": Sim.next_cast(state), "pad": pd.x * 1000 + pd.y})
 
 
 static func modules(state, sg: Dictionary) -> void:
@@ -1874,6 +1911,7 @@ static func modules(state, sg: Dictionary) -> void:
 				continue
 			if t.has("bot"):
 				Sim.hit(state, state.mechs[0], t, L.dmg, "LEGS", 1, ang, cast)
+				t.by = pd.get("owner", 0)
 			else:
 				Sim.env_hit(state, t, L.dmg, "legs", 1, ang)
 		state.fx.append({"k": "zap", "kind": "laser", "x1": a.x, "y1": a.y, "x2": z.x, "y2": z.y, "t": 10})
@@ -1900,6 +1938,7 @@ static func gun(state, sg: Dictionary, pd: Dictionary) -> void:
 	pd.cd = T.every
 	pd.aim = atan2(best.y - pd.y, best.x - pd.x)
 	Sim.hit(state, state.mechs[0], best, T.dmg, "LEGS", 0, pd.aim + PI, Sim.next_cast(state))
+	best.by = pd.get("owner", 0)
 	state.fx.append({"k": "zap", "kind": "laser", "x1": pd.x + cos(pd.aim) * T.muzzle, "y1": pd.y + sin(pd.aim) * T.muzzle, "x2": best.x, "y2": best.y, "t": 4})
 
 
@@ -1909,4 +1948,10 @@ static func fire_post(state, sg: Dictionary, m: Dictionary) -> void:
 	if pd == null or pd.module != "post" or pd.cd > 0:
 		return
 	pd.cd = P.cd
+	var before := {}
+	for e in sg.enemies:
+		before[e.m] = state.mechs[e.m].armor.head
 	Sim.line_attack(state, m, pd.x, pd.y, m.aim, P.range, P.half, P.dmg, 2, "ARMS", Sim.next_cast(state), "rail", {"perfectCut": 0.5})
+	for k in before:
+		if state.mechs[k].armor.head < before[k]:
+			state.mechs[k].by = pd.get("owner", m.id)

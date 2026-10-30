@@ -101,7 +101,7 @@ var replay_at := -1
 var siege := false
 var team_n := 2
 var wave_arg := 1
-var director_on := false
+var director_on := true
 var spawn_arg := ""
 var modules_arg := false
 var down_arg := false
@@ -416,7 +416,7 @@ func new_match() -> void:
 			state.siege.owned[0] = own
 		state.siege.wave.n = wave_arg - 1
 		for t in guard_arg:
-			state.siege.fund += Siege.GARRISON.cost[t]
+			state.siege.wallets[0] += Siege.GARRISON.cost[t]
 			Siege.buy(state, state.siege, "garrison", state.mechs[0])
 		if guard_arg > 0 and cam_mode > 0:
 			target = state.siege.guard
@@ -703,8 +703,7 @@ func _physics_process(delta: float) -> void:
 		if not siege and extras.is_empty() and Killcam.wants(state, rec):
 			start_replay()
 	if siege and shop_arg != "" and state.tick == 60:
-		state.siege.fund += 2000
-		state.siege.wallets[0] += 600
+		state.siege.wallets[0] += 2600
 		var me: Dictionary = state.mechs[0]
 		var at: Dictionary = {"square": state.siege.pads[1], "gate": state.siege.gates[0]}.get(shop_arg, me)
 		me.x = at.x
