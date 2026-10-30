@@ -23,6 +23,7 @@ $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon
 $G --headless --path godot -s res://tests/hype_test.gd         # crowd hype and crowd sounds
 $G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-run lands on the same K.O., one smooth move, pillars, match flow, skip
 $G --headless --path godot -s res://tests/progress_test.gd     # Salvage: owned parts, claims, levels, rival ladder, save file
+$G --headless --path godot -s res://tests/hud_test.gd          # Arcade HUD: strings, palette, pause, round list, FFA
 $G --headless --path godot -s res://tests/siege_rules_test.gd  # Core Siege: own golden hash, waves, gates, core rings, repair, respawn
 $G --path godot -- --siege --team=2 --wave=6                    # Core Siege (co-op wave defense), from wave 6
 $G --path godot -- --replay=0 --seed=1                          # watch a kill cam right away (bots fight to the first K.O.)
@@ -275,6 +276,16 @@ $P = "$R\godot"
   (skilled / average / weak) merges into a brain; `tools/siege_balance.gd -- --director=both
   --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
   Not built yet: a second local player, netcode, VS (design only).
+- **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
+  and garage restyle on top of it). `hud.gd`: grouped skill bar (`skill_bar`: robot armor diagram + L.ARM /
+  HEAD / CORE / R.ARM / LEGS groups, `key_cap` states ready / cooldown / jammed ×2 / R surge fill / dash pips;
+  numbers are % of max armor), one bar at 110% bottom-center with 1-2 mechs, a 70% bar per mech in the 4
+  corners with more (K.O.'d ones faded), `top_bar` (skewed team tags + hex clock, rival chips; score chips
+  with more than 2 mechs), `callout` (Exo 2 between hazard stripes, -3°), `slam` (round end), `match_over`
+  (round list from `rounds`, tracked in `_process`), `pause_screen` (slabs drawn over empty Buttons so focus
+  and the pad still work), `replay_bars`. Siege still uses the old `mech_panel` / `slots` until its restyle.
+  Look flags: `--format=ffa|2v2` (4 mechs, extra bots; no kill cam), `--pause` (pause at `--at`), `--lang=en`.
+  Evidence: `production/qa/evidence/arcade-{before,after}-*-2026-10-30.png`. Test: `tests/hud_test.gd`.
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

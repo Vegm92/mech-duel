@@ -110,6 +110,9 @@ var shop_arg := false
 var core_arg_pct := -1.0
 var shot_on := ""
 var allies := []
+var format_arg := "1v1"
+var pause_arg := false
+var extras := []
 var siege_view: Node3D
 var siege_bots: Node3D
 var shop: Control
@@ -198,6 +201,10 @@ func _ready() -> void:
 			wave_arg = maxi(1, a.substr(7).to_int())
 		elif a.begins_with("--team="):
 			team_n = clampi(a.substr(7).to_int(), 1, 4)
+		elif a == "--pause":
+			pause_arg = true
+		elif a.begins_with("--format="):
+			format_arg = a.substr(9)
 		elif a.begins_with("--lang="):
 			TranslationServer.set_locale(a.substr(7))
 		elif a == "--pad":
@@ -413,7 +420,15 @@ func new_match() -> void:
 				Siege.build(state, state.siege.pads[b[0]], b[1])
 		if Siege.BOTS.has(spawn_arg):
 			Siege.look(state, spawn_arg)
+	elif Sim.FORMATS.has(format_arg) and format_arg != "1v1":
+		var los := [progress.with_levels(loadout.duplicate()), rival]
+		extras = []
+		for i in range(2, Sim.FORMATS[format_arg].size()):
+			los.append(Sim.SETS.values()[(s + i) % Sim.SETS.size()].duplicate())
+			extras.append(Bot.create_brain(s + 20 + i))
+		state = Sim.create_state(los, Sim.FORMATS[format_arg])
 	else:
+		extras = []
 		state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
 	if sandbox:
 		pin()
@@ -651,8 +666,11 @@ func _physics_process(delta: float) -> void:
 		else:
 			Killcam.record(rec, state, [me, foe])
 		if not siege:
-			Sim.step(state, [me, foe])
-		if not siege and Killcam.wants(state, rec):
+			var ins := [me, foe]
+			for i in extras.size():
+				ins.append(Bot.bot_input(state, extras[i], i + 2))
+			Sim.step(state, ins)
+		if not siege and extras.is_empty() and Killcam.wants(state, rec):
 			start_replay()
 	if siege and shop_arg and state.tick == 60:
 		state.siege.fund += 2000
@@ -692,6 +710,9 @@ func _physics_process(delta: float) -> void:
 		close_camera()
 	hud.visible = cam_mode == 0 or not replay.is_empty()
 	hud.replay = Killcam.progress(replay)
+	hud.who = Vector2i(replay.killer, replay.victim) if not replay.is_empty() else Vector2i(-1, -1)
+	if pause_arg and shot_at >= 0 and state.tick >= shot_at:
+		paused = true
 	hud.paused = paused
 	hud.pad = on_pad
 	if shot_at >= 0 and state.tick >= shot_at and not shooting:
