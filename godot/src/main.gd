@@ -730,7 +730,7 @@ func track() -> void:
 				var drops := progress.spoils(f.n)
 				if not drops.is_empty():
 					Input.set_default_cursor_shape(Input.CURSOR_ARROW)
-					claim.open(drops, Progress.SIEGE_SPOILS[f.n], f.n / 10, progress, loadout)
+					claim.open(drops, Progress.SIEGE_SPOILS[f.n], f.n / 10, progress, loadout, f.n)
 		if state.phase == "over" and not settled:
 			settled = true
 			if not progress.unlock_all and progress.held(maxi(0, state.siege.wave.n - 1)):

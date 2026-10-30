@@ -26,6 +26,7 @@ func _initialize() -> void:
 	await run("losing_a_match_gives_no_claim", test_losing_a_match_gives_no_claim)
 	await run("claim_lifts_the_hovered_card_and_keep_takes_it", test_claim_lifts_the_hovered_card_and_keep_takes_it)
 	await run("claim_panel_lists_changed_stats_and_the_new_skill", test_claim_panel_lists_changed_stats_and_the_new_skill)
+	await run("claim_from_a_siege_milestone_shows_the_wave_header", test_claim_from_a_siege_milestone_shows_the_wave_header)
 	await run("garage_tags_the_equipped_card_after_a_click", test_garage_tags_the_equipped_card_after_a_click)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
@@ -389,6 +390,20 @@ func test_claim_panel_lists_changed_stats_and_the_new_skill() -> int:
 	await process_frame
 	t = texts.call()
 	bad += ensure(t.any(func(x): return x.contains("Mk 1") and x.contains("Mk 2")) and t.any(func(x): return x.contains("▲")), "a weapon level-up shows the Mk step and what gets better")
+	c.queue_free()
+	await process_frame
+	return int(bad > 0)
+
+
+func test_claim_from_a_siege_milestone_shows_the_wave_header() -> int:
+	var c = Claim.new()
+	root.add_child(c)
+	c.open([{"slot": "head", "key": "horn"}], "tank", 1, Progress.new(), Sim.DEFAULT_LOADOUT, 10)
+	var texts := func(): return c.root.get_children().filter(func(n): return n is Label).map(func(n): return n.text)
+	var bad := ensure(c.root.get_children().any(func(n): return n is ColorRect and n.rotation != 0.0 and n.get_child_count() == 1 and n.get_child(0).text.contains("10")), "a siege claim opens with the wave 10 band")
+	bad += ensure(texts.call().any(func(x): return x.contains("Core Siege")), "the line under it names the milestone reward")
+	c.open([{"slot": "head", "key": "horn"}], "tank", 1, Progress.new())
+	bad += ensure(not c.root.get_children().any(func(n): return n is ColorRect and n.rotation != 0.0 and not n.is_queued_for_deletion()), "a duel claim keeps the plain header")
 	c.queue_free()
 	await process_frame
 	return int(bad > 0)

@@ -53,19 +53,16 @@ func _init() -> void:
 	add_child(root)
 
 
-func open(list: Array, set_key: String, fought: int, progress, mine: Dictionary = {}) -> void:
+func open(list: Array, set_key: String, fought: int, progress, mine: Dictionary = {}, wave := 0) -> void:
 	items = list
 	prog = progress
 	lo = mine if not mine.is_empty() else Sim.DEFAULT_LOADOUT
 	clear()
 	sel = 0
-	Garage.hazard(root, Rect2(0, 0, SIZE.x, 10))
-	var title := label(root, tr("claimTitle"), Rect2(64, 36, 760, 104), 84, Garage.A_HAZARD, false, HORIZONTAL_ALIGNMENT_LEFT, Garage.impact())
-	title.add_theme_color_override("font_shadow_color", Color.BLACK)
-	title.add_theme_constant_override("shadow_offset_x", 5)
-	title.add_theme_constant_override("shadow_offset_y", 5)
-	var tw := Garage.impact().get_string_size(title.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 84).x
-	label(root, tr("claimHint"), Rect2(64 + tw + 24, 98, SIZE.x - tw - 152, 24), 16, Garage.A_INK, true)
+	if wave > 0:
+		milestone(wave, set_key)
+	else:
+		header(set_key, fought)
 	var n := items.size()
 	var rows := ceili(n / float(COLS))
 	var cw := (SIZE.x - 128.0 - GAP * (COLS - 1)) / COLS
@@ -73,7 +70,6 @@ func open(list: Array, set_key: String, fought: int, progress, mine: Dictionary 
 	var ch := 350.0 if rows == 1 else 190.0
 	panel_y = TOP + rows * ch + (rows - 1) * GAP + 14.0
 	keep_y = panel_y + (PH - 56.0) / 2.0
-	label(root, tr("claimFrom").format({"name": tr("set_" + set_key), "n": fought}), Rect2(64 + tw + 24, 124, SIZE.x - tw - 152, 24), 14, Garage.A_DIM)
 	panel = Panel.new()
 	panel.position = Vector2(64, panel_y)
 	panel.size = Vector2(PW, PH)
@@ -87,6 +83,38 @@ func open(list: Array, set_key: String, fought: int, progress, mine: Dictionary 
 	visible = true
 	hot(0, true)
 	cards[0].grab_focus()
+
+
+func header(set_key: String, fought: int) -> void:
+	Garage.hazard(root, Rect2(0, 0, SIZE.x, 10))
+	var title := label(root, tr("claimTitle"), Rect2(64, 36, 760, 104), 84, Garage.A_HAZARD, false, HORIZONTAL_ALIGNMENT_LEFT, Garage.impact())
+	title.add_theme_color_override("font_shadow_color", Color.BLACK)
+	title.add_theme_constant_override("shadow_offset_x", 5)
+	title.add_theme_constant_override("shadow_offset_y", 5)
+	var tw := Garage.impact().get_string_size(title.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 84).x
+	label(root, tr("claimHint"), Rect2(64 + tw + 24, 98, SIZE.x - tw - 152, 24), 16, Garage.A_INK, true)
+	label(root, tr("claimFrom").format({"name": tr("set_" + set_key), "n": fought}), Rect2(64 + tw + 24, 124, SIZE.x - tw - 152, 24), 14, Garage.A_DIM)
+
+
+func milestone(wave: int, set_key: String) -> void:
+	var band := ColorRect.new()
+	band.color = Garage.A_GOOD
+	band.position = Vector2(-40, 4)
+	band.size = Vector2(SIZE.x + 80, 100)
+	band.pivot_offset = band.size / 2.0
+	band.rotation = deg_to_rad(-2.0)
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(band)
+	var strip := Garage.hazard(root, Rect2(-40, 106, SIZE.x + 80, 10))
+	strip.pivot_offset = strip.size / 2.0
+	strip.rotation = deg_to_rad(-2.0)
+	var text := tr("claimWave").format({"n": wave})
+	var px := 92
+	while px > 40 and Garage.impact().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > SIZE.x - 128.0:
+		px -= 4
+	label(band, text, Rect2(104, 0, SIZE.x - 128, 100), px, Color("04140B"), false, HORIZONTAL_ALIGNMENT_LEFT, Garage.impact()).vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label(root, tr("claimMilestone").format({"name": tr("set_" + set_key)}), Rect2(64, 146, 640, 22), 15, Garage.A_INK, true)
+	label(root, tr("claimHint"), Rect2(SIZE.x - 64.0 - 560.0, 146, 560, 22), 14, Garage.A_DIM, false, HORIZONTAL_ALIGNMENT_RIGHT)
 
 
 func card(i: int, r: Rect2, progress) -> void:
