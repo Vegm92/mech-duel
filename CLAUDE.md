@@ -276,6 +276,19 @@ $P = "$R\godot"
   (skilled / average / weak) merges into a brain; `tools/siege_balance.gd -- --director=both
   --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
   Not built yet: a second local player, netcode, VS (design only).
+  **Reactor core: Shield Petals** (Victor 2026-10-30, picked design A; colors match the HUD CORE bar). Parts in
+  `core_siege.glb` (`art/core_siege_build.py`, run through `tools/blender_export.py`): `core_base` (low disc with
+  a dark HP track + the dark drum), `core_plasma` (yellow column + crown ring) and `core_plasma_in` (pale veins),
+  and `petal1..4` (blue curved shield quarters, lit top edge, hazard foot band; petal k = `core.rings[k]`, at
+  45° + k × 90°, so the gaps face the lanes). The yellow HP floor ring is 32 `Mech.flat` segments built at
+  runtime that go out clockwise from 12 o'clock as `core.hp / max` falls. `siege_view.gd` `CORE` holds every
+  knob and color. Petals turn slowly as a group (`spin`); a broken ring's petal flies off (`fly`) with the blue
+  `Fx.ring` + `Fx.flash`, a restored one rises out of the floor (`rise`), both timed from the sim tick, and
+  rings already broken on the first frame make no burst. Below 50% the plasma flickers (`flicker`), below 25%
+  (`smoke`) it turns red #FF4D5E, the HP ring too, and the smoke starts; a lost core goes dark; the green
+  `mend` ring stays. Plasma and petals are `Look.neon` (light-only), so the scene lights never wash them out.
+  Evidence: `production/qa/evidence/core-petals-{full,one-ring-down,critical,repairing,lost}-2026-10-30.png`
+  (`--siege --autopilot --seed=3 --lang=en --at=<tick> --core=<pct>`; repairing needs `--team=2`, an ally repairs it).
 - **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
   and garage restyle on top of it). `hud.gd`: side panel for 1-2 mechs (`side_panel`, Victor 2026-10-30: bottom-left, 176×208, no text: heat and R gauges
   around a robot diagram where every part is a health bar (`part_block`: green > 75%, yellow, orange, red,

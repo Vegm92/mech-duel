@@ -143,7 +143,7 @@ func _ready() -> void:
 			hands_arg = a.substr(8).split(",")
 		elif a.begins_with("--head="):
 			head_arg = a.substr(7)
-		elif a.begins_with("--core="):
+		elif a.begins_with("--core=") and not a.substr(7).is_valid_float():
 			core_arg = a.substr(7)
 		elif a.begins_with("--arms="):
 			arms_arg = a.substr(7)

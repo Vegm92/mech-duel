@@ -11,17 +11,21 @@ const SiegeState = preload("res://src/siege_state.gd")
 const HALF := SiegeState.HALF
 const W := SiegeState.LANE_W / 2.0
 const STATIC := ["markers", "markings", "fortress", "plaza", "stands"]
-const PARTS := ["markers", "markings", "fortress", "plaza", "stands", "yard_floor", "yard_arch", "core_base", "core_crystal",
-	"ring1", "ring2", "ring3", "ring4", "gate", "gate_light", "gate_door", "gate_broken", "spawn_gate", "spawn_light",
+const PARTS := ["markers", "markings", "fortress", "plaza", "stands", "yard_floor", "yard_arch", "core_base", "core_plasma", "core_plasma_in",
+	"petal1", "petal2", "petal3", "petal4", "gate", "gate_light", "gate_door", "gate_broken", "spawn_gate", "spawn_light",
 	"mod_wall", "mod_mine", "flood_tower", "crate", "crate_lid", "camp_ring", "camp_pip", "work_light", "heap", "crane",
 	"steam_grate", "dock", "dock_lamp", "parts_bay"]
 const DUEL := ["wall", "wall_post", "pillar", "vent", "crush_plate", "crush_head", "tesla", "tesla_orb", "fan"]
 const JUNK := [["guns", "rivet"], ["guns", "gatling"], ["guns", "mortar"], ["guns", "saw"], ["guns", "missiles"], ["guns", "hammer"],
 	["arms", "anvil_fore_R"], ["arms", "bulwark_upper_L"], ["arms", "brace_fore_L"], ["heads", "rookie"], ["heads", "demon"],
 	["heads", "visor"], ["legs", "stompers_leg_L"], ["legs", "greaves_leg_R"], ["cores", "titan"], ["light", "Chest_standard"]]
-const CORE := {"y": 4.3, "spin": 0.35, "bob": 0.12, "glow": 1.6, "flicker": 0.5, "smoke": 0.25, "smoke_size": 2.2,
-	"rings": [3.3, 3.9, 4.5, 5.1], "ring_spin": [0.25, -0.35, 0.45, -0.6], "light": 8.0, "light_range": 12.0,
-	"mend": [4.8, 5.2], "mend_y": 0.5}
+const CORE := {"y": 5.5, "smoke_y": 7.0, "spin": 0.15, "glow": 0.9, "inner_glow": 1.1, "flicker": 0.5, "smoke": 0.25, "smoke_size": 2.2,
+	"light": 3.5, "light_range": 12.0, "mend": [4.8, 5.2], "mend_y": 0.5,
+	"yellow": Color("#FFC93C"), "yellow_in": Color("#FFF3C4"), "red": Color("#FF4D5E"), "red_in": Color("#FFB3BA"),
+	"dark": Color("#2A2638"), "dark_in": Color("#34304A"), "blue": Color("#2F9BFF"), "blue_edge": Color("#9CD0FF"),
+	"petal_glow": 0.85, "edge_glow": 1.0, "petal_y": 2.6, "petal_r": 2.7,
+	"hp": {"r": 3.8, "segs": 32, "len": 0.8, "w": 0.34, "y": 0.64},
+	"fly": {"ticks": 45, "out": 7.0, "up": 5.0, "spin": 4.0}, "rise": {"ticks": 60, "depth": 4.5}}
 const GATE := {"sink": 2.4, "ease": 0.12, "bar_y": 5.0, "bar": 0.22, "width": 10.0}
 const WARN := {"secs": 8, "on": 1.6, "steady": 0.6, "blink": 10}
 const ALARM := {"ticks": 100, "blink": 5, "on": 3.2, "light": 7.0, "range": 11.0, "color": Color(1.0, 0.16, 0.1)}
@@ -47,8 +51,10 @@ const EMP_EDGE := "float edge = max(smoothstep(0.9, 1.0, q.x), smoothstep(0.8, 1
 
 static var MATS := Look.ARENA.merged({
 	"white": Look.neon(Color(0.85, 0.92, 1.0), Look.NEON.cyan),
-	"crystal": Mech.glow(Color(0.6, 0.9, 1.0), CORE.glow),
-	"shield": Look.neon(Look.PAL.cyan, 1.2),
+	"plasma": Look.neon(CORE.yellow, CORE.glow),
+	"plasma_in": Look.neon(CORE.yellow_in, CORE.inner_glow),
+	"petal": Look.neon(CORE.blue, CORE.petal_glow),
+	"petal_edge": Look.neon(CORE.blue_edge, CORE.edge_glow),
 	"pylon": Look.neon(Look.PAL.cyan, Look.NEON.cyan),
 	"warn": Look.neon(Look.PAL.warn, 0.0),
 	"paint": Look.paint("hazard", Look.PAL.hazard),
@@ -63,11 +69,14 @@ static var JUNK_MATS := {
 static var DISPLAY := {"body": MATS.steel, "trim": MATS.trim, "joint": MATS.dark, "gem": MATS.strip, "glow": MATS.strip, "core": MATS.strip, "boost": MATS.strip}
 static var CYAN_LAMPS := MATS.merged({"amber": MATS.strip}, true)
 
-var crystal: MeshInstance3D
-var crystal_mat: StandardMaterial3D
+var plasma_mat: StandardMaterial3D
+var plasma_in_mat: StandardMaterial3D
 var core_light: OmniLight3D
-var rings := []
-var ring_up := []
+var petals := []
+var petal_up := []
+var petal_at := []
+var hp_segs := []
+var hp_mat: StandardMaterial3D
 var smoke: CPUParticles3D
 var mend: MeshInstance3D
 var spawns := []
@@ -152,19 +161,24 @@ func floor_mat(knobs: Dictionary) -> ShaderMaterial:
 
 func build_core() -> void:
 	Mech.add_part(self, "core_base", MATS, "core_siege")
-	crystal_mat = MATS.crystal.duplicate()
-	crystal = Mech.add_part(self, "core_crystal", MATS.merged({"crystal": crystal_mat}, true), "core_siege")
-	crystal.position.y = CORE.y
-	crystal.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	plasma_mat = MATS.plasma.duplicate()
+	plasma_in_mat = MATS.plasma_in.duplicate()
+	var mats := MATS.merged({"plasma": plasma_mat, "plasma_in": plasma_in_mat}, true)
+	for p in ["core_plasma", "core_plasma_in"]:
+		Mech.add_part(self, p, mats, "core_siege").cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for k in 4:
-		var r := Mech.add_part(self, "ring%d" % (k + 1), MATS, "core_siege")
-		r.position.y = CORE.rings[k]
+		var r := Mech.add_part(self, "petal%d" % (k + 1), MATS, "core_siege")
 		r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		rings.append(r)
-	core_light = accent(Vector3(0, CORE.y, 0), Look.PAL.cyan)
+		petals.append(r)
+		petal_at.append(-CORE.fly.ticks - CORE.rise.ticks)
+	hp_mat = Mech.flat(CORE.yellow).duplicate()
+	for i in CORE.hp.segs:
+		var a := -PI / 2.0 + i * TAU / CORE.hp.segs
+		hp_segs.append(Mech.add(self, Mech.box(Vector3(CORE.hp.len, 0.04, CORE.hp.w)), hp_mat, Vector3(cos(a), 0, sin(a)) * CORE.hp.r + Vector3(0, CORE.hp.y, 0), Vector3(0, -a + PI / 2.0, 0)))
+	core_light = accent(Vector3(0, CORE.y, 0), CORE.yellow)
 	core_light.omni_range = CORE.light_range
 	smoke = Fx.wreck(self)
-	smoke.position = Vector3(0, CORE.y, 0)
+	smoke.position = Vector3(0, CORE.smoke_y, 0)
 	smoke.scale = Vector3.ONE * CORE.smoke_size
 	mend = Mech.add(self, Mech.ring(CORE.mend[0], CORE.mend[1]), Mech.flat(Color(Look.PAL.heal, 0.8), true), Vector3(0, CORE.mend_y, 0))
 	mend.scale.y = 0.05
@@ -705,34 +719,55 @@ func draw_recall(list: Array) -> void:
 
 func draw_core(core: Dictionary, t: float) -> void:
 	var f: float = clampf(core.hp / core.max, 0.0, 1.0) if core.max > 0 else 0.0
-	crystal.rotation.y = t * CORE.spin
-	crystal.position.y = CORE.y + sin(t * 1.7) * CORE.bob
 	var dip := 1.0
 	if f < 0.5:
 		var hurt := (0.5 - f) * 2.0
 		dip = 1.0 - CORE.flicker * hurt * absf(sin(tick * 0.9) * sin(tick * 0.37 + 1.0))
-	var c := Color(0.6, 0.9, 1.0).lerp(Look.PAL.heal, 0.6 if core.repairing else 0.0)
-	crystal_mat.albedo_color = c
-	crystal_mat.emission = c
-	crystal_mat.emission_energy_multiplier = CORE.glow * dip * (0.3 + 0.7 * minf(f * 4.0, 1.0))
+	var lost := f <= 0.0
+	var crit := f < CORE.smoke
+	var c: Color = CORE.dark if lost else (CORE.red if crit else CORE.yellow)
+	var ci: Color = CORE.dark_in if lost else (CORE.red_in if crit else CORE.yellow_in)
+	var lit := 1.0 if lost else dip * (0.3 + 0.7 * minf(f * 4.0, 1.0))
+	plasma_mat.emission = c
+	plasma_mat.emission_energy_multiplier = CORE.glow * lit
+	plasma_in_mat.emission = ci
+	plasma_in_mat.emission_energy_multiplier = CORE.inner_glow * lit
 	core_light.light_color = c
-	core_light.light_energy = CORE.light * dip * maxf(f, 0.2)
-	smoke.emitting = f < CORE.smoke
+	core_light.light_energy = 0.0 if lost else CORE.light * dip * maxf(f, 0.2)
+	smoke.emitting = crit
+	hp_mat.albedo_color = CORE.red if crit else CORE.yellow
+	var lit_segs := ceili(f * hp_segs.size())
+	for i in hp_segs.size():
+		hp_segs[i].visible = i < lit_segs
 	mend.visible = core.repairing
 	if core.repairing:
 		mend.scale = Vector3(1.0, 0.05, 1.0) * Vector3(1.0 + 0.04 * sin(t * 6.0), 1.0, 1.0 + 0.04 * sin(t * 6.0))
+	var turn := t * CORE.spin
 	for k in 4:
 		var up: bool = core.rings[k] > 0
-		if ring_up.size() < 4:
-			ring_up.append(up)
-		rings[k].visible = up
-		rings[k].rotation.y = t * CORE.ring_spin[k]
-		if ring_up[k] and not up:
-			var at := Vector3(0, CORE.rings[k], 0)
-			var r: float = rings[k].get_aabb().size.x / 2.0
-			Fx.ring(self, at, r, r * 1.6, 0.35, Look.PAL.cyan)
-			Fx.flash(self, at, 1.2, 0.12, Color(0.85, 0.95, 1.0))
-		ring_up[k] = up
+		var out := Basis(Vector3.UP, turn) * Vector3(cos(PI / 4.0 + k * PI / 2.0), 0, sin(PI / 4.0 + k * PI / 2.0))
+		if petal_up.size() < 4:
+			petal_up.append(up)
+		if up != petal_up[k]:
+			petal_up[k] = up
+			petal_at[k] = tick
+			if not up:
+				var at := out * CORE.petal_r + Vector3(0, CORE.petal_y, 0)
+				Fx.ring(self, Vector3(0, CORE.petal_y, 0), CORE.petal_r, CORE.petal_r * 1.6, 0.35, CORE.blue)
+				Fx.flash(self, at, 1.2, 0.12, CORE.blue_edge)
+		var age := float(tick - petal_at[k])
+		var p: Node3D = petals[k]
+		p.rotation.y = turn
+		p.position = Vector3.ZERO
+		if up:
+			var rise := 1.0 - pow(1.0 - clampf(age / CORE.rise.ticks, 0.0, 1.0), 2.0)
+			p.position.y = -CORE.rise.depth * (1.0 - rise)
+			p.visible = true
+		else:
+			var fly := clampf(age / CORE.fly.ticks, 0.0, 1.0)
+			p.visible = fly < 1.0
+			p.position = out * CORE.fly.out * fly + Vector3(0, CORE.fly.up * fly, 0)
+			p.rotation.y = turn + CORE.fly.spin * fly
 
 
 func lamp(m: StandardMaterial3D, wave: Dictionary, lane: int) -> void:

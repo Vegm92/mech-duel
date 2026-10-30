@@ -52,7 +52,7 @@ tiny commit `godot/src/siege_state.gd` (constants + a stub state) so the others 
   non-rotating camera). Lane width 10, ~60 long, from the border spawn gate (at 80) to the fortress
   gate (at 16). Gates at `(0,-16)`, `(16,0)`, `(0,16)`, `(-16,0)`. 2 chokepoints and 3 build pads per
   lane. 4 corner air entries. Side vents in lane walls (spider ambush).
-- Core: crystal in a cradle, 4 pylons facing the lanes, 4 shield rings that break at 75/50/25/0 %.
+- Core: Shield Petals (plasma column on a drum, 4 petals that break at 75/50/25/0 %, yellow HP floor ring).
 - State the views read (`state.siege`):
 
 ```
