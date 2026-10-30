@@ -45,6 +45,7 @@ const BAR := Vector2(580, 180)
 const GROUPS := [["larm", "barLarm", ["left"]], ["head", "barHead", ["hook"]], ["core", "barCore", ["shield", "ult"]], ["rarm", "barRarm", ["right"]], ["legs", "barLegs", ["dash"]]]
 const BOT := [["head", Rect2(18, 2, 17, 14)], ["core", Rect2(13, 20, 26, 34)], ["larm", Rect2(1, 22, 10, 36)], ["rarm", Rect2(42, 22, 10, 36)], ["legs", Rect2(14, 58, 11, 38)], ["legs", Rect2(28, 58, 11, 38)]]
 const SIDE := Vector2(340, 420)
+const SIDE_K := 0.5
 const DIAGRAM := [["head", Rect2(88, 4, 64, 44)], ["larm", Rect2(22, 54, 40, 100)], ["rarm", Rect2(178, 54, 40, 100)], ["legs", Rect2(76, 134, 42, 100)], ["legs", Rect2(122, 134, 42, 100)]]
 const MINI := [["head", Rect2(23, 0, 14, 10)], ["larm", Rect2(9, 12, 8, 24)], ["rarm", Rect2(43, 12, 8, 24)], ["legs", Rect2(20, 30, 9, 22)], ["legs", Rect2(31, 30, 9, 22)]]
 const SLOT_KEYS := ["left", "right", "shield", "hook", "dash", "ult"]
@@ -329,7 +330,7 @@ func mech_name(i: int) -> String:
 func skill_bars(size: Vector2) -> void:
 	var ms: Array = state.mechs
 	if ms.size() <= 2:
-		side_panel(ms[0], Vector2(16, size.y - 16 - SIDE.y))
+		side_panel(ms[0], Vector2(16, size.y - 16 - SIDE.y * SIDE_K))
 		return
 	var k := 0.7
 	var w := BAR.x * k
@@ -554,7 +555,7 @@ func gauge(p: Vector2, f: float, c: Color, name: String, nc: Color) -> void:
 func side_panel(m: Dictionary, at: Vector2) -> void:
 	var t: Color = A.team[m.team]
 	fade = 0.4 if m.ko else 1.0
-	canvas.draw_set_transform(at)
+	canvas.draw_set_transform(at, 0.0, Vector2(SIDE_K, SIDE_K))
 	poly(PackedVector2Array([Vector2(18, 0), Vector2(SIDE.x, 0), Vector2(SIDE.x, SIDE.y - 18), Vector2(SIDE.x - 18, SIDE.y), Vector2(0, SIDE.y), Vector2(0, 18)]), Color(A.panel, 0.94))
 	poly(rect_poly(Rect2(18, 0, SIDE.x - 18, 4)), t)
 	var nm := mech_name(m.id).to_upper()
@@ -581,7 +582,7 @@ func side_panel(m: Dictionary, at: Vector2) -> void:
 		slot(m, SLOT_KEYS[i], Rect2(16.0 + i * (46.0 + gap), g.y + 276.0, 46, 60))
 	if m.ko:
 		fade = 1.0
-		canvas.draw_set_transform(at + Vector2(170, 190), deg_to_rad(-4))
+		canvas.draw_set_transform(at + Vector2(170, 190) * SIDE_K, deg_to_rad(-4), Vector2(SIDE_K, SIDE_K))
 		canvas.draw_rect(Rect2(-50, -20, 100, 40), A.danger)
 		txt(tr("ko"), Vector2(-50, 8), 22, A.ground, HORIZONTAL_ALIGNMENT_CENTER, 100.0, heavy)
 	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
