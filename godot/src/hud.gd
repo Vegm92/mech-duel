@@ -325,7 +325,7 @@ func mech_name(i: int) -> String:
 func skill_bars(size: Vector2) -> void:
 	var ms: Array = state.mechs
 	if ms.size() <= 2:
-		skill_bar(ms[0], Vector2((size.x - BAR.x * 1.1) / 2.0, size.y - 16 - BAR.y * 1.1), 1.1, true)
+		skill_bar(ms[0], Vector2((size.x - BAR.x * 0.88) / 2.0, size.y - 16 - BAR.y * 0.88), 0.88, true)
 		return
 	var k := 0.7
 	var w := BAR.x * k
@@ -489,7 +489,7 @@ func top_bar(size: Vector2) -> void:
 			for i in n:
 				var px := r.end.x - 24 - 11 - (n - 1 - i) * 16.0 if side == 0 else r.position.x + 24 + i * 16.0
 				canvas.draw_rect(Rect2(px, 38, 11, 20), Color(A.ground, 1.0 if state.score[ms[side].team] > i else 0.25))
-		rival_chips(ms[1], Vector2(cx + 68 + 120, 78))
+		rival_chips(ms[1], Vector2(cx + 68 + 7, 76), 266.0)
 	else:
 		for side in 2:
 			var teams := [0, 2] if side == 0 else [1, 3]
@@ -506,13 +506,17 @@ func top_bar(size: Vector2) -> void:
 	txt("%d:%02d" % [floori(secs / 60.0), secs % 60], h + Vector2(0, 47), 32, A.ground if secs > 10 else A.danger, HORIZONTAL_ALIGNMENT_CENTER, 112.0, heavy)
 
 
-func rival_chips(m: Dictionary, at: Vector2) -> void:
+func rival_chips(m: Dictionary, at: Vector2, width: float) -> void:
 	var items := []
 	for g in GROUPS:
 		if g[0] != "core":
 			items.append([tr(g[1]), g[0]])
 	items.append(["R", "surge"])
-	var x := at.x
+	var gap := 3.0
+	var texts := []
+	var colors := []
+	var jams := []
+	var total := 0.0
 	for it in items:
 		var part: String = it[1]
 		var s: String
@@ -524,14 +528,21 @@ func rival_chips(m: Dictionary, at: Vector2) -> void:
 			jam = m.armor[part] <= 0 and part != "head"
 			s = "%s %s" % [it[0], tr("jam") if jam else str(ceili(100.0 * maxf(0.0, m.armor[part]) / m.max[part]))]
 			c = tone(maxf(0.0, m.armor[part]) / float(m.max[part]))
-		var w := label_f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 18.0
+		texts.append(s)
+		colors.append(c)
+		jams.append(jam)
+		total += label_f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
+	var pad := (width - gap * (items.size() - 1) - total) / items.size()
+	var x := at.x
+	for i in items.size():
+		var w := label_f.get_string_size(texts[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + pad
 		var r := Rect2(x, at.y, w, 20)
-		if jam:
+		if jams[i]:
 			stripes(rect_poly(r), r, A.danger, A.jam_dark, 8.0, r.size.y)
 		else:
 			poly(rect_poly(r), A.raised)
-		txt(s, Vector2(x, at.y + 14), 11, Color.WHITE if jam else c, HORIZONTAL_ALIGNMENT_CENTER, w, null, 1.0 if jam else 0.0)
-		x += w + 4.0
+		txt(texts[i], Vector2(x, at.y + 14), 10, Color.WHITE if jams[i] else colors[i], HORIZONTAL_ALIGNMENT_CENTER, w, null, 1.0 if jams[i] else 0.0)
+		x += w + gap
 
 
 func callout(s: String, c: Color, cx: float, y: float, px: int, alpha := 1.0) -> float:
