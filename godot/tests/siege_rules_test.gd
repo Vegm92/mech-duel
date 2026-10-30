@@ -6,7 +6,7 @@ const Siege = preload("res://src/siege.gd")
 const S = preload("res://src/siege_state.gd")
 const Progress = preload("res://src/progress.gd")
 
-const GOLDEN := 948194172
+const GOLDEN := 4044432856
 
 var failed := 0
 var filter := ""
@@ -61,6 +61,10 @@ func _init() -> void:
 	run("endless_waves_are_mk3_with_a_new_mutator_every_five", test_endless_waves_are_mk3_with_a_new_mutator_every_five)
 	run("plated_mutator_gives_bots_more_armor", test_plated_mutator_gives_bots_more_armor)
 	run("yards_open_through_the_arch_not_the_lane_wall", test_yards_open_through_the_arch_not_the_lane_wall)
+	run("every_yard_opening_leads_onto_its_lane_and_back", test_every_yard_opening_leads_onto_its_lane_and_back)
+	run("lane_bots_ignore_a_player_in_the_yard", test_lane_bots_ignore_a_player_in_the_yard)
+	run("the_farming_ally_crosses_between_yards_through_the_openings", test_the_farming_ally_crosses_between_yards_through_the_openings)
+	run("a_raid_leaves_a_yard_through_the_nearest_opening", test_a_raid_leaves_a_yard_through_the_nearest_opening)
 	run("camp_sleeps_until_a_player_comes_close_then_all_of_it_wakes", test_camp_sleeps_until_a_player_comes_close_then_all_of_it_wakes)
 	run("camp_bot_goes_home_past_its_leash_and_heals", test_camp_bot_goes_home_past_its_leash_and_heals)
 	run("clearing_a_camp_pays_the_player_who_killed_it", test_clearing_a_camp_pays_the_player_who_killed_it)
@@ -695,7 +699,7 @@ func camp_bots(s: Dictionary, q: int, i: int) -> Array:
 
 func test_yards_open_through_the_arch_not_the_lane_wall() -> int:
 	var s := lab()
-	park(s, 2, -52)
+	park(s, 2, -49)
 	var east := idle()
 	east.mx = 1.0
 	steps(s, 90, east)
@@ -707,6 +711,87 @@ func test_yards_open_through_the_arch_not_the_lane_wall() -> int:
 	steps(s, 150, out)
 	var me: Dictionary = s.mechs[0]
 	return ensure(walled < S.LANE_W / 2.0, "the lane wall stops you at x %.1f" % walled) or ensure(Sim.hypot(me.x, me.y) > S.YARD_IN + 2.0, "the arch lets you into the yard (r %.1f)" % Sim.hypot(me.x, me.y))
+
+
+func walk(s: Dictionary, to: Dictionary, most: int) -> int:
+	var me: Dictionary = s.mechs[0]
+	for i in most:
+		var dx: float = to.x - me.x
+		var dy: float = to.y - me.y
+		var d := Sim.hypot(dx, dy)
+		if d < 1.0:
+			return i
+		var inp := idle()
+		inp.mx = dx / d
+		inp.my = dy / d
+		Siege.step(s, [inp])
+	return -1
+
+
+func test_every_yard_opening_leads_onto_its_lane_and_back() -> int:
+	var s := lab()
+	var bad := []
+	for q in S.QUADS.size():
+		for d in S.doors(q):
+			var half: float = S.OPENINGS.filter(func(o): return o.d == d.d)[0].half
+			for shift in [0.0, -(half - 1.5), half - 1.5]:
+				var off: Vector2 = Vector2(S.QUADS[q].sx, S.QUADS[q].sy) * shift
+				var from: Dictionary = d.yp
+				var vert: bool = d.lane % 2 == 0
+				park(s, from.x + (0.0 if vert else off.x), from.y + (off.y if vert else 0.0))
+				var there := walk(s, d.lp, 120)
+				var lane_ok: bool = Siege.in_lane(s.mechs[0]) and Siege.lane_near(s.mechs[0]) == d.lane
+				var back := walk(s, d.yp, 120)
+				if there < 0 or not lane_ok or back < 0:
+					bad.append("%s lane %d d %.0f shift %.1f (%d, %s, %d)" % [S.QUADS[q].name, d.lane, d.d, shift, there, lane_ok, back])
+	return ensure(bad.is_empty(), "stuck at " + str(bad))
+
+
+func test_lane_bots_ignore_a_player_in_the_yard() -> int:
+	var s := lab()
+	var d: Dictionary = S.doors(0).filter(func(x): return x.lane == 0)[0]
+	park(s, d.yp.x, d.yp.y)
+	var e := Siege.spawn(s, "scout", 0, 0.0, 1, S.at(0, d.d, 0.0))
+	steps(s, 90)
+	return ensure(not Siege.in_yard(e), "the scout stayed in its lane at (%.1f, %.1f)" % [e.x, e.y]) or ensure(s.mechs[0].armor.larm == s.mechs[0].max.larm, "it never shot the yard")
+
+
+func trace(from: Dictionary, goal: Dictionary, most: int) -> Dictionary:
+	var m := {"x": from.x, "y": from.y}
+	var doors := 0
+	for i in most:
+		if Siege.dist(m, goal) < 1.5:
+			return {"steps": i, "doors": doors}
+		var wp := Siege.waypoint(m, goal)
+		var dx: float = wp.x - m.x
+		var dy: float = wp.y - m.y
+		var n := maxf(0.01, Sim.hypot(dx, dy))
+		m.x += dx / n * minf(0.5, n)
+		m.y += dy / n * minf(0.5, n)
+		if Siege.in_lane(m) and minf(absf(m.x), absf(m.y)) > S.LANE_W / 2.0 and Sim.hypot(m.x, m.y) > S.YARD_IN + 4.0:
+			doors += 1
+	return {"steps": -1, "doors": doors}
+
+
+func test_the_farming_ally_crosses_between_yards_through_the_openings() -> int:
+	var next := trace(S.yard_at(0, 40.0, 14.0), S.yard_at(1, 30.0, 14.0), 600)
+	var lane := trace(S.at(1, 60.0, 0.0), S.yard_at(1, 30.0, 40.0), 600)
+	var far := trace(S.yard_at(0, 40.0, 40.0), S.yard_at(2, 40.0, 40.0), 1200)
+	return ensure(next.steps > 0 and next.doors > 0, "next-door yard through an opening %s" % str(next)) or ensure(lane.steps > 0 and lane.doors > 0, "from the lane into the yard %s" % str(lane)) or ensure(far.steps > 0, "the opposite yard is still reachable %s" % str(far))
+
+
+func test_a_raid_leaves_a_yard_through_the_nearest_opening() -> int:
+	var s := lab()
+	var q := 0
+	for c in s.siege.yards[q].camps:
+		c.alive = false
+	var at := S.yard_at(q, 44.0, 14.0)
+	var e := Siege.spawn(s, "scout", q, 0.0, 1, at)
+	e.raid = q
+	e.leg = 1
+	var t := until(s, 60 * 20, func(): return e.leg == 3)
+	steps(s, 60)
+	return ensure(t > 0, "the raid reached its lane") or ensure(e.get("door", -1) >= 0, "it chose an opening") or ensure(Siege.in_lane(e) and Siege.lane_near(e) == e.lane, "it walks lane %d at (%.1f, %.1f)" % [e.lane, e.x, e.y])
 
 
 func test_camp_sleeps_until_a_player_comes_close_then_all_of_it_wakes() -> int:

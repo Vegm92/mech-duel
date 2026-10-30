@@ -150,11 +150,16 @@ static func geo_of(sg: Dictionary) -> Dictionary:
 	pillars.append(sg.core)
 	var w: float = S.LANE_W / 2.0
 	var boxes := []
+	var holes: Array = S.OPENINGS.map(func(o): return [o.d - o.half, o.d + o.half]) + [[h, h]]
 	for lane in 4:
 		for side in [-1, 1]:
-			var a := S.at(lane, S.BLOCK, side * w)
-			var z := S.at(lane, h, side * (w + S.LANE_WALL))
-			boxes.append(box(a.x, a.y, z.x, z.y))
+			var r: float = S.BLOCK
+			for hole in holes:
+				if hole[0] > r:
+					var a := S.at(lane, r, side * w)
+					var z := S.at(lane, hole[0], side * (w + S.LANE_WALL))
+					boxes.append(box(a.x, a.y, z.x, z.y))
+				r = hole[1]
 	for q in S.QUADS.size():
 		var wp := S.yard_at(q, S.WRECK.a, S.WRECK.b)
 		var wreck := {"x": wp.x, "y": wp.y, "r": S.WRECK.r}
@@ -450,6 +455,61 @@ static func in_lane(p: Dictionary) -> bool:
 	return Sim.hypot(p.x, p.y) > S.BLOCK and minf(absf(p.x), absf(p.y)) < S.LANE_W / 2.0 + S.LANE_WALL
 
 
+static func in_yard(p: Dictionary) -> bool:
+	return Sim.hypot(p.x, p.y) > S.BLOCK and not in_lane(p)
+
+
+static func dist(a: Dictionary, b: Dictionary) -> float:
+	return Sim.hypot(a.x - b.x, a.y - b.y)
+
+
+static func route_len(pts: Array) -> float:
+	var t := 0.0
+	for i in pts.size() - 1:
+		t += dist(pts[i], pts[i + 1])
+	return t
+
+
+static func door_way(m: Dictionary, goal: Dictionary) -> Dictionary:
+	var qb := quad_of(goal)
+	var inner_b := S.yard_at(qb, 15.0, 15.0)
+	var outer_b := S.yard_at(qb, 22.0, 22.0)
+	var into := S.doors(qb)
+	if in_lane(m):
+		var lane := lane_near(m)
+		var best := {}
+		var best_len := route_len([m, S.at(lane, 21.0), inner_b, outer_b, goal])
+		for d in into:
+			var cost := route_len([m, d.lp, d.yp, goal])
+			if d.lane == lane and cost < best_len:
+				best = d
+				best_len = cost
+		if best.is_empty():
+			return {}
+		var perp: float = absf(m.x) if lane % 2 == 0 else absf(m.y)
+		return best.yp if perp >= S.LANE_W / 2.0 - 0.5 or absf(along(m, lane) - best.d) < 1.2 else best.lp
+	var qa := quad_of(m)
+	var A: Dictionary = S.QUADS[qa]
+	var B: Dictionary = S.QUADS[qb]
+	if (A.sx == B.sx) == (A.sy == B.sy):
+		return {}
+	var shared := (1 if A.sx > 0 else 3) if A.sx == B.sx else (2 if A.sy > 0 else 0)
+	var inner_a := S.yard_at(qa, 15.0, 15.0)
+	var outer_a := S.yard_at(qa, 22.0, 22.0)
+	var out := {}
+	var out_len := route_len([m, outer_a, inner_a, inner_b, outer_b, goal])
+	for da in S.doors(qa):
+		for db in into:
+			var cost := route_len([m, da.yp, da.lp, db.lp, db.yp, goal])
+			if da.lane == shared and db.lane == shared and cost < out_len:
+				out = da
+				out_len = cost
+	if out.is_empty():
+		return {}
+	var shared_perp: float = absf(m.x) if shared % 2 == 0 else absf(m.y)
+	return out.lp if shared_perp < S.OPENING_YARD + 0.5 and absf(along(m, shared) - out.d) < 1.5 else out.yp
+
+
 static func waypoint(m: Dictionary, goal: Dictionary) -> Dictionary:
 	var rm := Sim.hypot(m.x, m.y)
 	var rg := Sim.hypot(goal.x, goal.y)
@@ -457,6 +517,10 @@ static func waypoint(m: Dictionary, goal: Dictionary) -> Dictionary:
 	var yard_me: bool = rm > S.YARD_IN - 0.5 and not in_lane(m)
 	if yard_goal and yard_me and quad_of(m) == quad_of(goal):
 		return goal
+	if yard_goal and (yard_me or in_lane(m)):
+		var door := door_way(m, goal)
+		if not door.is_empty():
+			return door
 	var lined: bool = absf(absf(m.x) - absf(m.y)) < S.ARCH / 2.0
 	if yard_me:
 		var q := quad_of(m)
@@ -610,7 +674,7 @@ static func target(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dicti
 	var nd := 0.0
 	for i in sg.team + 1:
 		var m = state.mechs[i]
-		if m.ko or Sim.hidden(state, m):
+		if m.ko or Sim.hidden(state, m) or (not k.get("fly", false) and in_yard(m) and not in_yard(b)):
 			continue
 		var d := Sim.hypot(m.x - b.x, m.y - b.y)
 		if d <= reach and (near == null or d < nd) and (d <= RUN.aggro or k.get("fly", false) or open_line(state, b.x, b.y, m.x, m.y)):
@@ -1816,19 +1880,46 @@ static func raid_route(state, sg: Dictionary, e: Dictionary, b: Dictionary) -> D
 	var outer := S.yard_at(q, 22.0, 22.0)
 	var inner := S.yard_at(q, 15.0, 15.0)
 	if e.leg == 1:
-		if Sim.hypot(outer.x - b.x, outer.y - b.y) < 1.5:
+		var doors := S.doors(q)
+		var door := -1
+		var best := route_len([b, outer, inner, S.at(raid_lane(q, inner), S.RING_OUT + 6.0)])
+		for i in doors.size():
+			var cost := route_len([b, doors[i].yp, doors[i].lp, S.at(doors[i].lane, S.RING_OUT + 6.0)])
+			if cost < best:
+				door = i
+				best = cost
+		if door >= 0:
+			e.door = door
+			e.lane = doors[door].lane
+			e.leg = 4
+		elif Sim.hypot(outer.x - b.x, outer.y - b.y) < 1.5:
 			e.leg = 2
-		return outer
+		if e.leg == 1:
+			return outer
+	if e.leg == 4:
+		var yp: Dictionary = S.doors(q)[e.door].yp
+		if dist(yp, b) < 1.5:
+			e.leg = 5
+		return yp
+	if e.leg == 5:
+		var lp: Dictionary = S.doors(q)[e.door].lp
+		if dist(lp, b) < 1.5:
+			e.leg = 3
+		return lp
 	if e.leg == 2:
 		if Sim.hypot(inner.x - b.x, inner.y - b.y) < 1.5:
 			e.leg = 3
-			var Q: Dictionary = S.QUADS[q]
-			e.lane = 0 if (Q.sy < 0 and absf(b.y) >= absf(b.x)) else (1 if Q.sx > 0 and absf(b.x) > absf(b.y) else (2 if Q.sy > 0 and absf(b.y) >= absf(b.x) else 3))
+			e.lane = raid_lane(q, b)
 		return inner
 	var stand := S.at(e.lane, S.RING_OUT + 6.0, 0.0)
 	if Sim.hypot(stand.x - b.x, stand.y - b.y) < 2.0:
 		e.raid = -1
 	return stand
+
+
+static func raid_lane(q: int, b: Dictionary) -> int:
+	var Q: Dictionary = S.QUADS[q]
+	return 0 if (Q.sy < 0 and absf(b.y) >= absf(b.x)) else (1 if Q.sx > 0 and absf(b.x) > absf(b.y) else (2 if Q.sy > 0 and absf(b.y) >= absf(b.x) else 3))
 
 
 static func raided(sg: Dictionary) -> void:

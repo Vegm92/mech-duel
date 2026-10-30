@@ -20,6 +20,9 @@ const ACTS := ["walk", "idle", "attack", "windup", "roll", "plant", "hit", "die"
 const LANE_WALL := 1.0
 const YARD_IN := 27.5
 const ARCH := 8.0
+const OPENINGS := [{"d": 41.0, "half": 3.0}, {"d": 54.0, "half": 2.0}]
+const OPENING_LANE := 3.0
+const OPENING_YARD := 8.5
 const QUADS := [{"name": "NE", "sx": 1, "sy": -1}, {"name": "SE", "sx": 1, "sy": 1}, {"name": "SW", "sx": -1, "sy": 1}, {"name": "NW", "sx": -1, "sy": -1}]
 const CAMP_TIERS := {"small": {"scrap": 10}, "medium": {"scrap": 25}, "big": {"scrap": 45}, "elite": {"scrap": 120, "token": 1}}
 const CAMPS := [
@@ -54,6 +57,15 @@ static func at(lane: int, d: float, side := 0.0) -> Dictionary:
 static func yard_at(q: int, a: float, b: float) -> Dictionary:
 	var Q: Dictionary = QUADS[q]
 	return {"x": Q.sx * a, "y": Q.sy * b}
+
+
+static func doors(q: int) -> Array:
+	var Q: Dictionary = QUADS[q]
+	var out := []
+	for o in OPENINGS:
+		out.append({"q": q, "lane": 1 if Q.sx > 0 else 3, "d": o.d, "lp": yard_at(q, o.d, OPENING_LANE), "yp": yard_at(q, o.d, OPENING_YARD)})
+		out.append({"q": q, "lane": 2 if Q.sy > 0 else 0, "d": o.d, "lp": yard_at(q, OPENING_LANE, o.d), "yp": yard_at(q, OPENING_YARD, o.d)})
+	return out
 
 
 static func yards() -> Array:

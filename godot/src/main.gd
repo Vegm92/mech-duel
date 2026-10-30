@@ -106,6 +106,7 @@ var spawn_arg := ""
 var modules_arg := false
 var down_arg := false
 var turret_arg := false
+var door_arg := false
 var top_arg := false
 var guard_arg := 0
 var farm_arg := false
@@ -201,6 +202,8 @@ func _ready() -> void:
 			down_arg = true
 		elif a == "--turret":
 			turret_arg = true
+		elif a == "--door":
+			door_arg = true
 		elif a.begins_with("--spawn="):
 			spawn_arg = a.substr(8)
 		elif a.begins_with("--director="):
@@ -702,6 +705,13 @@ func _physics_process(delta: float) -> void:
 			Sim.step(state, ins)
 		if not siege and extras.is_empty() and Killcam.wants(state, rec):
 			start_replay()
+	if siege and door_arg and state.tick >= 60:
+		var door: Dictionary = Siege.S.doors(0)[1]
+		var me: Dictionary = state.mechs[0]
+		me.x = door.lp.x
+		me.y = door.lp.y
+		me.tx = door.lp.x
+		me.ty = door.lp.y
 	if siege and shop_arg != "" and state.tick == 60:
 		state.siege.wallets[0] += 2600
 		var me: Dictionary = state.mechs[0]
