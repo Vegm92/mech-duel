@@ -230,8 +230,11 @@ Like a jungle, but a junkyard of mech parts and wrecks. The 4 blocks between the
 NW) become 4 walkable **yards**. Players leave the plaza to farm scrap there, taking a risk.
 
 **Shape** (`siege_state.gd`): each lane keeps a 1.5 m wall on both sides out to the border. The
-ring road's outer wall (26 to 27.5 m) gets one 6 m arch per yard on the 45° diagonal, so a yard is
-reached only from the ring road. Inside: 5 camps, 3 salvage crates, scrap heaps (cover), a steam
+ring road's outer wall (26 to 27.5 m) gets one 6 m arch per yard on the 45° diagonal. **Jungle exits**
+(Victor 2026-10-30, "more ways into the lanes from the jungle, like LoL"): every lane wall also has 2
+openings (`OPENINGS`: 41 m, 6 m wide, and 54 m, 4 m wide, between the pad squares and the choke pillars),
+so a yard has 2 doors onto each of its 2 lanes, framed by arch posts. Lane bots keep to their lane and
+ignore players in a yard; the farming ally and raids use the nearest opening when it is shorter than the arch. Inside: 5 camps, 3 salvage crates, scrap heaps (cover), a steam
 patch (hides a mech, like smoke), a crush plate and 2 EMP zones (they hit bots too).
 
 **One currency** (Victor 2026-10-30, after a playtest where the wallet had 80 and the shared fund 0, so

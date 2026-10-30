@@ -246,7 +246,16 @@ $P = "$R\godot"
   row (Mk 3) and one more `MUTATORS` pick every 5 waves (`MUTATE`).
   **Scrapyard** (Victor 2026-10-28): the 4 corner blocks are walkable yards (`S.QUADS`, lane walls
   `LANE_WALL`, one `ARCH` per yard in the ring road's outer wall, a second `rings` entry with
-  per-gap `half`). Each yard: 5 camps of neutral bots (team 2, `neutral`, `camp`, `home`; asleep
+  per-gap `half`). **Jungle exits** (Victor 2026-10-30: "more ways into the lanes from the jungle, like
+  LoL"): `S.OPENINGS` (`d`, `half` along the lane: 41 m x 6 m, 54 m x 4 m, the only gaps between the pad
+  squares and the choke pillars) cut every lane wall, so each yard has 2 openings into each of its 2 lanes
+  (16 in all; `geo_of` splits the wall boxes, `siege_view.build_walls` cuts the panels and sets a `yard_arch`
+  frame, `DOOR`). `S.doors(q)` lists a yard's openings with a lane point `lp` and a yard point `yp`. Lane bots
+  (not flyers, not raiders already in a yard) ignore players standing in a yard (`in_yard`), so they keep their
+  lane; camp bots keep `YARD.leash`. The farming ally (`waypoint` > `door_way`: from a lane into a yard, or
+  between two neighbouring yards on their shared lane) and raids (`raid_route` legs 4-5 via `e.door`) take an
+  opening when the straight-line cost beats the arch route. Look flag `--door` pins you at the yard side of a
+  north-lane opening. Evidence: `production/qa/evidence/siege-jungle-exit*-2026-10-30.png`. Each yard: 5 camps of neutral bots (team 2, `neutral`, `camp`, `home`; asleep
   as `dormant` with `sleep` on the body so they skip collision, `awake` wakes the whole camp,
   `YARD.leash` sends them home to heal), 3 crates (hold V, `use`), heaps (solid), steam
   (`geo.steam`, read by `Sim.hidden`), a crush plate and 2 EMP zones (`hazards`, hit bots too).

@@ -708,10 +708,10 @@ func _physics_process(delta: float) -> void:
 	if siege and door_arg and state.tick >= 60:
 		var door: Dictionary = Siege.S.doors(0)[1]
 		var me: Dictionary = state.mechs[0]
-		me.x = door.lp.x
-		me.y = door.lp.y
-		me.tx = door.lp.x
-		me.ty = door.lp.y
+		me.x = door.yp.x
+		me.y = door.yp.y
+		me.tx = door.yp.x
+		me.ty = door.yp.y
 	if siege and shop_arg != "" and state.tick == 60:
 		state.siege.wallets[0] += 2600
 		var me: Dictionary = state.mechs[0]

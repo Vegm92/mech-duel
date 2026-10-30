@@ -43,7 +43,7 @@ const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3
 const TOWER := {"out": 94.0, "head": Vector3(0.4, 17.8, 0), "angle": 5.0, "range": 240.0, "energy": 2.0, "aim": 30.0}
 const YARD := {"rust": 0.5, "warm": 0.15, "dirt": 0.95, "tint": 0.45, "polish": 0.1, "tiers": {"small": 1, "medium": 2, "big": 3, "elite": 4},
 	"size": {"small": 0.8, "medium": 1.0, "big": 1.2, "elite": 1.5}, "pip": 3.6, "pip_gap": 0.6, "alive": 0.75, "dead": 0.06,
-	"wake": 2.0, "ring": 1.6, "segs": 16, "lid": 1.17, "lift": 0.3, "lights": [[30.0, -1.0, 0.0, 1.0], [-1.0, 30.0, 1.0, 0.0], [52.0, -1.0, 0.0, 1.0], [-1.0, 54.0, 1.0, 0.0], [60.0, 80.0, 0.0, -1.0], [80.0, 60.0, -1.0, 0.0]],
+	"wake": 2.0, "ring": 1.6, "segs": 16, "lid": 1.17, "lift": 0.3, "lights": [[30.0, -1.0, 0.0, 1.0], [-1.0, 30.0, 1.0, 0.0], [49.5, -1.0, 0.0, 1.0], [-1.0, 49.5, 1.0, 0.0], [60.0, 80.0, 0.0, -1.0], [80.0, 60.0, -1.0, 0.0]],
 	"raid": 6,
 	"wall_top": 1.3, "crate_h": 1.24, "light": 3.0, "light_range": 16.0, "light_energy": 8.0,
 	"debris": 22, "sheet": Vector3(2.0, 0.05, 1.4), "pallet": Vector3(1.2, 0.14, 1.0), "crane": 85.0, "crane_y": 4.0,
