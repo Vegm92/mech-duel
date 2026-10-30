@@ -261,7 +261,7 @@ func _ready() -> void:
 		garage.visible = false
 		new_match()
 		if claim_arg:
-			claim.open(progress.pool(["larm", "legs"], rival_lo, true), rival_key, progress.tier(rival_key), progress)
+			claim.open(progress.pool(["larm", "legs"], rival_lo, true), rival_key, progress.tier(rival_key), progress, loadout)
 
 
 func shop_action() -> void:
@@ -730,7 +730,7 @@ func track() -> void:
 				var drops := progress.spoils(f.n)
 				if not drops.is_empty():
 					Input.set_default_cursor_shape(Input.CURSOR_ARROW)
-					claim.open(drops, Progress.SIEGE_SPOILS[f.n], f.n / 10, progress)
+					claim.open(drops, Progress.SIEGE_SPOILS[f.n], f.n / 10, progress, loadout)
 		if state.phase == "over" and not settled:
 			settled = true
 			if not progress.unlock_all and progress.held(maxi(0, state.siege.wave.n - 1)):
@@ -756,7 +756,7 @@ func settle() -> void:
 		progress.save_file()
 		return
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
-	claim.open(drops, rival_key, progress.tier(rival_key), progress)
+	claim.open(drops, rival_key, progress.tier(rival_key), progress, loadout)
 
 
 func claimed(slot: String, key: String) -> void:

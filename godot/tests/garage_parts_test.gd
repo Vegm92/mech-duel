@@ -25,6 +25,7 @@ func _initialize() -> void:
 	await run("winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part", test_winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part)
 	await run("losing_a_match_gives_no_claim", test_losing_a_match_gives_no_claim)
 	await run("claim_lifts_the_hovered_card_and_keep_takes_it", test_claim_lifts_the_hovered_card_and_keep_takes_it)
+	await run("claim_panel_lists_changed_stats_and_the_new_skill", test_claim_panel_lists_changed_stats_and_the_new_skill)
 	await run("garage_tags_the_equipped_card_after_a_click", test_garage_tags_the_equipped_card_after_a_click)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
@@ -365,6 +366,25 @@ func test_claim_lifts_the_hovered_card_and_keep_takes_it() -> int:
 	bad += ensure(c.sel == 2 and c.cards[2].position.y < c.cards[0].position.y and c.cards[0].position.y == c.cards[1].position.y, "hovering a card lifts it and drops the old one")
 	c.keep_btn.pressed.emit()
 	bad += ensure(got == [["core", "titan"]] and not c.visible, "KEEP takes the lifted card")
+	c.queue_free()
+	await process_frame
+	return int(bad > 0)
+
+
+func test_claim_panel_lists_changed_stats_and_the_new_skill() -> int:
+	var c = Claim.new()
+	root.add_child(c)
+	var p := Progress.new()
+	c.open([{"slot": "head", "key": "horn"}, {"slot": "core", "key": "titan"}], "tank", 1, p, Sim.DEFAULT_LOADOUT)
+	await process_frame
+	var texts := func(): return c.panel.get_children().filter(func(n): return n is Label and not n.is_queued_for_deletion()).map(func(n): return n.text)
+	var t: Array = texts.call()
+	var bad := ensure(t.any(func(x): return x.contains("Lunge") or x.contains("Embestida")), "a head with a new E skill names it")
+	bad += ensure(t.any(func(x): return x.contains("▲")), "a better stat shows an up arrow")
+	c.cards[1].mouse_entered.emit()
+	await process_frame
+	t = texts.call()
+	bad += ensure(t.any(func(x): return x.begins_with("R ·")), "a new core names its R skill")
 	c.queue_free()
 	await process_frame
 	return int(bad > 0)

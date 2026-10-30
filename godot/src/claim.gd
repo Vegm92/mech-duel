@@ -5,12 +5,17 @@ signal ui(kind: String)
 
 const Garage = preload("res://src/garage.gd")
 const PartView = preload("res://src/part_view.gd")
+const Sim = preload("res://src/sim.gd")
 
 const SIZE := Vector2(1280, 720)
 const GAP := 14.0
 const COLS := 5
 const TOP := 176.0
 const LIFT := 8.0
+const ROWS := 5
+const ROW := 18.0
+const PW := 620.0
+const PH := 130.0
 
 var root: Control
 var bold := FontVariation.new()
@@ -21,6 +26,11 @@ var badges := []
 var sel := 0
 var keep_btn: Button
 var keep_y := 600.0
+var panel: Panel
+var panel_y := 540.0
+var tight := false
+var lo := {}
+var prog
 
 
 func _init() -> void:
@@ -43,8 +53,10 @@ func _init() -> void:
 	add_child(root)
 
 
-func open(list: Array, set_key: String, fought: int, progress) -> void:
+func open(list: Array, set_key: String, fought: int, progress, mine: Dictionary = {}) -> void:
 	items = list
+	prog = progress
+	lo = mine if not mine.is_empty() else Sim.DEFAULT_LOADOUT
 	clear()
 	sel = 0
 	Garage.hazard(root, Rect2(0, 0, SIZE.x, 10))
@@ -57,9 +69,17 @@ func open(list: Array, set_key: String, fought: int, progress) -> void:
 	var n := items.size()
 	var rows := ceili(n / float(COLS))
 	var cw := (SIZE.x - 128.0 - GAP * (COLS - 1)) / COLS
-	var ch := 350.0 if rows == 1 else 230.0
-	keep_y = 600.0 if rows == 1 else 652.0
-	label(root, tr("claimFrom").format({"name": tr("set_" + set_key), "n": fought}), Rect2(64, keep_y + 16, 640, 24), 14, Garage.A_INK)
+	tight = rows > 1
+	var ch := 350.0 if rows == 1 else 190.0
+	panel_y = TOP + rows * ch + (rows - 1) * GAP + 14.0
+	keep_y = panel_y + (PH - 56.0) / 2.0
+	label(root, tr("claimFrom").format({"name": tr("set_" + set_key), "n": fought}), Rect2(64 + tw + 24, 124, SIZE.x - tw - 152, 24), 14, Garage.A_DIM)
+	panel = Panel.new()
+	panel.position = Vector2(64, panel_y)
+	panel.size = Vector2(PW, PH)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", Garage.box(Garage.A_PANEL, 14, Color.TRANSPARENT))
+	root.add_child(panel)
 	var cols := mini(COLS, n)
 	var x0 := (SIZE.x - (cols * cw + (cols - 1) * GAP)) / 2.0
 	for i in n:
@@ -95,7 +115,7 @@ func card(i: int, r: Rect2, progress) -> void:
 	var fresh := lvl == 0
 	var t := Garage.tag(b, tr("claimNew") if fresh else tr("claimUp").format({"a": lvl, "b": lvl + 1}), Vector2.ZERO, Garage.A_HAZARD if fresh else Garage.A_SURGE, Garage.A_GROUND)
 	t.position = Vector2(r.size.x - 14.0 - t.size.x, 18)
-	var th := r.size.y - 144.0
+	var th := r.size.y - (118.0 if tight else 144.0)
 	var back := ColorRect.new()
 	back.color = Color(Garage.A_GROUND, 0.7)
 	back.position = Vector2(14, 52)
@@ -111,9 +131,12 @@ func card(i: int, r: Rect2, progress) -> void:
 		b.connect(e, v.turn.bind(true))
 	for e in ["mouse_exited", "focus_exited"]:
 		b.connect(e, v.turn.bind(false))
-	label(b, tr("tab_" + it.slot).to_upper(), Rect2(14, 60 + th, r.size.x - 28, 16), 11, Garage.A_DIM, true)
-	var nm := label(b, tr("p_" + it.key), Rect2(14, 78 + th, r.size.x - 28, 52), 21, Color.WHITE, false, HORIZONTAL_ALIGNMENT_LEFT, Garage.impact())
-	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label(b, tr("tab_" + it.slot).to_upper(), Rect2(14, (58 if tight else 60) + th, r.size.x - 28, 16), 11, Garage.A_DIM, true)
+	var nm := label(b, tr("p_" + it.key), Rect2(14, (74 if tight else 78) + th, r.size.x - 28, 28 if tight else 52), 17 if tight else 21, Color.WHITE, false, HORIZONTAL_ALIGNMENT_LEFT, Garage.impact())
+	if tight:
+		nm.clip_text = true
+	else:
+		nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	skin(i, false)
 
 
@@ -141,6 +164,67 @@ func hot(i: int, force := false) -> void:
 	sel = i
 	skin(i, true)
 	keep()
+	changes()
+
+
+func after(it: Dictionary) -> Dictionary:
+	var next: Dictionary = lo.merged({it.slot: it.key}, true)
+	var lv: Dictionary = prog.with_levels(next).get("lv", {}).duplicate()
+	lv[it.slot] = mini(Sim.MAX_LEVEL, prog.level(it.slot, it.key) + 1)
+	return next.merged({"lv": lv}, true)
+
+
+func changes() -> void:
+	for c in panel.get_children():
+		c.queue_free()
+	var it: Dictionary = items[sel]
+	var lvl: int = prog.level(it.slot, it.key)
+	var head := tr("p_" + lo[it.slot]).to_upper() + "  →  " + tr("p_" + it.key).to_upper()
+	if lo[it.slot] == it.key:
+		head = tr("p_" + it.key).to_upper() + "  ·  " + tr("claimUp").format({"a": lvl, "b": lvl + 1})
+	label(panel, head, Rect2(16, 8, PW - 32, 18), 12, Garage.A_HAZARD, true)
+	var now := Garage.sheet(prog.with_levels(lo))
+	var then := Garage.sheet(after(it))
+	var n := 0
+	for i in now.size():
+		var row: Array = now[i]
+		var d: float = then[i][1] - row[1]
+		var t := Garage.trend(d, row[2], row[3])
+		if t == 0 or n >= ROWS:
+			continue
+		var y := 32.0 + n * ROW
+		var col: Color = Garage.A_GOOD if t > 0 else Garage.A_SOFT
+		label(panel, tr(row[0]), Rect2(16, y, 100, ROW), 13, Garage.A_DIM)
+		label(panel, "%s → %s" % [stat(row[0], row[1], row[2]), stat(row[0], then[i][1], row[2])], Rect2(116, y, 130, ROW), 13, Color.WHITE, true)
+		label(panel, "%s%s" % ["▲" if d > 0 else "▼", Garage.num(absf(d), row[2])], Rect2(246, y, 60, ROW), 13, col, true)
+		n += 1
+	var was := skill(it.slot, lo[it.slot])
+	var gets := skill(it.slot, it.key)
+	var y := 32.0
+	if gets != "" and gets != was:
+		var line := gets if was == "" else "%s  →  %s" % [was, gets]
+		label(panel, line, Rect2(326, y, PW - 342, 20), 13, Garage.A_SURGE if it.slot == "core" else Garage.A_HAZARD, true)
+		y += 22.0
+	var l := label(panel, "", Rect2(326, y, PW - 342, PH - y - 6), 12, Garage.A_INK)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.text = tr("d_" + it.key)
+
+
+func skill(slot: String, key: String) -> String:
+	var p: Dictionary = Sim.CATALOG.get(slot, {}).get(key, {})
+	if p.has("ult"):
+		return tr("titleSkill").format({"name": tr("u_" + p.ult)})
+	if p.has("move"):
+		return tr("dashMove").format({"name": tr("dm_" + p.move)})
+	if p.has("trail"):
+		return tr("trailLine").format({"name": tr("tr_" + p.trail)})
+	if p.has("e"):
+		return tr("eSkillLine").format({"name": tr("e_" + (p.e if p.e != "" else "none"))})
+	return ""
+
+
+func stat(key: String, v: float, dec: int) -> String:
+	return tr(Garage.UNIT[key]).format({"n": Garage.num(v, dec)}) if Garage.UNIT.has(key) else Garage.num(v, dec)
 
 
 func keep() -> void:
@@ -183,6 +267,7 @@ func clear() -> void:
 	rest.clear()
 	badges.clear()
 	keep_btn = null
+	panel = null
 
 
 func pick(i: int) -> void:
