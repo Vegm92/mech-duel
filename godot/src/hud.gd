@@ -48,7 +48,8 @@ const SIDE := Vector2(176, 208)
 const DIAGRAM := [["head", Rect2(40, 0, 36, 24)], ["larm", Rect2(6, 28, 22, 56)], ["rarm", Rect2(88, 28, 22, 56)], ["legs", Rect2(33, 72, 22, 56)], ["legs", Rect2(61, 72, 22, 56)]]
 const MINI := [["head", Rect2(23, 0, 14, 10)], ["larm", Rect2(9, 12, 8, 24)], ["rarm", Rect2(43, 12, 8, 24)], ["legs", Rect2(20, 30, 9, 22)], ["legs", Rect2(31, 30, 9, 22)]]
 const SLOT_KEYS := ["left", "right", "shield", "hook", "dash", "ult"]
-const SIEGE_LEFT := 250.0
+const SIEGE_LEFT := 262.0
+const ROW_W := 230.0
 const KEYS := {"left": ["kLmb", "capLt"], "right": ["kRmb", "capRt"], "shield": ["capQ", "capRb"], "hook": ["capE", "capL3"], "dash": ["capSpace", "capLb"], "ult": ["capR", "capR3"]}
 const SLOTS := [["left", "capLmb", "capLt"], ["right", "capRmb", "capRt"], ["shield", "capQ", "capRb"], ["hook", "capE", "capL3"], ["dash", "capSpace", "capLb"], ["ult", "capR", "capR3"]]
 
@@ -77,6 +78,7 @@ var who := Vector2i(-1, -1)
 var rounds := []
 var fade := 1.0
 var cd_peak := {}
+var calls_bottom := 0.0
 var hp_was := {}
 var best := 0
 var hurt_at := {}
@@ -234,6 +236,7 @@ func paint() -> void:
 		if state.phase != "over":
 			siege_calls(size)
 		else:
+			calls_bottom = 0.0
 			siege_over(size)
 	else:
 		top_bar(size)
@@ -865,7 +868,8 @@ func build_phase() -> bool:
 func siege_box(size: Vector2) -> Rect2:
 	var right := 270.0 if build_phase() else 48.0
 	var bottom := 120.0 if build_phase() else 48.0
-	return Rect2(Vector2(SIEGE_LEFT, 138.0), Vector2(size.x - SIEGE_LEFT - right, size.y - 138.0 - bottom))
+	var top := maxf(138.0, calls_bottom + 8.0)
+	return Rect2(Vector2(SIEGE_LEFT, top), Vector2(size.x - SIEGE_LEFT - right, size.y - top - bottom))
 
 
 func chip(s: String, pos: Vector2, c: Color = A.panel, ink: Color = Color.WHITE) -> float:
@@ -934,38 +938,39 @@ func siege_left(size: Vector2) -> void:
 		else:
 			chip(tr("siegeGuardDown").format({"t": g.tier, "s": int(ceil(g.respawn_in / float(Sim.TICKS)))}), Vector2(16, 46), A.line, A.jam_text)
 	for i in sg.team:
-		ally_row(i, Vector2(16, 80 + i * 30))
-	siege_tiers(Vector2(16, 80 + sg.team * 30 + 10))
+		ally_row(i, Vector2(16, 80 + i * 54))
+	siege_tiers(Vector2(16, 80 + sg.team * 54 + 8))
 
 
 func ally_row(i: int, at: Vector2) -> void:
 	var m: Dictionary = state.mechs[i]
 	var c := ally_color(i)
 	fade = 0.45 if m.ko else 1.0
-	poly(rect_poly(Rect2(at, Vector2(210, 26))), Color(A.panel, 0.92))
-	poly(rect_poly(Rect2(at, Vector2(8 if i == 0 else 5, 26))), c)
-	txt(mech_name(i).to_upper(), at + Vector2(16, 18), 12, Color.WHITE)
-	canvas.draw_set_transform(at + Vector2(122, 2), 0.0, Vector2(0.42, 0.42))
+	poly(rect_poly(Rect2(at, Vector2(ROW_W, 50))), Color(A.panel, 0.92))
+	poly(rect_poly(Rect2(at, Vector2(8 if i == 0 else 5, 50))), c)
+	txt(str(i + 1), at + Vector2(16, 34), 24, c, HORIZONTAL_ALIGNMENT_LEFT, -1, heavy)
+	txt(mech_name(i).to_upper(), at + Vector2(42, 31), 13, Color.WHITE)
+	canvas.draw_set_transform(at + Vector2(134, 4), 0.0, Vector2(0.85, 0.85))
 	poly(rect_poly(Rect2(19, 12, 22, 16)), A.core)
 	for b in MINI:
 		part_block(m, b[0], b[1], 0.0)
 	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
 	fade = 1.0
-	var mid := at + Vector2(190, 13)
+	var mid := at + Vector2(ROW_W - 20.0, 25)
 	match ally_status(i):
 		"down":
-			canvas.draw_line(mid + Vector2(-6, -6), mid + Vector2(6, 6), A.danger, 3.0)
-			canvas.draw_line(mid + Vector2(6, -6), mid + Vector2(-6, 6), A.danger, 3.0)
+			canvas.draw_line(mid + Vector2(-8, -8), mid + Vector2(8, 8), A.danger, 4.0)
+			canvas.draw_line(mid + Vector2(8, -8), mid + Vector2(-8, 8), A.danger, 4.0)
 		"recall":
 			var rc = recall_of(i)
-			canvas.draw_arc(mid, 8.0, -PI / 2.0, -PI / 2.0 + TAU * clampf(rc.t / float(rc.max), 0.02, 1.0), 24, A.team[1], 3.0)
+			canvas.draw_arc(mid, 10.0, -PI / 2.0, -PI / 2.0 + TAU * clampf(rc.t / float(rc.max), 0.02, 1.0), 24, A.team[1], 4.0)
 		_:
-			canvas.draw_circle(mid, 5.0, A.good)
+			canvas.draw_circle(mid, 7.0, A.good)
 
 
 func siege_tiers(at: Vector2) -> void:
 	var t: Dictionary = state.siege.tiers[0]
-	poly(rect_poly(Rect2(at, Vector2(210, 18 + TIER_ROWS.size() * 15))), Color(A.panel, 0.92))
+	poly(rect_poly(Rect2(at, Vector2(ROW_W, 18 + TIER_ROWS.size() * 15))), Color(A.panel, 0.92))
 	txt(tr("siegeTiers"), at + Vector2(10, 14), 10, A.dim)
 	for r in TIER_ROWS.size():
 		var y: float = at.y + 30 + r * 15
@@ -976,7 +981,7 @@ func siege_tiers(at: Vector2) -> void:
 	if rc != null:
 		var y := at.y + 30 + TIER_ROWS.size() * 15 + 6.0
 		txt(tr("siegeRecall"), Vector2(at.x, y + 10), 11, A.team[1])
-		skew_bar(Rect2(at.x, y + 16, 210, 8), rc.t / float(rc.max), A.team[1])
+		skew_bar(Rect2(at.x, y + 16, ROW_W, 8), rc.t / float(rc.max), A.team[1])
 
 
 func siege_crate(size: Vector2) -> void:
@@ -1128,15 +1133,25 @@ func ally_marks(size: Vector2, cam: Camera3D) -> void:
 		var p := edge_arrow(cam, size, at, c, true)
 		if p == Vector2.INF:
 			p = cam.unproject_position(at)
-			poly(PackedVector2Array([p + Vector2(-9, -12), p + Vector2(9, -12), p]), c)
-			txt(str(i + 1), p + Vector2(-10, -16), 13, c, HORIZONTAL_ALIGNMENT_CENTER, 20.0, heavy, 1.0)
+			poly(PackedVector2Array([p + Vector2(-9, -4), p + Vector2(9, -4), p + Vector2(0, 10)]), c)
+			ally_tag(size, p + Vector2(0, -4), i, c)
 		else:
-			txt(str(i + 1), p + Vector2(-10, 5), 14, c, HORIZONTAL_ALIGNMENT_CENTER, 20.0, heavy, 1.0)
+			ally_tag(size, p + Vector2(0, 14), i, c)
+
+
+func ally_tag(size: Vector2, p: Vector2, i: int, c: Color) -> void:
+	var s := "%d  %s" % [i + 1, mech_name(i).to_upper()]
+	var w := heavy.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 22.0
+	var x := clampf(p.x, SIEGE_LEFT + 8.0 + w / 2.0, size.x - 8.0 - w / 2.0)
+	var r := Rect2(x - w / 2.0, p.y - 26.0, w, 26)
+	poly(rect_poly(r), c)
+	txt(s, Vector2(r.position.x, r.position.y + 20), 16, A.ground, HORIZONTAL_ALIGNMENT_CENTER, w, heavy)
 
 
 func siege_calls(size: Vector2) -> void:
 	var cy := 118.0
 	var shown := {}
+	calls_bottom = 0.0
 	for f in state.fx:
 		var text := ""
 		var sub := ""
@@ -1177,6 +1192,7 @@ func siege_calls(size: Vector2) -> void:
 			if sub != "":
 				txt(sub, Vector2(0, cy + h + 24.0), 20, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, size.x, heavy, 2.0)
 			cy += h + (40.0 if sub != "" else 14.0)
+			calls_bottom = cy
 
 
 func siege_over(size: Vector2) -> void:

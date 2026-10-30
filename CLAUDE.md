@@ -291,7 +291,8 @@ $P = "$R\godot"
   (team shop list + hint tags, build phase only), `siege_calls` (colored `callout`s), `siege_over` (CORE LOST band),
   `marker` / `edge_arrow` / `ally_marks` (gate tags, hurt rings, allies get a numbered chevron in their color
   or an edge arrow; `siege_box` keeps arrows clear of the left column, the wave plate and the team shop;
-  ally colors are `A.team[i]`). `radial.gd` is restyled to the same palette (Exo 2 names, yellow hot wedge, wallet
+  ally colors are `A.team[i]`; `view.mark_color` paints each squad mech's floor ring, ▼ and rim in its strip color,
+  `ally_tag` is the number + name chip over an ally or at its edge arrow, `calls_bottom` pushes arrows below the calls). `radial.gd` is restyled to the same palette (Exo 2 names, yellow hot wedge, wallet
   chips fed by `hud.siege_left`, breadcrumb, hints); the hud hides its own chips and shop list while it is open.
   Not restyled: the wave 10 / 20 / 30 reward screen (`claim.gd`, other session).
   Look flags: `--format=ffa|2v2` (4 mechs, extra bots; no kill cam), `--pause` (pause at `--at`), `--lang=en`.

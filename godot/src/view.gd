@@ -182,6 +182,7 @@ var hype := 0.0
 var hype_tick := 0
 var fresh_fx := []
 var mechs := []
+var squad := 0
 var pool := {}
 var active := []
 var tick := 0
@@ -461,6 +462,7 @@ func react(state: Dictionary, fresh: Array) -> void:
 
 
 func reset(state: Dictionary) -> void:
+	squad = state.siege.team if state.has("siege") else 0
 	pops.clear()
 	for m in mechs:
 		for g in m.get_meta("ghosts", []):
@@ -518,8 +520,13 @@ func remake(i: int, m: Dictionary) -> void:
 
 
 ## Team markers: a ring on the floor, an arrow over the head and a rim on the edges, all in the team color.
+func mark_color(m: Dictionary) -> Color:
+	return Look.ARCADE.team[m.id] if m.id < squad and m.id < 4 else Mech.TEAM[m.team]
+
+
 func mark(node: Node3D, m: Dictionary) -> void:
-	var c := Mech.flat(Color(Mech.TEAM[m.team].darkened(MARK.dim), MARK.alpha))
+	var tc := mark_color(m)
+	var c := Mech.flat(Color(tc.darkened(MARK.dim), MARK.alpha))
 	var tri := PrismMesh.new()
 	tri.size = MARK.arrow
 	var ring := Mech.add(node, Mech.ring(MARK.ring[0], MARK.ring[1]), c)
@@ -529,7 +536,7 @@ func mark(node: Node3D, m: Dictionary) -> void:
 	place_marks([ring, arrow], m)
 	ring.reset_physics_interpolation()
 	arrow.reset_physics_interpolation()
-	var rim := Look.shader(Look.RIM_SHADER, Look.RIM.merged({"color": Mech.TEAM[m.team]}))
+	var rim := Look.shader(Look.RIM_SHADER, Look.RIM.merged({"color": tc}))
 	if DisplayServer.get_name() != "headless":
 		for p in node.find_children("*", "MeshInstance3D", true, false):
 			if p.material_override == null:

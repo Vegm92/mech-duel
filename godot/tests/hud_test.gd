@@ -77,7 +77,14 @@ func test_siege() -> int:
 		await process_frame
 	var size := Vector2(1280, 720)
 	var box: Rect2 = hud.siege_box(size)
-	var reserved := {"ally strip and upgrades": Rect2(16, 16, 210, 420), "skill panel": Rect2(16, size.y - 16 - hud.SIDE.y, hud.SIDE.x, hud.SIDE.y), "wave plate and core bar": Rect2(420, 14, 440, 70)}
+	var colors := []
+	for i in 4:
+		colors.append(m.view.mark_color(m.state.mechs[i]))
+	bad += ensure(colors[0] == Look.ARCADE.team[0] and colors.size() == 4 and colors.filter(func(c): return colors.count(c) > 1).is_empty(), "every squad mech gets its own marker color, the human orange")
+	hud.calls_bottom = 300.0
+	bad += ensure(hud.siege_box(Vector2(1280, 720)).position.y >= 308.0, "edge arrows drop below the calls while a call shows")
+	hud.calls_bottom = 0.0
+	var reserved := {"ally strip and upgrades": Rect2(16, 16, hud.ROW_W, 450), "skill panel": Rect2(16, size.y - 16 - hud.SIDE.y, hud.SIDE.x, hud.SIDE.y), "wave plate and core bar": Rect2(420, 14, 440, 70)}
 	for k in reserved:
 		bad += ensure(not box.intersects(reserved[k]), "edge arrows stay clear of the %s" % k)
 	m.state.siege.wave.live = false
