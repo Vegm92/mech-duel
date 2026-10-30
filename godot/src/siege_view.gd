@@ -7,6 +7,7 @@ const Look = preload("res://src/look.gd")
 const View = preload("res://src/view.gd")
 const Decor = preload("res://src/decor.gd")
 const SiegeState = preload("res://src/siege_state.gd")
+const Siege = preload("res://src/siege.gd")
 
 const HALF := SiegeState.HALF
 const W := SiegeState.LANE_W / 2.0
@@ -33,6 +34,8 @@ const CORE := {"y": 5.5, "smoke_y": 7.0, "spin": 0.15, "glow": 0.9, "inner_glow"
 const GATE := {"sink": 2.4, "ease": 0.12, "bar_y": 5.0, "bar": 0.22, "width": 10.0}
 const WARN := {"secs": 8, "on": 1.6, "steady": 0.6, "blink": 10}
 const ALARM := {"ticks": 100, "blink": 5, "on": 3.2, "light": 7.0, "range": 11.0, "color": Color(1.0, 0.16, 0.1)}
+const TURRET := {"size": 1.3, "muzzle": Vector3(1.9, 1.08, 0.0), "kick": 0.35, "flash": 0.55, "flash_secs": 0.08, "turn": 0.35}
+const REACH := {"y": 0.08, "flat": 0.3, "inner": 0.93, "pulse": 0.04, "rate": 6.0, "alpha": 0.8}
 const WALL := {"panel": 4.0, "post": 0.15, "vent": 0.7, "spawn": 8.4}
 const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "rows": [0.65, 1.95], "gap": 9.0,
 	"aisle": 40.0, "aisle_w": 0.4, "fan_gap": 0.6, "team": 1}
@@ -678,7 +681,7 @@ func update(siege: Dictionary) -> void:
 	while pads.size() < siege.pads.size():
 		pads.append(make_pad(siege.pads[pads.size()]))
 	for i in siege.pads.size():
-		draw_pad(pads[i], siege.pads[i].module)
+		draw_pad(pads[i], siege.pads[i])
 	var all_camps := []
 	var all_crates := []
 	var yards: Array = siege.get("yards", [])
@@ -872,7 +875,7 @@ func make_gate(g: Dictionary) -> Dictionary:
 	var alarm := accent(Vector3(g.x, 3.0, g.y), ALARM.color)
 	alarm.light_energy = 0.0
 	alarm.omni_range = ALARM.range
-	return {"node": n, "light": m, "door": Mech.add_part(n, "gate_door", MATS, "core_siege"),
+	return {"node": n, "light": m, "reach": make_reach(n, Siege.MODULE.gate), "door": Mech.add_part(n, "gate_door", MATS, "core_siege"),
 		"broken": Mech.add_part(n, "gate_broken", MATS, "core_siege"), "bar": back, "fill": fill, "bar_mat": bar_mat,
 		"alarm": alarm, "base": m.emission, "hp": g.hp, "hit": -ALARM.ticks}
 
@@ -900,6 +903,26 @@ func draw_gate(gv: Dictionary, g: Dictionary, wave: Dictionary) -> void:
 	gv.alarm.light_energy = ALARM.light if flash else 0.0
 
 
+func make_reach(parent: Node3D, r: float) -> MeshInstance3D:
+	var ring := Mech.add(parent, Mech.ring(REACH.inner, 1.0), Mech.flat(Color(Look.PAL.hazard, REACH.alpha), true), Vector3(0, REACH.y, 0))
+	ring.scale = Vector3(r, REACH.flat, r)
+	ring.visible = false
+	ring.set_meta("r", r)
+	return ring
+
+
+func reach(pad, gate) -> void:
+	var pulse := 1.0 + REACH.pulse * sin(tick / float(Sim.TICKS) * REACH.rate)
+	for i in pads.size():
+		pads[i].reach.visible = pad != null and is_equal_approx(pad.x, pads[i].node.position.x) and is_equal_approx(pad.y, pads[i].node.position.z)
+	for gv in gates:
+		gv.reach.visible = gate != null and is_equal_approx(gate.x, gv.node.position.x) and is_equal_approx(gate.y, gv.node.position.z)
+	for gv in gates + pads:
+		var ring: MeshInstance3D = gv.reach
+		var r: float = ring.get_meta("r")
+		ring.scale = Vector3(r * pulse, REACH.flat, r * pulse)
+
+
 func make_pad(p: Dictionary) -> Dictionary:
 	var n := Node3D.new()
 	n.position = Vector3(p.x, 0, p.y)
@@ -914,14 +937,29 @@ func make_pad(p: Dictionary) -> Dictionary:
 	Mech.add_part(mods.laser, "tesla", MATS, "arena")
 	var orb := Mech.add_part(mods.laser, "tesla_orb", MATS, "arena")
 	orb.position.y = 2.0
+	mods.turret = Node3D.new()
+	mods.turret.scale = Vector3.ONE * TURRET.size
+	n.add_child(mods.turret)
+	Mech.add_part(mods.turret, "mod_turret", MATS, "core_siege")
+	var head := Mech.add_part(mods.turret, "mod_turret_head", MATS, "core_siege")
 	for k in mods:
 		mods[k].visible = false
-	return {"node": n, "mods": mods}
+	return {"node": n, "mods": mods, "head": head, "shot": 0, "reach": make_reach(n, Siege.MODULE.pad)}
 
 
-func draw_pad(pv: Dictionary, module: String) -> void:
+func draw_pad(pv: Dictionary, pd: Dictionary) -> void:
 	for k in pv.mods:
-		pv.mods[k].visible = k == module
+		pv.mods[k].visible = k == pd.module
+	if pd.module != "turret":
+		return
+	var head: Node3D = pv.head
+	head.visible = pd.hp > 0
+	head.rotation.y = lerp_angle(head.rotation.y, -pd.aim - yaw(pd.lane), TURRET.turn)
+	var every: int = Siege.MODULE.turret.every
+	head.position.x = -TURRET.kick * clampf(pd.cd / float(every), 0.0, 1.0) ** 4
+	if pd.cd == every and pv.shot != tick:
+		pv.shot = tick
+		Fx.flash(self, head.to_global(TURRET.muzzle), TURRET.flash, TURRET.flash_secs, Color(1.0, 0.85, 0.4))
 
 
 func make_camp(c: Dictionary) -> Dictionary:

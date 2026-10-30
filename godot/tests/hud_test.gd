@@ -3,7 +3,7 @@ extends SceneTree
 const Sim = preload("res://src/sim.gd")
 const Look = preload("res://src/look.gd")
 
-const KEYS := ["nameMech0", "nameMech1", "nameMech2", "nameMech3", "whoYou", "whoBot", "barLarm", "barHead", "barCore", "barRarm", "barLegs", "jam", "heatN", "kLmb", "kRmb", "kcTag", "kcSkipOr", "backGarage", "keyEnter", "soundTitle", "radialShop", "radialNote", "radialHint", "siegeWave", "siegeBest", "siegeTiers", "siegeRecall", "siegeCrate", "siegeShop", "siegeKeys", "siegeLost", "siegeHeld", "capQ", "capE", "capR", "capSpace", "capLt", "capRt", "capLb", "capRb", "capL3", "capR3", "slotShield", "round", "go", "ko", "timeUp", "victory", "defeat", "mPaused", "mResume", "mRestart", "mGarage", "closing", "ventsOn", "healReady", "overheat"]
+const KEYS := ["nameMech0", "nameMech1", "nameMech2", "nameMech3", "whoYou", "whoBot", "barLarm", "barHead", "barCore", "barRarm", "barLegs", "jam", "heatN", "kLmb", "kRmb", "kcTag", "kcSkipOr", "backGarage", "keyEnter", "soundTitle", "radialShop", "radialNote", "radialHint", "siegeWave", "siegeBest", "siegeTiers", "siegeRecall", "siegeCrate", "siegeShop", "siegeBuildHint", "radialSquare", "radialSquareNote", "radialGate", "radialGateNote", "shop_turret", "shop_gate", "shop_rebuild", "siegeKeys", "siegeLost", "siegeHeld", "capQ", "capE", "capR", "capSpace", "capLt", "capRt", "capLb", "capRb", "capL3", "capR3", "slotShield", "round", "go", "ko", "timeUp", "victory", "defeat", "mPaused", "mResume", "mRestart", "mGarage", "closing", "ventsOn", "healReady", "overheat"]
 
 var failed := 0
 var filter := ""
@@ -19,6 +19,7 @@ func _initialize() -> void:
 	await run("pause_shows_three_slabs_and_five_sliders_only_while_paused", test_pause)
 	await run("a_round_win_is_remembered_for_the_match_over_list", test_rounds)
 	await run("an_ffa_match_runs_and_draws_four_bars", test_ffa)
+	await run("each_wheel_sells_only_its_own_things_and_dims_what_the_fund_cannot_pay", test_wheels)
 	await run("a_four_player_siege_shows_allies_and_keeps_its_arrows_clear_of_the_hud", test_siege)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
@@ -90,6 +91,38 @@ func test_siege() -> int:
 	m.state.siege.wave.live = false
 	box = hud.siege_box(size)
 	bad += ensure(not box.intersects(Rect2(size.x - 266, 16, 250, 300)), "edge arrows stay clear of the team shop in the build phase")
+	m.queue_free()
+	return bad
+
+
+func ids(menu: Array) -> Array:
+	return menu.map(func(e): return e.id)
+
+
+func test_wheels() -> int:
+	var m = await start_siege(1)
+	var sg: Dictionary = m.state.siege
+	var me: Dictionary = m.state.mechs[0]
+	sg.fund = 1000
+	var bad := 0
+	var plaza: Array = m.hud.shop_menu(0, "plaza")
+	var team: Array = plaza.filter(func(e): return e.id == "team")[0].sub
+	bad += ensure(ids(team) == ["ring", "garrison"], "the plaza team wedge sells a core ring and a garrison only, got %s" % [ids(team)])
+	bad += ensure(not ids(plaza).has("wall") and not ids(plaza).any(func(i): return i in ["gate", "rebuild", "modules"]), "no module or gate buy in the plaza")
+	me.x = sg.pads[1].x
+	me.y = sg.pads[1].y
+	var square: Array = m.hud.shop_menu(0, "square")
+	bad += ensure(ids(square) == ["wall", "mine", "laser", "post", "turret"], "the square wheel sells the five modules, got %s" % [ids(square)])
+	bad += ensure(square.all(func(e): return e.enabled), "an empty pad with 1000 in the fund can buy all of them")
+	sg.fund = 100
+	square = m.hud.shop_menu(0, "square")
+	bad += ensure(square.filter(func(e): return not e.enabled).map(func(e): return e.id) == ["laser", "post", "turret"], "what 100 cannot pay is dimmed")
+	sg.fund = 1000
+	me.x = sg.gates[2].x
+	me.y = sg.gates[2].y
+	sg.gates[2].hp = 100.0
+	var gate: Array = m.hud.shop_menu(0, "gate")
+	bad += ensure(ids(gate) == ["gate", "rebuild"] and gate[0].enabled and not gate[1].enabled, "a hurt, standing gate can be repaired, not rebuilt")
 	m.queue_free()
 	return bad
 

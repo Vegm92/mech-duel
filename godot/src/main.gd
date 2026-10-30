@@ -27,6 +27,7 @@ const CAMS := [[], [0.6, 0.3, 5.0, true], [PI / 2, 0.12, 5.0, true], [PI + 0.6, 
 const DEAD := 0.2
 const REACH := 16.0
 const LOOKBACK := 6
+const WHEEL := {"plaza": ["radialShop", "radialNote"], "square": ["radialSquare", "radialSquareNote"], "gate": ["radialGate", "radialGateNote"]}
 const PAD := {"dash": JOY_BUTTON_LEFT_SHOULDER, "shield": JOY_BUTTON_RIGHT_SHOULDER, "hook": JOY_BUTTON_LEFT_STICK, "ult": JOY_BUTTON_RIGHT_STICK}
 const TRIGGER := {"left": JOY_AXIS_TRIGGER_LEFT, "right": JOY_AXIS_TRIGGER_RIGHT}
 const SANDBOX := {"gap": 0.8, "pad": 0.8, "min": 2.4, "max": 10.0, "refill": 0.5, "cam": 1.1, "guard": 2.5, "dash": 80}
@@ -103,10 +104,12 @@ var wave_arg := 1
 var director_on := false
 var spawn_arg := ""
 var modules_arg := false
+var turret_arg := false
 var top_arg := false
 var guard_arg := 0
 var farm_arg := false
-var shop_arg := false
+var shop_arg := ""
+var shop_kind := ""
 var core_arg_pct := -1.0
 var shot_on := ""
 var allies := []
@@ -179,8 +182,8 @@ func _ready() -> void:
 			auto_ult = true
 		elif a == "--siege":
 			siege = true
-		elif a == "--shop":
-			shop_arg = true
+		elif a == "--shop" or a.begins_with("--shop="):
+			shop_arg = a.substr(7) if a.contains("=") else "plaza"
 		elif a == "--farm":
 			farm_arg = true
 		elif a.begins_with("--guard="):
@@ -193,6 +196,8 @@ func _ready() -> void:
 			shot_on = a.substr(10)
 		elif a == "--modules":
 			modules_arg = true
+		elif a == "--turret":
+			turret_arg = true
 		elif a.begins_with("--spawn="):
 			spawn_arg = a.substr(8)
 		elif a.begins_with("--director="):
@@ -420,6 +425,15 @@ func new_match() -> void:
 				Siege.build(state, state.siege.pads[b[0]], b[1])
 		if Siege.BOTS.has(spawn_arg):
 			Siege.look(state, spawn_arg)
+		if turret_arg:
+			var pd: Dictionary = state.siege.pads[1]
+			Siege.build(state, pd, "turret")
+			state.mechs[0].x = pd.x + 3.0
+			state.mechs[0].y = pd.y - 2.0
+			Siege.look(state, "heavy")
+			for e in state.siege.enemies:
+				state.mechs[e.m].x = pd.x + e.side
+				state.mechs[e.m].y = pd.y - 9.0
 	elif Sim.FORMATS.has(format_arg) and format_arg != "1v1":
 		var los := [progress.with_levels(loadout.duplicate()), rival]
 		extras = []
@@ -606,12 +620,23 @@ func _input(event: InputEvent) -> void:
 			tapped[k] = true
 
 
+func show_reach() -> void:
+	var sg: Dictionary = state.siege
+	var m: Dictionary = state.mechs[0]
+	var kind := Siege.where(sg, m) if not sg.wave.live and not m.ko else ""
+	siege_view.reach(Siege.pad_at(sg, m, Siege.MODULE.pad) if kind == "square" else null, Siege.gate_at(sg, m) if kind == "gate" else null)
+
+
 func open_shop() -> void:
 	if not siege or shop.visible or paused or state.phase == "over" or state.mechs[0].ko:
 		return
-	if Sim.hypot(state.mechs[0].x, state.mechs[0].y) > Siege.S.PLAZA:
+	var kind := Siege.where(state.siege, state.mechs[0])
+	if kind == "" or (kind != "plaza" and state.siege.wave.live):
 		return
-	shop.open(hud.shop_menu(0))
+	shop_kind = kind
+	shop.heading = WHEEL[kind][0]
+	shop.caption = WHEEL[kind][1]
+	shop.open(hud.shop_menu(0, kind))
 
 
 func _notification(what: int) -> void:
@@ -672,19 +697,29 @@ func _physics_process(delta: float) -> void:
 			Sim.step(state, ins)
 		if not siege and extras.is_empty() and Killcam.wants(state, rec):
 			start_replay()
-	if siege and shop_arg and state.tick == 60:
+	if siege and shop_arg != "" and state.tick == 60:
 		state.siege.fund += 2000
 		state.siege.wallets[0] += 600
+		var me: Dictionary = state.mechs[0]
+		var at: Dictionary = {"square": state.siege.pads[1], "gate": state.siege.gates[0]}.get(shop_arg, me)
+		me.x = at.x
+		me.y = at.y
+		me.tx = at.x
+		me.ty = at.y
+		if shop_arg == "gate":
+			state.siege.gates[0].hp = state.siege.gates[0].max * 0.4
 		open_shop()
 	if siege and shop.visible:
-		if state.mechs[0].ko or Sim.hypot(state.mechs[0].x, state.mechs[0].y) > Siege.S.PLAZA:
+		var sg: Dictionary = state.siege
+		if state.mechs[0].ko or Siege.where(sg, state.mechs[0]) != shop_kind or (shop_kind != "plaza" and sg.wave.live):
 			shop.close()
 		elif state.tick % 10 == 0:
-			shop.refresh(hud.shop_menu(0))
+			shop.refresh(hud.shop_menu(0, shop_kind))
 	if not frozen and not held:
 		view.sync(state, aim, delta)
 		if siege:
 			siege_view.update(state.siege)
+			show_reach()
 			siege_bots.sync(state.siege, delta)
 	track()
 	crowd_sound.update(view.fresh_fx, 0.0 if siege else view.hype, state.phase == "fight" and not paused and not siege, not paused)

@@ -37,7 +37,7 @@ const READOUT := {
 	"rarm": [Vector2(158, 71), 52.0, Vector2(150, 66), HORIZONTAL_ALIGNMENT_RIGHT],
 	"legs": [Vector2(85, 99), 50.0, Vector2(80, 120), HORIZONTAL_ALIGNMENT_CENTER],
 }
-const SHOP := ["gate", "rebuild", "ring", "wall", "mine", "laser", "post", "garrison"]
+const SHOP: Array = Siege.WHEEL.plaza
 const WALLET := ["kit", "coolant", "surge", "reinforce", "revive"]
 const TIER_ROWS := ["left", "right", "head", "arms", "legs", "booster", "core"]
 const A := Look.ARCADE
@@ -956,7 +956,7 @@ func siege_left(size: Vector2) -> void:
 		txt(tr("siegeRecall"), Vector2(16, y + 10), 11, A.team[1])
 		skew_bar(Rect2(16, y + 16, ROW_W, 8), rc.t / float(rc.max), A.team[1])
 		y += 34.0
-	if shop_open():
+	if get_children().any(func(c): return c.has_method("refresh") and c.visible and c.heading == "radialShop"):
 		siege_tiers(Vector2(16, y))
 
 
@@ -1015,11 +1015,11 @@ func siege_shop(size: Vector2) -> void:
 		var can: bool = cost >= 0 and sg.fund >= cost
 		var r := Rect2(x, 36 + i * 34, 250, 30)
 		poly(rect_poly(r), Color(A.panel, 0.92))
-		poly(rect_poly(Rect2(r.position + Vector2(10, 5), Vector2(20, 20))), A.hazard if can else A.line)
-		txt(str(i + 1), r.position + Vector2(10, 20), 11, A.ground if can else A.dim, HORIZONTAL_ALIGNMENT_CENTER, 20.0)
-		txt(tr("shop_" + k).format({"t": sg.garrison.tier + 1}), r.position + Vector2(40, 20), 12, Color.WHITE if can else A.dim)
+		txt(tr("shop_" + k).format({"t": sg.garrison.tier + 1}), r.position + Vector2(12, 20), 12, Color.WHITE if can else A.dim)
 		if cost >= 0:
 			txt(str(cost), Vector2(r.position.x, r.position.y + 21), 14, Color.WHITE if can else A.dim, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 10.0, heavy)
+	poly(rect_poly(Rect2(x, 36 + SHOP.size() * 34, 250, 22)), Color(A.panel, 0.92))
+	txt(tr("siegeBuildHint"), Vector2(x + 10, 36 + SHOP.size() * 34 + 15), 11, A.soft)
 	var left: int = int(ceil(maxf(0, sg.wave.next_in - 480) / float(Sim.TICKS)))
 	var y := size.y - 96.0
 	var cx := size.x / 2.0
@@ -1032,7 +1032,26 @@ func siege_shop(size: Vector2) -> void:
 	txt(keys, Vector2(0, y + 62.0), 12, A.soft, HORIZONTAL_ALIGNMENT_CENTER, size.x)
 
 
-func shop_menu(i: int) -> Array:
+func build_menu(i: int, kind: String) -> Array:
+	var sg: Dictionary = state.siege
+	var m: Dictionary = state.mechs[i]
+	var pd = Siege.pad_at(sg, m, Siege.MODULE.pad)
+	var g = Siege.gate_at(sg, m)
+	var out := []
+	for k in Siege.WHEEL[kind]:
+		var c: int = Siege.SHOP[k]
+		var ok: bool = not sg.wave.live and sg.fund >= c
+		if kind == "square":
+			ok = ok and pd != null and (pd.module == "" or (pd.module == k and pd.get("hp", 1) <= 0))
+		elif g != null:
+			ok = ok and (g.hp <= 0 if k == "rebuild" else g.hp > 0 and g.hp < g.max)
+		out.append({"id": k, "label_key": "shop_" + k, "cost": c, "enabled": ok, "sub": [], "note": tr("noteFund").format({"n": sg.fund})})
+	return out
+
+
+func shop_menu(i: int, kind := "plaza") -> Array:
+	if kind != "plaza":
+		return build_menu(i, kind)
 	var sg: Dictionary = state.siege
 	var m: Dictionary = state.mechs[i]
 	var w: int = sg.wallets[i]
@@ -1054,9 +1073,9 @@ func shop_menu(i: int) -> Array:
 		if not keys.is_empty():
 			parts.append({"id": "parts:" + slot, "label_key": "tierShort_" + slot, "cost": -1, "enabled": true, "sub": keys.slice(0, 8), "note": ""})
 	var team := []
-	for k in ["gate", "rebuild", "ring", "wall", "mine", "laser", "post", "garrison"]:
+	for k in SHOP:
 		var c: int = Siege.next_cost(sg) if k == "garrison" else Siege.SHOP[k]
-		team.append({"id": k, "label_key": "shop_" + k, "cost": c, "enabled": c >= 0 and not sg.wave.live and sg.fund >= c, "sub": [], "note": tr("noteFund").format({"n": sg.fund}) if k == "gate" else ""})
+		team.append({"id": k, "label_key": "shop_" + k, "cost": c, "enabled": c >= 0 and not sg.wave.live and sg.fund >= c, "sub": [], "note": tr("noteFund").format({"n": sg.fund}) if k == "ring" else ""})
 	var group := func(id: String, key: String, sub: Array) -> Dictionary:
 		return {"id": id, "label_key": key, "cost": -1, "enabled": true, "sub": sub, "note": ""}
 	return [

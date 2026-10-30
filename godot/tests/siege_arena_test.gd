@@ -37,6 +37,19 @@ func _process(_dt: float) -> bool:
 		s.pads[k].module = ["wall", "mine", "laser"][k]
 	v.update(s)
 	check(v.gates.size() == 4 and v.pads.size() == 12, "4 gates and 12 build pads from the state")
+	var tp: Dictionary = s.pads[4]
+	tp.merge({"module": "turret", "hp": 600.0, "max": 600, "aim": 0.0, "cd": 0}, true)
+	v.update(s)
+	check(v.pads[4].mods.turret.visible and v.pads[4].head.visible and not v.pads[4].mods.wall.visible, "a turret pad shows the turret and its head")
+	tp.hp = 0.0
+	v.update(s)
+	check(v.pads[4].mods.turret.visible and not v.pads[4].head.visible, "a destroyed turret loses its head")
+	tp.module = ""
+	v.reach(s.pads[5], null)
+	check(v.pads[5].reach.visible and not v.pads[4].reach.visible and not v.gates[0].reach.visible, "the pad in reach gets a highlight ring, no other does")
+	v.reach(null, s.gates[1])
+	check(v.gates[1].reach.visible and not v.gates[0].reach.visible and not v.pads[5].reach.visible, "the gate in reach gets the ring, the pad ring goes out")
+	v.reach(null, null)
 	var stray := 0
 	for f in v.fans:
 		var at: Vector3 = f[0].origin

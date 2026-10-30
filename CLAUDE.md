@@ -203,7 +203,7 @@ $P = "$R\godot"
   special case; dead bodies are recycled (`gone`). Arena shape lives in `state.geo` (walls,
   pillars, solids, `boxes` with optional `only` team + `hp` = gates, `rings` with lane `gaps`);
   `Sim.geo(state)` falls back to the duel arena, so the duel and its `GOLDEN` are untouched.
-  Fortress has no auto-aim: only traps and player-aimed guns. Bots are data rows in `Siege.BOTS`
+  Fortress has no auto-aim except the auto turret module: only traps and player-aimed guns otherwise. Bots are data rows in `Siege.BOTS`
   (attack `bolt`, `bite`, `lunge`, `claw` + `gun`, `rail`, `salvo`, `cannon`, `ram`; flags `fly`,
   `vent`, `plant`, `hunt`, `keep`, `first`, `dodge`, `pack`; size `r` read by `Sim.rad`), Mk 1..3
   scale through `MK`. Bot shells reuse `state.lobs` (`shell_land` hurts gates and the core), the
@@ -212,12 +212,28 @@ $P = "$R\godot"
   `LAST` (30), `ENDLESS`; a row has `lanes`, `pool`, `must`, `mk`, `boss`; `plan` fills
   `budget(n, team)` with `SQUADS`, spreads them over lanes, tanks first, `RANGED` 5 s later, and
   emits a `warn` fx per lane 8 s ahead. Scrap: kills pay 5 × cost, a wave cleared above 75% core
-  pays +20%, G calls the wave early (+2 per second skipped). Build phase shop (`SHOP`, keys 1-8,
-  `buy` in the input): gate repair, gate rebuild, core ring, mech repair, and pad modules
-  (`MODULE`): barricade (a `boxes` entry bots must break), mine field (re-armed each wave), lane
-  laser (fixed beam on a 3 s cycle, 1 s `laserWarn`), rail post (X fires a rail on your own aim).
+  pays +20%, G calls the wave early (+2 per second skipped). Build phase buys (`SHOP` prices,
+  `buy` in the input, no number keys any more; Victor 2026-10-30): **where you stand picks the Shift
+  wheel** (`Siege.where`: `gate` within `MODULE.gate` of a gate, else `plaza` within 14 m of the core,
+  else `square` within `MODULE.pad` of a lane pad; `Siege.WHEEL` lists each wheel's items). Square
+  wheel = pad modules (`MODULE`): barricade (a `boxes` entry bots must break), mine field (re-armed
+  each wave), lane laser (fixed beam on a 3 s cycle, 1 s `laserWarn`), rail post (X fires a rail on
+  your own aim), auto turret (`gun`: nearest bot within `MODULE.turret.range`, hitscan every
+  `every` ticks, a small `boxes` entry like the barricade so bots shoot it down; `side` 0 in
+  `target` so melee bots line up on it). Gate wheel = repair +20% / rebuild at 50% for the gate you
+  stand at (`gate_at`). Plaza wheel keeps tiers, parts, heals and a Team wedge of Core ring +
+  Garrison only. All of them are build phase only except the plaza's wallet items.
+  View: the turret is `mod_turret` (base) + `mod_turret_head` in `core_siege.glb` (`art/core_siege_build.py`);
+  `siege_view.draw_pad` swivels the head to `pd.aim`, kicks it back after a shot (`TURRET`) and flashes the
+  muzzle; a destroyed turret loses its head. `siege_view.reach(pad, gate)` (fed by `main.show_reach`) lights a
+  yellow floor ring (`REACH`) on the pad or gate you can buy at. Look flags: `--turret` (turret on lane pad 1,
+  3 heavies in range; pair with `--shot-on=zap --at=600`), `--shop=square|gate|plaza`. Evidence:
+  `production/qa/evidence/lane-build-{square-wheel,gate-wheel,plaza-wheel,turret-firing}-2026-10-30.png`.
+  After changing the .blend: `blender -b art/core_siege.blend --python tools/blender_export.py -- --build --save`
+  reads the text block inside the .blend, so paste `art/core_siege_build.py` into it first; run Godot with
+  `--headless --import` once so the new .glb parts load.
   AI allies hold lane posts, fall back to the core when a bot gets inside, repair it between
-  waves and buy only rings and gate fixes. HUD: wave plate, shop, warning markers over gates
+  waves, buy rings, and walk to a hurt or broken gate to fix it (`chore_for`). HUD: wave plate, shop, warning markers over gates
   (edge arrow off screen), red arrows to gates or the core under attack. `--modules` builds one
   of each on the north lane. Progression: clearing wave 10, 20, 30 (`milestone` fx) opens the
   claim screen with a full set (`Progress.SIEGE_SPOILS`: tank, artillery, reflector); the best
@@ -251,15 +267,16 @@ $P = "$R\godot"
   `revive` are instant (`WALLET`). Wallets start at `TIER.wallet` and every lane kill pays each
   player `TIER.share` × cost. Recall: hold B (pad X) 3 s, a hit breaks it (`recall`,
   `siege.recall`, 25 s cooldown). **Radial shop**: `radial.gd` (owned by `siege-bots`), opened by
-  main.gd `open_shop` on the `siege_shop` action (physical Shift, pad Y) in the plaza only; entries
-  from `hud.shop_menu`, a pick sets `tapped.buy`; while open, fire and aim are off and the sim
-  keeps running; it closes when you leave the plaza. No punctuation keys are bound (a Spanish
+  main.gd `open_shop` on the `siege_shop` action (physical Shift, pad Y) in the plaza, at a lane
+  square or at a gate (`shop_kind`, `radial.heading` / `caption` per kind); entries from
+  `hud.shop_menu(i, kind)`, a pick sets `tapped.buy`; while open, fire and aim are off and the sim
+  keeps running; it closes when `Siege.where` changes. No punctuation keys are bound (a Spanish
   layout moves them). V / pad A = crates and donating. `siege.buys` counts purchases (arena buy
   pulse). AI teammates (`ai_wallet`, `next_buy`, `AI_SHOP`) walk in between waves to buy tiers in
   order hands → plating → engine → core, buy a kit when hurt, recall when hurt or rich.
   Balance tool: `tools/siege_balance.gd` (`-s <abs path> -- --from=<wave> --waves=<n> --team=<n>
   --tiers=<0..5> --guard=<0..5> --seeds=a,b`), one BALANCE line per seed. Look flags: `--shop`
-  (opens the radial with scrap), `--farm` (your autopilot farms), `--guard=<tier>`.
+  (opens the radial with scrap; `--shop=square|gate|plaza` stands on lane pad 1 / gate 0 first), `--farm` (your autopilot farms), `--guard=<tier>`.
   Bot HP follows the default Rivet (42 dmg since the duel balance pass): scout 1 hit, swarm 1,
   spider 2, walker 7 (table in `CORE_SIEGE_DESIGN.md` 8b2, `default_weapon_kills_*` checks it).
   **Director** (Victor 2026-10-28, spec `CORE_SIEGE_DIRECTOR.md`): `siege.gd` `sense` takes one

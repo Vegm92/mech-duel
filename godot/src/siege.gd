@@ -10,7 +10,11 @@ const RUN := {
 	"buildLate": 15 * Sim.TICKS, "gateSoak": 0.5, "late": 20, "ranged": 5 * Sim.TICKS, "call": 2, "clear": 0.2,
 	"scrap": 3, "aggro": 6.0, "post": 21.0, "leash": 14.0, "corpse": 90, "spawnRing": 7.0, "players": 0.4,
 }
-const SHOP := {"gate": 40, "rebuild": 120, "ring": 200, "wall": 60, "mine": 80, "laser": 150, "post": 120, "garrison": 0}
+const MODULE := {"pad": 4.0, "gate": 4.5, "wall": {"hp": 800, "depth": 1.0, "len": 6.0}, "mine": {"n": 4, "spread": 2.5, "dmg": 60, "arm": 30},
+	"laser": {"every": 180, "warn": 60, "dmg": 80, "half": 0.6}, "post": {"dmg": 120, "cd": 240, "reach": 2.0, "range": 40.0, "half": 0.5},
+	"turret": {"cost": 180, "hp": 600, "depth": 1.6, "len": 1.6, "range": 22.0, "dmg": 6, "every": 12, "muzzle": 2.5}}
+const SHOP := {"gate": 40, "rebuild": 120, "ring": 200, "wall": 60, "mine": 80, "laser": 150, "post": 120, "turret": MODULE.turret.cost, "garrison": 0}
+const WHEEL := {"square": ["wall", "mine", "laser", "post", "turret"], "gate": ["gate", "rebuild"], "plaza": ["ring", "garrison"]}
 const WALLET := {"kit": 40, "coolant": 20, "surge": 60, "reinforce": 100, "revive": 50}
 const TIER := {
 	"base": {"left": 40, "right": 40, "head": 35, "arms": 35, "legs": 35, "booster": 30, "core": 45},
@@ -23,8 +27,6 @@ const SWAP := {"light": 60, "standard": 150, "heavy": 300, "loads": [14, 18]}
 const YARD := {"wake": 8.0, "leash": 18.0, "wakeTime": 30, "pay": 25.0, "elite": 5, "raidFrom": 15, "raid": ["scoutPack", "ambush"],
 	"reinforce": 1.15, "donate": 10, "donateEvery": 15, "crush": {"every": 360, "warn": 60, "dmg": 60}, "emp": {"every": 480, "on": 120, "tick": 30, "dmg": 10, "slow": 40},
 	"farmLeash": 22.0, "raidAt": [72.0, 48.0]}
-const MODULE := {"pad": 2.5, "wall": {"hp": 800, "depth": 1.0, "len": 6.0}, "mine": {"n": 4, "spread": 2.5, "dmg": 60, "arm": 30},
-	"laser": {"every": 180, "warn": 60, "dmg": 80, "half": 0.6}, "post": {"dmg": 120, "cd": 240, "reach": 2.0, "range": 40.0, "half": 0.5}}
 const SQUADS := {
 	"scoutPack": [["scout", 4]], "swarmCloud": [["swarm", 2]], "raiders": [["scout", 2], ["flyer", 1]], "ambush": [["spider", 3]],
 	"firebase": [["turret", 1], ["swarm", 2]], "airWing": [["flyer", 3]], "lineBreakers": [["walker", 2]], "ram": [["jugg", 1], ["scout", 3]],
@@ -305,6 +307,10 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 	var mend: bool = not sg.wave.live and c.hp < c.max * (4 - c.broken) / 4.0
 	if mend or (not sg.wave.live and next_buy(sg, m) != ""):
 		post = S.at(id % 4, S.CORE.repair - 1.5)
+	var chore := chore_for(sg)
+	if not chore.is_empty():
+		post = chore.at
+		mend = true
 	var o = Bot.pick(state, brain, m)
 	if farmer and not mend and not Sim.foes(state, id).any(func(t): return t.team == 1 and Sim.hypot(t.x, t.y) < S.RING_OUT + 2.0):
 		var f := farm(state, sg, m, o, inp)
@@ -322,12 +328,21 @@ static func ally_input(state, brain, id: int) -> Dictionary:
 			for k in ["left", "right", "hook", "shield", "ult"]:
 				inp[k] = false
 	ai_wallet(state, sg, m, inp)
-	if not sg.wave.live:
-		for item in ["ring", "rebuild", "gate"]:
-			if sg.fund >= SHOP[item] and (c.broken > 0 if item == "ring" else sg.gates.any(func(g): return g.hp <= 0 if item == "rebuild" else g.hp > 0 and g.hp < g.max * 0.6)):
-				inp.buy = item
-				break
+	if not chore.is_empty() and Sim.hypot(chore.at.x - m.x, chore.at.y - m.y) <= 2.0:
+		inp.buy = chore.item
+	elif not sg.wave.live and c.broken > 0 and sg.fund >= SHOP.ring:
+		inp.buy = "ring"
 	return inp
+
+
+static func chore_for(sg: Dictionary) -> Dictionary:
+	if sg.wave.live:
+		return {}
+	for item in ["rebuild", "gate"]:
+		for g in sg.gates:
+			if sg.fund >= SHOP[item] and (g.hp <= 0 if item == "rebuild" else g.hp > 0 and g.hp < g.max * 0.6):
+				return {"item": item, "at": {"x": g.x, "y": g.y}}
+	return {}
 
 
 static func ai_wallet(state, sg: Dictionary, m: Dictionary, inp: Dictionary) -> void:
@@ -591,11 +606,11 @@ static func target(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dicti
 		var mine := along(b, e.lane)
 		var wall = null
 		for pd in sg.pads:
-			if pd.lane == e.lane and pd.module == "wall" and pd.hp > 0 and along(pd, e.lane) < mine and (wall == null or along(pd, e.lane) > along(wall, e.lane)):
+			if pd.lane == e.lane and pd.module in ["wall", "turret"] and pd.hp > 0 and along(pd, e.lane) < mine and (wall == null or along(pd, e.lane) > along(wall, e.lane)):
 				wall = pd
 		if wall != null:
-			var half: float = MODULE.wall.depth / 2.0
-			return {"x": wall.x, "y": wall.y, "r": half, "hit": wall, "face": along(wall, e.lane) + half}
+			var half: float = MODULE[wall.module].depth / 2.0
+			return {"x": wall.x, "y": wall.y, "r": half, "hit": wall, "face": along(wall, e.lane) + half, "side": 0.0 if wall.module == "turret" else e.side}
 		var g: Dictionary = sg.gates[e.lane]
 		if g.hp > 0:
 			return {"x": g.x, "y": g.y, "r": (S.RING_OUT - S.RING_IN) / 2.0, "hit": g, "face": S.RING_OUT}
@@ -654,7 +669,7 @@ static func route(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dictio
 		if k.get("first", "") == "core":
 			return S.at(e.lane, maxf(S.RING_OUT + 4.0, stand), e.side)
 		if tgt.has("face"):
-			return S.at(e.lane, tgt.face + (k.r + 0.1 if k.range < 5.0 else maxf(stand, k.r + 0.6)), e.side)
+			return S.at(e.lane, tgt.face + (k.r + 0.1 if k.range < 5.0 else maxf(stand, k.r + 0.6)), tgt.get("side", e.side))
 		return S.at(e.lane, S.RING_IN - 2.0, clampf(e.side, -3.0, 3.0))
 	return approach(b, c, c.r + maxf(stand, k.r + 0.6))
 
@@ -1345,6 +1360,21 @@ static func pad_at(sg: Dictionary, m: Dictionary, reach: float):
 	return null
 
 
+static func gate_at(sg: Dictionary, m: Dictionary):
+	for g in sg.gates:
+		if Sim.hypot(g.x - m.x, g.y - m.y) <= MODULE.gate:
+			return g
+	return null
+
+
+static func where(sg: Dictionary, m: Dictionary) -> String:
+	if gate_at(sg, m) != null:
+		return "gate"
+	if Sim.hypot(m.x - sg.core.x, m.y - sg.core.y) <= S.PLAZA:
+		return "plaza"
+	return "square" if pad_at(sg, m, MODULE.pad) != null else ""
+
+
 static func buy(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
 	if WALLET.has(item) or item.begins_with("tier:") or item.begins_with("swap:"):
 		return spend(state, sg, item, m)
@@ -1354,19 +1384,11 @@ static func buy(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
 		return false
 	var c: Dictionary = sg.core
 	match item:
-		"gate":
-			var worst = null
-			for g in sg.gates:
-				if g.hp > 0 and g.hp < g.max and (worst == null or g.hp < worst.hp):
-					worst = g
-			if worst == null:
+		"gate", "rebuild":
+			var g = gate_at(sg, m)
+			if g == null or (g.hp <= 0 if item == "gate" else g.hp > 0) or (item == "gate" and g.hp >= g.max):
 				return false
-			worst.hp = minf(worst.max, worst.hp + worst.max * 0.2)
-		"rebuild":
-			var gone: Array = sg.gates.filter(func(g): return g.hp <= 0)
-			if gone.is_empty():
-				return false
-			gone[0].hp = gone[0].max * 0.5
+			g.hp = minf(g.max, g.hp + g.max * 0.2) if item == "gate" else g.max * 0.5
 		"ring":
 			if c.broken == 0:
 				return false
@@ -1802,15 +1824,18 @@ static func wipe(state, sg: Dictionary, c: Dictionary) -> void:
 static func build(state, pd: Dictionary, item: String) -> void:
 	pd.module = item
 	match item:
-		"wall":
+		"wall", "turret":
+			var W: Dictionary = MODULE[item]
 			var d := along(pd, pd.lane)
-			var half: float = MODULE.wall.depth / 2.0
-			var a := S.at(pd.lane, d - half, -MODULE.wall.len / 2.0)
-			var z := S.at(pd.lane, d + half, MODULE.wall.len / 2.0)
+			var half: float = W.depth / 2.0
+			var a := S.at(pd.lane, d - half, -W.len / 2.0)
+			var z := S.at(pd.lane, d + half, W.len / 2.0)
 			pd.merge(box(a.x, a.y, z.x, z.y), true)
 			pd.only = 1
-			pd.hp = float(MODULE.wall.hp)
-			pd.max = MODULE.wall.hp
+			pd.hp = float(W.hp)
+			pd.max = W.hp
+			pd.cd = 0
+			pd.aim = atan2(S.LANES[pd.lane].dy, S.LANES[pd.lane].dx)
 			if not state.geo.boxes.has(pd):
 				state.geo.boxes.append(pd)
 		"mine":
@@ -1834,6 +1859,8 @@ static func modules(state, sg: Dictionary) -> void:
 	for pd in sg.pads:
 		if pd.module == "post":
 			pd.cd = maxi(0, pd.cd - 1)
+		if pd.module == "turret" and pd.hp > 0:
+			gun(state, sg, pd)
 		if pd.module != "laser" or not sg.wave.live:
 			continue
 		pd.t += 1
@@ -1855,6 +1882,29 @@ static func modules(state, sg: Dictionary) -> void:
 				Sim.env_hit(state, t, L.dmg, "legs", 1, ang)
 		state.fx.append({"k": "zap", "kind": "laser", "x1": a.x, "y1": a.y, "x2": z.x, "y2": z.y, "t": 10})
 		state.fx.append({"k": "laneLaser", "x": pd.x, "y": pd.y, "t": 10})
+
+
+static func gun(state, sg: Dictionary, pd: Dictionary) -> void:
+	var T: Dictionary = MODULE.turret
+	pd.cd = maxi(0, pd.cd - 1)
+	if pd.cd > 0:
+		return
+	var best = null
+	var near := 0.0
+	for e in sg.enemies:
+		if e.act == "die" or e.neutral:
+			continue
+		var b = state.mechs[e.m]
+		var d := Sim.hypot(b.x - pd.x, b.y - pd.y)
+		if not b.ko and d <= T.range and (best == null or d < near):
+			best = b
+			near = d
+	if best == null:
+		return
+	pd.cd = T.every
+	pd.aim = atan2(best.y - pd.y, best.x - pd.x)
+	Sim.hit(state, state.mechs[0], best, T.dmg, "LEGS", 0, pd.aim + PI, Sim.next_cast(state))
+	state.fx.append({"k": "zap", "kind": "laser", "x1": pd.x + cos(pd.aim) * T.muzzle, "y1": pd.y + sin(pd.aim) * T.muzzle, "x2": best.x, "y2": best.y, "t": 4})
 
 
 static func fire_post(state, sg: Dictionary, m: Dictionary) -> void:
