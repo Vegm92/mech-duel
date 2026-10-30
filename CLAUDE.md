@@ -277,10 +277,11 @@ $P = "$R\godot"
   --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
   Not built yet: a second local player, netcode, VS (design only).
 - **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
-  and garage restyle on top of it). `hud.gd`: side panel for 1-2 mechs (`side_panel`, Victor 2026-10-30: bottom-left, 340×420 drawn at `SIDE_K` 0.5: heat and R gauges around a big
-  robot diagram whose parts show % of max armor with no names, six icon slots from `slot` / `icon_lines`: gun or
-  blade by weapon kind, shield, E skill, dash with pips, R with surge fill; states cooldown / jammed ×2; the
-  rival gets a mini diagram next to its name tag, `rival_bot`), with more mechs a grouped 70% bar per
+  and garage restyle on top of it). `hud.gd`: side panel for 1-2 mechs (`side_panel`, Victor 2026-10-30: bottom-left, 176×208, no text: heat and R gauges
+  around a robot diagram where every part is a health bar (`part_block`: green > 75%, yellow, orange, red,
+  black hatch = destroyed), six icon slots from `slot` / `icon_lines`: gun or blade by weapon kind, shield, E
+  skill, dash pips, R surge fill; a cooldown is a fill that rises (`cd_peak`), a jammed arm a red bottom bar; the
+  rival gets a mini health-bar diagram next to its name tag, `rival_bot`), with more mechs a grouped 70% bar per
   corner (`skill_bar`: `robot` + `group` + `key_cap`, K.O.'d ones faded), `top_bar` (skewed team tags + hex
   clock; score chips with more than 2 mechs), `callout` (Exo 2 between hazard stripes, -3°), `slam` (round end), `match_over`
   (round list from `rounds`, tracked in `_process`), `pause_screen` (slabs drawn over empty Buttons so focus
