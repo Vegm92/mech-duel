@@ -69,8 +69,9 @@ is broken) and across the plaza to the core. No navmesh, no pathfinding, determi
 - **Gates:** 1500 HP each, block bots only (players walk through and shoot out). Bots on a lane
   attack the gate until it breaks, then walk in. A broken gate is rebuilt between waves (scrap) at
   50% HP, or repaired 20% per purchase.
-- **Fortress modules** go on build pads (§5). None of them aims: the fortress only has **fixed traps**
-  and **player-aimed guns**.
+- **Fortress modules** go on build pads (§5). Most of them do not aim: the fortress has **fixed traps**
+  and **player-aimed guns**. Victor 2026-10-30: auto turret added (the one module that aims on its own:
+  it shoots the nearest bot in range; bots can destroy it, like a wall).
 
 ## 4. Enemies (tune later)
 
@@ -104,18 +105,29 @@ Rules shared by every bot:
 
 - Kills drop scrap = 5 × the bot's cost, shared by the team. A wave cleared with the core above 75%
   adds +20%.
-- Between waves (**build phase**, 25 s, 15 s from wave 21) the team spends scrap:
+- Between waves (**build phase**, 25 s, 15 s from wave 21) the team spends scrap. **Where you buy it**
+  (Victor 2026-10-30: "go to the lane I want to reinforce and, from the squares available there,
+  approach and with the same Shift buy and apply a buildable"): hold Shift (pad Y) and the radial that
+  opens depends on where you stand.
 
-| Buy | Cost | What |
-|---|---|---|
-| Gate repair | 40 | +20% gate HP |
-| Gate rebuild | 120 | broken gate back at 50% |
-| Core ring | 200 | rebuild the highest broken ring (core HP back to its line) |
-| Mech repair | 30 | refill every part of one mech |
-| Barricade wall | 60 | a 6 m wall on a build pad, 800 HP, blocks bots and shots |
-| Mine field | 80 | 4 mines on a build pad, 60 dmg each, re-arm every wave |
-| Lane laser | 150 | a fixed beam across the lane on a pad, fires on a 3 s cycle with a 1 s warning line; hits anything in the beam |
-| Rail post | 120 | a post the player stands on and fires by hand: a 120 dmg rail on the player's own aim, 4 s cooldown |
+| Buy | Cost | What | Bought at |
+|---|---|---|---|
+| Gate repair | 40 | +20% HP of the gate you stand at | gate wheel (within 4.5 m of a gate) |
+| Gate rebuild | 120 | that broken gate back at 50% | gate wheel |
+| Core ring | 200 | rebuild the highest broken ring (core HP back to its line) | plaza wheel, Team wedge |
+| Garrison | tier cost | one more Garrison tier (§8c) | plaza wheel, Team wedge |
+| Barricade wall | 60 | a 6 m wall on a build pad, 800 HP, blocks bots and shots | square wheel (within 4 m of a lane pad) |
+| Mine field | 80 | 4 mines on a build pad, 60 dmg each, re-arm every wave | square wheel |
+| Lane laser | 150 | a fixed beam across the lane on a pad, fires on a 3 s cycle with a 1 s warning line; hits anything in the beam | square wheel |
+| Rail post | 120 | a post the player stands on and fires by hand: a 120 dmg rail on the player's own aim, 4 s cooldown | square wheel |
+| Auto turret | 180 | aims at the nearest bot within 22 m and fires on its own, 30 dmg/s, 600 HP; bots shoot it down like a wall | square wheel |
+
+- **Square wheel:** an empty pad, or the same module rebuilt once destroyed. Entries dim when the fund
+  cannot pay. **Gate wheel:** fixes only the gate you stand at, not the worst one. **Plaza wheel**
+  (§8b2): weapons, upgrades, consumables, parts, and a Team wedge with only Core ring and Garrison.
+  The 1-8 keys build nothing; the build-phase list on the right shows what the plaza Team wedge sells
+  plus a hint line. AI allies walk to the gate they fix. Numbers: `MODULE` in `siege.gd`
+  (`pad`, `gate` reach; `turret`: cost, hp, range, dmg, every).
 
 - **Call next wave early:** press the call key in the build phase; bonus scrap = 2 × seconds left.
 
@@ -292,8 +304,10 @@ cooldown. Makes the yard ↔ plaza loop work.
 **Radial shop.** Hold Shift (pad Y) in the plaza (within 14 m of the core), move the mouse or stick
 toward a wedge, release or click to buy, right click / Esc / pad B goes back. The sim keeps running.
 Level 1: Weapons, Plating (head, arms, legs), Engine (legs, booster), Core, Heal (kit, coolant, surge
-cell), Parts (swap), Team (gate, rebuild, ring, barricade, mine, laser, rail post, Garrison; fund),
-Reinforce, Revive. Level 2 shows cost (dimmed when you can't pay) and the stat change. Keys checked
+cell), Parts (swap), Team (Core ring, Garrison; fund), Reinforce, Revive. Victor 2026-10-30: modules
+and gate fixes moved out of the plaza: Shift next to a lane square opens a Build wheel (barricade, mine
+field, lane laser, rail post, auto turret) and Shift next to a gate opens a Gate wheel (repair +20%,
+rebuild at 50%), both build phase only (§5). Level 2 shows cost (dimmed when you can't pay) and the stat change. Keys checked
 for the radial: Shift, B, V, X, G and 1-8 are free or siege-only; no punctuation keys are bound (a
 Spanish layout moves them). All bindings use physical keycodes.
 

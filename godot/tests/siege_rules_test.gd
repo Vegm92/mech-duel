@@ -50,6 +50,10 @@ func _init() -> void:
 	run("mine_field_blows_up_a_scout", test_mine_field_blows_up_a_scout)
 	run("lane_laser_warns_then_burns_what_stands_in_it", test_lane_laser_warns_then_burns_what_stands_in_it)
 	run("rail_post_fires_where_the_player_aims", test_rail_post_fires_where_the_player_aims)
+	run("square_wheel_builds_on_the_pad_in_reach", test_square_wheel_builds_on_the_pad_in_reach)
+	run("gate_wheel_fixes_the_gate_you_stand_at", test_gate_wheel_fixes_the_gate_you_stand_at)
+	run("plaza_sells_no_modules_or_gate_fixes", test_plaza_sells_no_modules_or_gate_fixes)
+	run("auto_turret_kills_a_bot_in_range_and_bots_can_destroy_it", test_auto_turret_kills_a_bot_in_range_and_bots_can_destroy_it)
 	run("calling_the_wave_early_pays_scrap", test_calling_the_wave_early_pays_scrap)
 	run("clean_wave_pays_a_bonus", test_clean_wave_pays_a_bonus)
 	run("clearing_wave_ten_offers_salvage", test_clearing_wave_ten_offers_salvage)
@@ -511,7 +515,9 @@ func test_gate_repair_and_rebuild_cost_scrap() -> int:
 	g.hp = 300.0
 	var h: Dictionary = s.siege.gates[2]
 	h.hp = 0.0
+	park(s, g.x, g.y)
 	var a := Siege.buy(s, s.siege, "gate", s.mechs[0])
+	park(s, h.x, h.y)
 	var b := Siege.buy(s, s.siege, "rebuild", s.mechs[0])
 	return ensure(a and g.hp == 300.0 + g.max * 0.2, "gate repair adds 20%%, got %d" % g.hp) or ensure(b and h.hp == h.max * 0.5, "rebuilt at 50%%") or ensure(s.siege.fund == 1000 - Siege.SHOP.gate - Siege.SHOP.rebuild, "paid %d" % (1000 - s.siege.fund))
 
@@ -1237,3 +1243,73 @@ func test_two_easy_waves_raise_the_tier_and_two_hard_waves_give_one_pity_wave() 
 	var row: Dictionary = t.siege.director.log[8]
 	var want := snappedf(Siege.budget(8, 2) * Siege.beat(8).mult * (1.0 - Siege.DIRECTOR.budget), 0.1)
 	return ensure(top and raised > 0.0, "easy waves raise the dial (%f) and the tier" % raised) or ensure(pity, "two hard waves ask for pity") or ensure(row.tactic == "straight" and absf(row.budget - want) < 0.11, "the pity wave is plain and 15%% smaller: %s" % [row]) or ensure(not t.siege.director.pity, "pity lasts one wave")
+
+
+func test_square_wheel_builds_on_the_pad_in_reach() -> int:
+	var s := shop()
+	var pd := on_pad(s, 1, 2)
+	var kind := Siege.where(s.siege, s.mechs[0])
+	var ok := Siege.buy(s, s.siege, "turret", s.mechs[0])
+	var taken := Siege.buy(s, s.siege, "mine", s.mechs[0])
+	var built: Array = s.siege.pads.filter(func(p): return p.module != "")
+	park(s, -15, 15)
+	var away := Siege.buy(s, s.siege, "wall", s.mechs[0])
+	return ensure(kind == "square", "standing on a lane pad opens the square wheel, got %s" % kind) or ensure(ok and built == [pd] and pd.module == "turret", "built on that pad only") or ensure(not taken, "an occupied pad takes nothing else") or ensure(not away, "nothing is built away from the pads") or ensure(s.siege.fund == 1000 - Siege.SHOP.turret, "paid once, got %d" % (1000 - s.siege.fund))
+
+
+func test_gate_wheel_fixes_the_gate_you_stand_at() -> int:
+	var s := shop()
+	var gs: Array = s.siege.gates
+	gs[0].hp = 100.0
+	gs[1].hp = 300.0
+	gs[2].hp = 0.0
+	park(s, gs[1].x, gs[1].y)
+	var kind := Siege.where(s.siege, s.mechs[0])
+	var fixed := Siege.buy(s, s.siege, "gate", s.mechs[0])
+	var alive := Siege.buy(s, s.siege, "rebuild", s.mechs[0])
+	park(s, gs[2].x, gs[2].y)
+	var gone := Siege.buy(s, s.siege, "gate", s.mechs[0])
+	var rebuilt := Siege.buy(s, s.siege, "rebuild", s.mechs[0])
+	park(s, -15, 15)
+	var away := Siege.buy(s, s.siege, "gate", s.mechs[0])
+	return ensure(kind == "gate", "standing at a gate opens the gate wheel") or ensure(fixed and gs[1].hp == 300.0 + gs[1].max * 0.2, "this gate got +20%") or ensure(gs[0].hp == 100.0, "the worst gate was not the one fixed") or ensure(not alive, "a standing gate cannot be rebuilt") or ensure(not gone, "a dead gate cannot be repaired") or ensure(rebuilt and gs[2].hp == gs[2].max * 0.5, "rebuilt at 50%") or ensure(not away, "no gate fixes away from a gate")
+
+
+func test_plaza_sells_no_modules_or_gate_fixes() -> int:
+	var s := shop()
+	park(s, 5, 5)
+	s.siege.gates[3].hp = 100.0
+	var kind := Siege.where(s.siege, s.mechs[0])
+	var wall := Siege.buy(s, s.siege, "wall", s.mechs[0])
+	var gate := Siege.buy(s, s.siege, "gate", s.mechs[0])
+	return ensure(kind == "plaza", "the middle is the plaza") or ensure(Siege.WHEEL.plaza == ["ring", "garrison"], "the team wedge sells a core ring and a garrison only") or ensure(not wall and not gate, "no module or gate fix is sold in the plaza") or ensure(s.siege.fund == 1000, "nothing was paid")
+
+
+func test_auto_turret_kills_a_bot_in_range_and_bots_can_destroy_it() -> int:
+	var s := shop()
+	var pd := on_pad(s, 0, 1)
+	var ok := Siege.buy(s, s.siege, "turret", s.mechs[0])
+	park(s, -15, 15)
+	s.siege.wave.live = true
+	var e := Siege.spawn(s, "scout", 0, 0.0)
+	var b: Dictionary = s.mechs[e.m]
+	b.x = pd.x
+	b.y = pd.y - Siege.MODULE.turret.range * 0.7
+	var t := until(s, 60 * 10, func(): return e.act == "die")
+	var far := Siege.spawn(s, "scout", 0, 0.0)
+	var fb: Dictionary = s.mechs[far.m]
+	fb.x = pd.x
+	fb.y = pd.y - Siege.MODULE.turret.range - 6.0
+	steps(s, 30)
+	var untouched: bool = fb.armor.head == fb.max.head
+	var heavies := []
+	for i in 2:
+		var h := Siege.spawn(s, "heavy", 0, (i - 0.5) * 3.0)
+		s.mechs[h.m].x = pd.x + (i - 0.5) * 3.0
+		s.mechs[h.m].y = pd.y - 14.0
+		heavies.append(h)
+	var gone := until(s, 60 * 60, func(): return pd.hp <= 0)
+	s.siege.wave.live = false
+	park(s, pd.x + 0.5, pd.y)
+	var again := Siege.buy(s, s.siege, "turret", s.mechs[0])
+	return ensure(ok and pd.module == "turret", "built") or ensure(t > 0, "the turret killed a scout in range") or ensure(untouched, "it ignores a bot out of range") or ensure(gone > 0, "heavies shelled it down") or ensure(again and pd.hp == pd.max, "a destroyed turret is rebuilt on its pad")

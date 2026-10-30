@@ -32,6 +32,8 @@ var font: Font
 var bold: Font
 var title: Font
 var chips := []
+var heading := "radialShop"
+var caption := "radialNote"
 
 
 func _init() -> void:
@@ -245,7 +247,7 @@ func header(k: float) -> void:
 		draw_rect(Rect2(x, 20, w, 28), Color(HAZARD if ch[1] else FILL_OFF, k))
 		draw_string(bold, Vector2(x, 40), s, HORIZONTAL_ALIGNMENT_CENTER, w, 13, Color(INK if ch[1] else TEXT, k))
 		x += w + 6.0
-	var steps := PackedStringArray([tr("radialShop").to_upper()])
+	var steps := PackedStringArray([tr(heading).to_upper()])
 	for d in trail.size():
 		for e in stack[d]:
 			if e.id == trail[d]:
@@ -255,7 +257,7 @@ func header(k: float) -> void:
 	for i in steps.size():
 		line += ("  ›  " if i > 0 else "") + steps[i]
 	draw_string(title, Vector2(0, 150), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 22, Color(HAZARD, k))
-	draw_string(font, Vector2(0, 24), tr("radialNote"), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 24.0, 13, Color(DIM, k))
+	draw_string(font, Vector2(0, 24), tr(caption), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 24.0, 13, Color(DIM, k))
 	var hint := tr("radialHint")
 	var hw := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 28.0
 	draw_rect(Rect2(size.x / 2.0 - hw / 2.0, size.y - 42.0, hw, 28.0), Color(FILL_OFF, 0.9 * k))
