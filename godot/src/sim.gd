@@ -207,6 +207,40 @@ const TRAP := {"dist": 2, "arm": 30, "life": 720, "dmg": 35, "root": 90, "cd": 5
 const LUNGE := {"dist": 6, "ticks": 15, "cd": 420}
 const E_SPEC := {"brace": BRACE, "focus": FOCUS, "pulse": PULSE, "xray": XRAY, "frost": FROST, "arcwall": ARCWALL, "trap": TRAP}
 const HOOK := {"range": 13, "speed": 40, "radius": 0.4, "dmg": 30, "windup": 6, "recovery": 14, "cd": 480, "load": 10, "pull": 24, "pullSpeed": 22, "stop": 1.8, "stun": 12}
+const E_BASE := {"brace": BRACE, "cleanse": CLEANSE, "focus": FOCUS, "pulse": PULSE, "xray": XRAY, "frost": FROST, "arcwall": ARCWALL, "trap": TRAP, "lunge": LUNGE, "hook": HOOK}
+const MOD_MK3 := 1.5
+const MODS := {
+	"rivet": {"a": {"cd": 0.8, "dmg": 0.85}, "b": {"dmg": 1.28, "cd": 1.22}},
+	"needle": {"a": {"cd": 0.8, "dmg": 0.85}, "b": {"dmg": 1.2, "cd": 1.15, "windup": 1.2}},
+	"scatter": {"a": {"+pellets": 1, "spread": 1.35, "cd": 1.1}, "b": {"range": 1.35, "spread": 0.6, "dmg": 1.1, "cd": 1.1}},
+	"gatling": {"a": {"cd": 0.85, "jitter": 1.4}, "b": {"dmg": 1.5, "cd": 1.5, "speed": 1.2, "jitter": 0.5}},
+	"flamer": {"a": {"range": 1.3, "dmg": 0.9, "cd": 1.15}, "b": {"dmg": 1.35, "load": 1.3, "range": 0.85}},
+	"missiles": {"a": {"+pellets": 1, "dmg": 0.8, "cd": 1.1}, "b": {"homing": 1.5, "dmg": 1.2, "cd": 1.2}},
+	"mortar": {"a": {"splash": 1.35, "dmg": 0.85, "cd": 1.1}, "b": {"delay": 0.65, "dmg": 0.9, "cd": 0.85}},
+	"laser": {"a": {"halfWidth": 1.6, "dmg": 0.9}, "b": {"dmg": 1.3, "cd": 1.25, "range": 1.2}},
+	"tesla": {"a": {"arc": 1.5, "dmg": 0.85}, "b": {"dmg": 1.35, "cd": 1.3, "load": 1.2}},
+	"ricochet": {"a": {"+bounces": 2, "dmg": 0.9}, "b": {"cd": 0.82, "dmg": 0.85, "+bounces": -1}},
+	"saw": {"a": {"cd": 0.8, "dmg": 0.85, "range": 0.95}, "b": {"spinDmg": 1.4, "lunge": 1.3, "range": 1.1, "cd": 1.1}},
+	"drill": {"a": {"cd": 0.8, "dmg": 0.85, "range": 0.9}, "b": {"dmg": 1.3, "range": 1.2, "cd": 1.25, "windup": 1.2}},
+	"hammer": {"a": {"+impact": 1, "dmg": 0.85, "arc": 1.3}, "b": {"dmg": 1.35, "cd": 1.3, "windup": 1.15}},
+	"claws": {"a": {"+hits": 1, "dmg": 0.7, "cd": 1.1}, "b": {"dmg": 1.3, "cd": 1.3}},
+	"whip": {"a": {"range": 1.3, "dmg": 0.85, "cd": 1.1}, "b": {"yank": 1.8, "dmg": 1.1, "cd": 1.2}},
+	"bunker": {"a": {"cd": 0.8, "dmg": 0.8, "windup": 0.8}, "b": {"dmg": 1.3, "windup": 1.2, "cd": 1.25, "range": 1.2}},
+	"katana": {"a": {"cd": 0.8, "dmg": 0.85, "lunge": 1.2}, "b": {"dmg": 1.3, "windup": 1.15, "cd": 1.2, "range": 1.1}},
+	"bash": {"a": {"arc": 1.3, "dmg": 0.9}, "b": {"dmg": 1.3, "cd": 1.25, "+impact": 1}},
+	"fist": {"a": {"cd": 0.8, "dmg": 0.85}, "b": {"dmg": 1.35, "cd": 1.3, "lunge": 1.3}},
+	"flail": {"a": {"spinDmg": 1.3, "dmg": 0.85}, "b": {"range": 1.25, "dmg": 1.1, "cd": 1.15}},
+	"horn": {"a": {"e.dist": 1.35, "e.cd": 1.1}, "b": {"e.cd": 0.7, "e.dist": 0.9}},
+	"pincer": {"a": {"e.range": 1.25, "e.cd": 1.1}, "b": {"e.cd": 0.7, "e.range": 0.9}},
+	"crest": {"a": {"e.time": 1.6, "e.cd": 1.1}, "b": {"e.cd": 0.7}},
+	"dish": {"a": {"e.time": 1.5}, "b": {"e.cd": 0.7, "e.time": 0.9}},
+	"visor": {"a": {"e.move": 1.4, "e.dmg": 0.95}, "b": {"e.dmg": 1.15, "e.time": 0.8}},
+	"medic": {"a": {"e.amount": 1.4, "e.cd": 1.15}, "b": {"e.cd": 0.75, "e.amount": 0.85}},
+	"orb": {"a": {"e.r": 1.35, "e.time": 0.9}, "b": {"e.time": 1.4, "e.cd": 1.1}},
+	"antenna": {"a": {"e.len": 1.5, "e.cd": 1.1}, "b": {"e.dmg": 2.5, "e.slow": 1.5, "e.time": 0.85}},
+	"dispenser": {"a": {"e.dmg": 1.6, "e.cd": 1.2}, "b": {"e.cd": 0.7, "e.dmg": 0.85}},
+	"demon": {"a": {"e.cut": 0.8, "e.move": 0.8, "e.cd": 1.1}, "b": {"e.cd": 0.7, "e.time": 0.9}},
+}
 const LANCE := {"windup": 36, "turn": (120 * DEG) / TICKS, "length": 16, "halfWidth": 0.7, "base": 100, "perHeat": 2, "impact": 4, "poise": 1, "recoil": 2, "recovery": 24, "stuffRefund": 50, "perfectCut": 0.5}
 const ULT_RECOVERY := 20
 const HEAL := {"x": CX, "y": CY, "radius": 0.9, "amount": 60, "first": 8 * TICKS, "respawn": 15 * TICKS}
@@ -420,17 +454,53 @@ static func normalize(lo) -> Dictionary:
 				lv[slot] = clampi(int(n), 1, MAX_LEVEL)
 		if not lv.is_empty():
 			out.lv = lv
+			if lo.get("mod") is Dictionary:
+				var mod := {}
+				for slot in lv:
+					var v = lo.mod.get(slot)
+					if lv[slot] >= 2 and v is String and has_mod(slot, out[slot], v):
+						mod[slot] = v
+				if not mod.is_empty():
+					out.mod = mod
 	return out
 
 
-static func tuned(slot: String, key: String, lv: int) -> Dictionary:
+static func has_mod(slot: String, key: String, v: String) -> bool:
+	return (slot == "head" or HANDS.has(slot)) and MODS.get(key, {}).has(v)
+
+
+static func tuned(slot: String, key: String, lv: int, v := "") -> Dictionary:
 	var row: Dictionary = CATALOG[slot][key]
 	if lv <= 1:
 		return row
 	var t: Array = TWIST[slot if BODY.has(slot) else "weapon"]
 	var out := row.duplicate()
 	out[t[0]] = out.get(t[0], 1) * (1 + t[1] * (lv - 1))
+	if v != "" and lv >= 2 and has_mod(slot, key, v):
+		apply_mod(out, MODS[key][v], MOD_MK3 if lv >= MAX_LEVEL else 1.0)
 	return out
+
+
+static func apply_mod(out: Dictionary, mod: Dictionary, k: float) -> void:
+	if out.get("e", "") != "":
+		out.es = E_BASE[out.e].duplicate()
+	for stat in mod:
+		var name: String = stat.trim_prefix("+")
+		var dest := out
+		if name.begins_with("e."):
+			name = name.substr(2)
+			dest = out.es
+		var base = dest.get(name, 0)
+		if stat.begins_with("+"):
+			dest[name] = maxi(0, int(base) + roundi(mod[stat] * k))
+			continue
+		var f: float = 1.0 + (mod[stat] - 1.0) * k
+		dest[name] = roundi(base * f) if base is int else base * f
+		if name == "dmg":
+			if out.has("spinDmg"):
+				out.spinDmg *= f
+			if out.has("fan"):
+				out.fan = out.fan.merged({"dmg": out.fan.dmg * f}, true)
 
 
 static func max_armor(lo) -> Dictionary:
@@ -521,6 +591,15 @@ static func e_skill(m) -> String:
 	return head(m).e
 
 
+static func espec(m) -> Dictionary:
+	var h = head(m)
+	return h.es if h.has("es") else E_BASE.get(h.e, {})
+
+
+static func hook_spec(m) -> Dictionary:
+	return espec(m) if e_skill(m) == "hook" else HOOK
+
+
 static func e_active(m) -> bool:
 	return m.buffs.get(e_skill(m), 0) > 0
 
@@ -581,7 +660,7 @@ static func arm_cd(m, part: String, cd: float) -> float:
 
 static func skill_cd(m, k: String) -> float:
 	if k == "hook":
-		return HOOK.cd
+		return hook_spec(m).cd
 	var w = weapon(m, k)
 	return jround(arm_cd(m, ARM_OF[k], w.cd * arms(m).handling) * (ULTS.berserk.meleeCd if not is_gun(w) and m.buffs.berserk > 0 else 1))
 
@@ -653,7 +732,7 @@ static func make_mech(id: int, loadout, team: int, s) -> Dictionary:
 	if lo.has("lv"):
 		var rows := {}
 		for slot in DEFAULT_LOADOUT:
-			rows[slot] = tuned(slot, lo[slot], lo.lv.get(slot, 1))
+			rows[slot] = tuned(slot, lo[slot], lo.lv.get(slot, 1), lo.get("mod", {}).get(slot, ""))
 		m.rows = rows
 	return m
 
@@ -921,8 +1000,8 @@ static func advance(state, m, inp, aim_to: float) -> void:
 static func start(state, m, inp) -> void:
 	if e_skill(m) == "cleanse" and m.buf.hook and m.cd.hook == 0:
 		m.buf.hook = 0
-		m.cd.hook = CLEANSE.cd
-		m.buffs.cleanse = CLEANSE.time
+		m.cd.hook = espec(m).cd
+		m.buffs.cleanse = espec(m).time
 		m.buffs.jam = 0
 		m.buffs.slow = 0
 		m.buffs.root = 0
@@ -937,7 +1016,7 @@ static func start(state, m, inp) -> void:
 	if m.buf.dash and m.dashes > 0 and m.buffs.slow == 0 and m.buffs.root == 0 and (a == null or windup or attack_rec):
 		dash(state, m, inp, a if windup else null)
 		return
-	var spec = E_SPEC.get(e_skill(m))
+	var spec = espec(m) if E_SPEC.has(e_skill(m)) else null
 	if spec != null and m.buf.hook and m.cd.hook == 0:
 		m.buf.hook = 0
 		m.cd.hook = spec.cd
@@ -946,7 +1025,7 @@ static func start(state, m, inp) -> void:
 		return
 	if e_skill(m) == "lunge" and m.buf.hook and m.cd.hook == 0:
 		m.buf.hook = 0
-		m.cd.hook = LUNGE.cd
+		m.cd.hook = espec(m).cd
 		lunge(state, m)
 		return
 	if m.buf.ult and m.surge >= SURGE.max:
@@ -1101,7 +1180,7 @@ static func fire(state, m, hand: String, follow: bool) -> void:
 	var cast := next_cast(state)
 	var jam = JAM.dmg if jammed(m, ARM_OF[hand]) else 1
 	var hot := hot_of(m)
-	var dmg = floor(p.dmg * (core(m).get("hotDmg", HEAT.hotDmg) if hot else 1) * jam * power(m, false) * (FOCUS.dmg if m.buffs.focus > 0 else 1))
+	var dmg = floor(p.dmg * (core(m).get("hotDmg", HEAT.hotDmg) if hot else 1) * jam * power(m, false) * (espec(m).get("dmg", FOCUS.dmg) if m.buffs.focus > 0 else 1))
 	var impact = g.impact + (1 if hot else 0)
 	var fx := cos(m.aim)
 	var fy := sin(m.aim)
@@ -1125,7 +1204,7 @@ static func fire(state, m, hand: String, follow: bool) -> void:
 		cone_attack(state, m, dir, g, dmg, impact, cast)
 	else:
 		var spec = g
-		var speed_k: float = core(m).get("boltSpeed", 1) * (FOCUS.speed if m.buffs.focus > 0 else 1)
+		var speed_k: float = core(m).get("boltSpeed", 1) * (espec(m).get("speed", FOCUS.speed) if m.buffs.focus > 0 else 1)
 		if speed_k != 1:
 			spec = g.duplicate()
 			spec.speed = g.speed * speed_k
@@ -1142,9 +1221,9 @@ static func throw_hook(state, m) -> void:
 	var fy := sin(m.aim)
 	var x: float = m.x + fx * MECH_R
 	var y: float = m.y + fy * MECH_R
-	var spec := HOOK.duplicate()
-	spec.range = HOOK.range * core(m).get("hookRange", 1)
-	spawn_shot(state, m, next_cast(state), x, y, aim_from(m, x, y), spec, HOOK.dmg, 0, "hook")
+	var spec := hook_spec(m).duplicate()
+	spec.range = spec.range * core(m).get("hookRange", 1)
+	spawn_shot(state, m, next_cast(state), x, y, aim_from(m, x, y), spec, spec.dmg, 0, "hook")
 	state.fx.append({"k": "hookOut", "id": m.id, "x": x, "y": y, "t": 6})
 	add_heat(m, HOOK.load)
 
@@ -1597,9 +1676,10 @@ static func heal_weakest(m, n) -> void:
 static func pulse_tick(state, m) -> void:
 	if m.buffs.pulse <= 0 or m.ko:
 		return
-	heal_weakest(m, PULSE.amount / float(PULSE.time))
+	var sp := espec(m)
+	heal_weakest(m, sp.amount / float(sp.time))
 	if m.buffs.pulse % 30 == 0:
-		state.fx.append({"k": "heal", "id": m.id, "x": m.x, "y": m.y, "n": PULSE.amount / 6.0, "t": 40})
+		state.fx.append({"k": "heal", "id": m.id, "x": m.x, "y": m.y, "n": sp.amount / 6.0, "t": 40})
 
 
 static func cast_e(state, m, skill: String, spec) -> void:
@@ -1631,8 +1711,9 @@ static func lunge(state, m) -> void:
 		ln = 1.0
 	var ux := dx / ln
 	var uy := dy / ln
-	var end := clamp_arena(m.x + ux * LUNGE.dist, m.y + uy * LUNGE.dist, MECH_R + state.shrink, geo(state).walls)
-	m.act = {"k": "dash", "ph": "go", "t": LUNGE.ticks, "T": LUNGE.ticks, "move": "lunge", "dx": ux, "dy": uy, "speed": (LUNGE.dist / float(LUNGE.ticks)) * TICKS, "lx": end.x, "ly": end.y, "hit": false, "trail": null}
+	var sp := espec(m)
+	var end := clamp_arena(m.x + ux * sp.dist, m.y + uy * sp.dist, MECH_R + state.shrink, geo(state).walls)
+	m.act = {"k": "dash", "ph": "go", "t": sp.ticks, "T": sp.ticks, "move": "lunge", "dx": ux, "dy": uy, "speed": (sp.dist / float(sp.ticks)) * TICKS, "lx": end.x, "ly": end.y, "hit": false, "trail": null}
 	state.fx.append({"k": "dash", "id": m.id, "x": m.x, "y": m.y, "t": 6})
 
 
@@ -1650,8 +1731,9 @@ static func zap_walls(state) -> void:
 			w.zapped.append(t.id)
 			if warded(t):
 				continue
-			env_hit(state, t, ARCWALL.dmg, "legs", 0, atan2((w.y1 + w.y2) / 2.0 - t.y, (w.x1 + w.x2) / 2.0 - t.x))
-			t.buffs.slow = max(t.buffs.slow, ARCWALL.slow)
+			var sp := espec(state.mechs[w.owner])
+			env_hit(state, t, sp.dmg, "legs", 0, atan2((w.y1 + w.y2) / 2.0 - t.y, (w.x1 + w.x2) / 2.0 - t.x))
+			t.buffs.slow = max(t.buffs.slow, sp.slow)
 			state.fx.append({"k": "zap", "kind": "tesla", "id": w.owner, "x1": w.x1, "y1": w.y1, "x2": t.x, "y2": t.y, "t": 10})
 
 
@@ -1660,7 +1742,7 @@ static func warded(t) -> bool:
 
 
 static func braced(t, dmg):
-	return jround(dmg * BRACE.cut) if t.buffs.brace > 0 else dmg
+	return jround(dmg * espec(t).get("cut", BRACE.cut)) if t.buffs.brace > 0 else dmg
 
 
 static func soak(state, t, dmg):
@@ -1747,7 +1829,7 @@ static func move(state, m, inp) -> void:
 			mx /= ln
 			my /= ln
 		var legs = feet(m)
-		var top: float = legs.top * speed_of(m.loadout) * (MOVE.jammed if jammed(m, "legs") else 1) * core(m).get("speed", 1) * (ULTS.berserk.speed if m.buffs.berserk > 0 else 1) * (MOVE.slow if m.buffs.slow > 0 else 1) * (ITEMS.speed.speed if m.buffs.speed > 0 else 1) * (BRACE.move if m.buffs.brace > 0 else 1) * (FOCUS.move if m.buffs.focus > 0 else 1)
+		var top: float = legs.top * speed_of(m.loadout) * (MOVE.jammed if jammed(m, "legs") else 1) * core(m).get("speed", 1) * (ULTS.berserk.speed if m.buffs.berserk > 0 else 1) * (MOVE.slow if m.buffs.slow > 0 else 1) * (ITEMS.speed.speed if m.buffs.speed > 0 else 1) * (espec(m).get("move", BRACE.move) if m.buffs.brace > 0 else 1) * (espec(m).get("move", FOCUS.move) if m.buffs.focus > 0 else 1)
 		if m.stagger > 0 or m.buffs.root > 0 or lancing(m) or (a != null and a.k == "dash"):
 			top = 0
 		elif shield_up(m):

@@ -35,6 +35,12 @@ func _init() -> void:
 	run("frost_field_slows_only_inside", test_frost_field_slows_only_inside)
 	run("lunge_flies_six_metres", test_lunge_flies_six_metres)
 	run("lunge_hits_the_first_mech_in_the_way", test_lunge_hits_the_first_mech_in_the_way)
+	run("mods_need_mk2_and_a_real_variant", test_mods_need_mk2_and_a_real_variant)
+	run("mod_table_covers_every_head_with_e_and_every_weapon", test_mod_table_covers_every_head_with_e_and_every_weapon)
+	run("every_variant_changes_its_part_and_mk3_goes_further", test_every_variant_changes_its_part_and_mk3_goes_further)
+	run("level_one_and_no_mod_add_no_key", test_level_one_and_no_mod_add_no_key)
+	run("rivet_variants_trade_speed_for_damage", test_rivet_variants_trade_speed_for_damage)
+	run("horn_variants_change_the_lunge", test_horn_variants_change_the_lunge)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -370,3 +376,84 @@ func test_ffa_bot_match_ends_with_a_winner() -> int:
 	var r := bot_match(lo, teams, 400)
 	var s: Dictionary = r.state
 	return ensure(s.phase == "over", "phase == over after %d ticks" % r.ticks) or ensure(s.score.max() == Sim.MATCH.wins, "a team won %d rounds" % Sim.MATCH.wins)
+
+
+func modded(slot: String, key: String, lv: int, v: String) -> Dictionary:
+	return Sim.tuned(slot, key, lv, v)
+
+
+func variant_loadout(key: String, v: String, lv: int) -> Dictionary:
+	var slot := "head" if Sim.HEADS.has(key) else "left"
+	return Sim.DEFAULT_LOADOUT.merged({slot: key, "lv": {slot: lv}, "mod": {slot: v}}, true)
+
+
+func test_mods_need_mk2_and_a_real_variant() -> int:
+	var base := {"head": "horn", "left": "rivet", "right": "saw"}
+	var bad := ensure(Sim.normalize(base.merged({"lv": {"head": 2}, "mod": {"head": "a"}})).mod == {"head": "a"}, "Mk 2 keeps the variant")
+	bad += ensure(not Sim.normalize(base.merged({"lv": {"head": 1}, "mod": {"head": "a"}})).has("mod"), "Mk 1 drops it")
+	bad += ensure(not Sim.normalize(base.merged({"lv": {"head": 3}, "mod": {"head": "c"}})).has("mod"), "an unknown variant is dropped")
+	bad += ensure(not Sim.normalize(base.merged({"lv": {"core": 3}, "mod": {"core": "a"}})).has("mod"), "a core has no variants")
+	bad += ensure(not Sim.normalize(base.merged({"mod": {"head": "a"}})).has("mod"), "no levels, no variants")
+	bad += ensure(not Sim.normalize(base.merged({"lv": {"head": 2}, "mod": "a"})).has("mod"), "junk is dropped")
+	return int(bad > 0)
+
+
+func test_mod_table_covers_every_head_with_e_and_every_weapon() -> int:
+	var bad := 0
+	for key in Sim.WEAPONS:
+		bad += ensure(Sim.MODS.has(key) and Sim.MODS[key].keys() == ["a", "b"], "weapon " + key)
+	for key in Sim.HEADS:
+		bad += ensure(Sim.MODS.has(key) == (Sim.HEADS[key].e != ""), "head " + key)
+	bad += ensure(Sim.MODS.size() == 30, "30 parts, 60 variants")
+	return int(bad > 0)
+
+
+func test_every_variant_changes_its_part_and_mk3_goes_further() -> int:
+	var bad := 0
+	for key in Sim.MODS:
+		var slot := "head" if Sim.HEADS.has(key) else "left"
+		var plain := modded(slot, key, 2, "")
+		var seen := []
+		for v in ["a", "b"]:
+			var mk2 := modded(slot, key, 2, v)
+			var mk3 := modded(slot, key, 3, v)
+			bad += ensure(mk2 != plain, "%s %s differs from plain" % [key, v])
+			bad += ensure(mk3 != mk2, "%s %s Mk 3 differs from Mk 2" % [key, v])
+			bad += ensure(not seen.has(mk2), "%s variants differ from each other" % key)
+			seen.append(mk2)
+	return int(bad > 0)
+
+
+func test_level_one_and_no_mod_add_no_key() -> int:
+	var one := Sim.make_mech(0, Sim.DEFAULT_LOADOUT.merged({"mod": {"left": "a"}}, true), 0, {"x": 0, "y": 0, "aim": 0.0})
+	var up := Sim.make_mech(0, Sim.DEFAULT_LOADOUT.merged({"lv": {"left": 2}}, true), 0, {"x": 0, "y": 0, "aim": 0.0})
+	return ensure(not one.has("rows") and not one.loadout.has("mod"), "Mk 1 with a variant is a plain mech") or ensure(not up.loadout.has("mod") and Sim.weapon(up, "left") == Sim.tuned("left", "rivet", 2), "Mk 2 without a variant is the plain twist") or ensure(Sim.WEAPONS.rivet.cd == 48 and Sim.WEAPONS.rivet.fan.dmg == 29, "the catalog is never changed")
+
+
+func test_rivet_variants_trade_speed_for_damage() -> int:
+	var plain := modded("left", "rivet", 2, "")
+	var rapid := modded("left", "rivet", 2, "a")
+	var heavy := modded("left", "rivet", 2, "b")
+	return ensure(rapid.cd < plain.cd and rapid.dmg < plain.dmg, "Rapid fires faster and weaker") or ensure(heavy.cd > plain.cd and heavy.dmg > plain.dmg, "Heavy fires slower and harder") or ensure(heavy.fan.dmg > plain.fan.dmg, "the follow-up shot scales too")
+
+
+func test_horn_variants_change_the_lunge() -> int:
+	var far := Sim.make_mech(0, variant_loadout("horn", "a", 2), 0, {"x": 0, "y": 0, "aim": 0.0})
+	var quick := Sim.make_mech(0, variant_loadout("horn", "b", 2), 0, {"x": 0, "y": 0, "aim": 0.0})
+	var plain := Sim.make_mech(0, variant_loadout("horn", "", 2), 0, {"x": 0, "y": 0, "aim": 0.0})
+	var bad := ensure(Sim.espec(far).dist > Sim.LUNGE.dist and Sim.espec(far).cd >= Sim.LUNGE.cd, "A flies farther")
+	bad += ensure(Sim.espec(quick).cd < Sim.LUNGE.cd, "B cools down faster")
+	bad += ensure(Sim.espec(plain) == Sim.LUNGE, "no variant keeps the base numbers")
+	var s := Sim.create_state([variant_loadout("horn", "a", 2), {}], Sim.FORMATS["1v1"])
+	s.phase = "fight"
+	var m: Dictionary = s.mechs[0]
+	var x0: float = m.x
+	var inp: Dictionary = Sim.IDLE.duplicate()
+	inp.hook = true
+	inp.ax = m.x + 20.0
+	inp.ay = m.y
+	for i in 40:
+		Sim.step(s, [inp, null])
+	bad += ensure(m.x - x0 > 7.5, "the long lunge flew %.1f m" % (m.x - x0))
+	return int(bad > 0)
+
