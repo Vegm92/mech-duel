@@ -734,9 +734,10 @@ func _physics_process(delta: float) -> void:
 		kick = view.kick
 		kick_t = 0.0
 	view.kick = Vector3.ZERO
-	stop = maxi(stop, view.stop)
+	if not siege:
+		stop = maxi(stop, view.stop)
+		slow = maxf(slow, view.slow)
 	view.stop = 0
-	slow = maxf(slow, view.slow)
 	view.slow = 0.0
 	view.process_mode = Node.PROCESS_MODE_DISABLED if stop > 0 else Node.PROCESS_MODE_INHERIT
 	if replay.is_empty() and cam_mode == 0:

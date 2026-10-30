@@ -203,6 +203,8 @@ $P = "$R\godot"
   special case; dead bodies are recycled (`gone`). Arena shape lives in `state.geo` (walls,
   pillars, solids, `boxes` with optional `only` team + `hp` = gates, `rings` with lane `gaps`);
   `Sim.geo(state)` falls back to the duel arena, so the duel and its `GOLDEN` are untouched.
+  No hit-stop and no K.O. slow motion in Core Siege (Victor 2026-10-30: the many short freezes made it
+  uncomfortable to play): `siege.step` clears `state.hitstop`, and main.gd ignores `view.stop` / `view.slow`.
   Fortress has no auto-aim except the auto turret module: only traps and player-aimed guns otherwise. Bots are data rows in `Siege.BOTS`
   (attack `bolt`, `bite`, `lunge`, `claw` + `gun`, `rail`, `salvo`, `cannon`, `ram`; flags `fly`,
   `vent`, `plant`, `hunt`, `keep`, `first`, `dodge`, `pack`; size `r` read by `Sim.rad`), Mk 1..3
