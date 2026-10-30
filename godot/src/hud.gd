@@ -872,6 +872,17 @@ func siege_box(size: Vector2) -> Rect2:
 	return Rect2(Vector2(SIEGE_LEFT, top), Vector2(size.x - SIEGE_LEFT - right, size.y - top - bottom))
 
 
+func stat_chip(label: String, value: String, pos: Vector2, accent: Color) -> float:
+	var lw := label_f.get_string_size(label.strip_edges().to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+	var vw := heavy.get_string_size(value, HORIZONTAL_ALIGNMENT_LEFT, -1, 28).x
+	var w := lw + vw + 42.0
+	poly(rect_poly(Rect2(pos, Vector2(w, 42))), Color(A.panel, 0.95))
+	poly(rect_poly(Rect2(pos, Vector2(6, 42))), accent)
+	txt(label.strip_edges().to_upper(), pos + Vector2(18, 27), 15, A.dim)
+	txt(value, pos + Vector2(18 + lw + 10.0, 33), 28, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1, heavy)
+	return w
+
+
 func chip(s: String, pos: Vector2, c: Color = A.panel, ink: Color = Color.WHITE) -> float:
 	var w := label_f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 24.0
 	poly(rect_poly(Rect2(pos, Vector2(w, 24))), Color(c, 0.92))
@@ -924,22 +935,29 @@ func siege_left(size: Vector2) -> void:
 	var sg: Dictionary = state.siege
 	var x := 16.0
 	if not shop_open():
-		x += chip(tr("siegeFund").format({"n": sg.fund}).to_upper(), Vector2(x, 16)) + 6.0
-		x += chip(tr("siegeWallet").format({"n": sg.wallets[0]}).to_upper(), Vector2(x, 16)) + 6.0
+		x += stat_chip(tr("siegeFund").format({"n": ""}), str(sg.fund), Vector2(x, 14), A.team[1]) + 8.0
+		x += stat_chip(tr("siegeWallet").format({"n": ""}), str(sg.wallets[0]), Vector2(x, 14), A.hazard) + 8.0
 		if sg.tokens[0] > 0:
-			chip(tr("siegeTokens").format({"n": sg.tokens[0]}).to_upper(), Vector2(x, 16))
+			stat_chip(tr("siegeTokens").format({"n": ""}), str(sg.tokens[0]), Vector2(x, 14), A.surge)
 	for c in get_children():
 		if c.has_method("refresh") and "chips" in c:
 			c.chips = [[tr("siegeWallet").format({"n": sg.wallets[0]}).to_upper(), true], [tr("siegeFund").format({"n": sg.fund}).to_upper(), false], [tr("siegeTokens").format({"n": sg.tokens[0]}).to_upper(), false]]
 	var g: Dictionary = sg.garrison
 	if g.tier > 0:
 		if g.respawn_in <= 0:
-			chip(tr("siegeGuard").format({"t": g.tier}), Vector2(16, 46), A.team[1], A.ground)
+			chip(tr("siegeGuard").format({"t": g.tier}), Vector2(16, 62), A.team[1], A.ground)
 		else:
-			chip(tr("siegeGuardDown").format({"t": g.tier, "s": int(ceil(g.respawn_in / float(Sim.TICKS)))}), Vector2(16, 46), A.line, A.jam_text)
+			chip(tr("siegeGuardDown").format({"t": g.tier, "s": int(ceil(g.respawn_in / float(Sim.TICKS)))}), Vector2(16, 62), A.line, A.jam_text)
 	for i in sg.team:
-		ally_row(i, Vector2(16, 80 + i * 54))
-	siege_tiers(Vector2(16, 80 + sg.team * 54 + 8))
+		ally_row(i, Vector2(16, 94 + i * 54))
+	var y: float = 94.0 + sg.team * 54.0 + 8.0
+	var rc = recall_of(0)
+	if rc != null:
+		txt(tr("siegeRecall"), Vector2(16, y + 10), 11, A.team[1])
+		skew_bar(Rect2(16, y + 16, ROW_W, 8), rc.t / float(rc.max), A.team[1])
+		y += 34.0
+	if shop_open():
+		siege_tiers(Vector2(16, y))
 
 
 func ally_row(i: int, at: Vector2) -> void:
@@ -948,8 +966,7 @@ func ally_row(i: int, at: Vector2) -> void:
 	fade = 0.45 if m.ko else 1.0
 	poly(rect_poly(Rect2(at, Vector2(ROW_W, 50))), Color(A.panel, 0.92))
 	poly(rect_poly(Rect2(at, Vector2(8 if i == 0 else 5, 50))), c)
-	txt(str(i + 1), at + Vector2(16, 34), 24, c, HORIZONTAL_ALIGNMENT_LEFT, -1, heavy)
-	txt(mech_name(i).to_upper(), at + Vector2(42, 31), 13, Color.WHITE)
+	txt(mech_name(i).to_upper(), at + Vector2(18, 32), 16, c, HORIZONTAL_ALIGNMENT_LEFT, -1, heavy)
 	canvas.draw_set_transform(at + Vector2(134, 4), 0.0, Vector2(0.85, 0.85))
 	poly(rect_poly(Rect2(19, 12, 22, 16)), A.core)
 	for b in MINI:
@@ -965,7 +982,7 @@ func ally_row(i: int, at: Vector2) -> void:
 			var rc = recall_of(i)
 			canvas.draw_arc(mid, 10.0, -PI / 2.0, -PI / 2.0 + TAU * clampf(rc.t / float(rc.max), 0.02, 1.0), 24, A.team[1], 4.0)
 		_:
-			canvas.draw_circle(mid, 7.0, A.good)
+			pass
 
 
 func siege_tiers(at: Vector2) -> void:
@@ -977,11 +994,6 @@ func siege_tiers(at: Vector2) -> void:
 		txt(tr("tierShort_" + TIER_ROWS[r]), Vector2(at.x + 10, y), 11, Color.WHITE)
 		for k in 5:
 			poly(slant(Rect2(at.x + 90 + k * 22, y - 9, 18, 8), -20.0), A.team[0] if k < t[TIER_ROWS[r]] else A.line)
-	var rc = recall_of(0)
-	if rc != null:
-		var y := at.y + 30 + TIER_ROWS.size() * 15 + 6.0
-		txt(tr("siegeRecall"), Vector2(at.x, y + 10), 11, A.team[1])
-		skew_bar(Rect2(at.x, y + 16, ROW_W, 8), rc.t / float(rc.max), A.team[1])
 
 
 func siege_crate(size: Vector2) -> void:
@@ -1108,7 +1120,6 @@ func marker(cam: Camera3D, size: Vector2, at: Vector3, c: Color, text: String, l
 	if p == Vector2.INF:
 		p = cam.unproject_position(at)
 		if text == "":
-			canvas.draw_arc(p, 22, 0, TAU, 24, Color(c, 0.9 if lit else 0.4), 3)
 			return
 	if text == "":
 		return
@@ -1126,26 +1137,8 @@ func marker(cam: Camera3D, size: Vector2, at: Vector3, c: Color, text: String, l
 func ally_marks(size: Vector2, cam: Camera3D) -> void:
 	for i in range(1, state.siege.team):
 		var m: Dictionary = state.mechs[i]
-		if m.ko:
-			continue
-		var at := Vector3(m.x, 3.4, m.y)
-		var c := ally_color(i)
-		var p := edge_arrow(cam, size, at, c, true)
-		if p == Vector2.INF:
-			p = cam.unproject_position(at)
-			poly(PackedVector2Array([p + Vector2(-9, -4), p + Vector2(9, -4), p + Vector2(0, 10)]), c)
-			ally_tag(size, p + Vector2(0, -4), i, c)
-		else:
-			ally_tag(size, p + Vector2(0, 14), i, c)
-
-
-func ally_tag(size: Vector2, p: Vector2, i: int, c: Color) -> void:
-	var s := "%d  %s" % [i + 1, mech_name(i).to_upper()]
-	var w := heavy.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 22.0
-	var x := clampf(p.x, SIEGE_LEFT + 8.0 + w / 2.0, size.x - 8.0 - w / 2.0)
-	var r := Rect2(x - w / 2.0, p.y - 26.0, w, 26)
-	poly(rect_poly(r), c)
-	txt(s, Vector2(r.position.x, r.position.y + 20), 16, A.ground, HORIZONTAL_ALIGNMENT_CENTER, w, heavy)
+		if not m.ko:
+			edge_arrow(cam, size, Vector3(m.x, 3.4, m.y), ally_color(i), true)
 
 
 func siege_calls(size: Vector2) -> void:

@@ -59,8 +59,8 @@ is broken) and across the plaza to the core. No navmesh, no pathfinding, determi
 - **Repair:** stand inside the repair ring (5 m from the core center) without firing for 1 s, then
   each mech there repairs **25 HP/s**. Repair never goes above the lowest intact ring's line (a core
   at 60% with the 75% ring broken repairs up to 75%). Taking damage or firing stops your repair for 1 s.
-- Model: a crystal in a cradle, 4 pylons facing the lanes, 4 shield rings stacked around the
-  crystal. A ring shatters when its line is crossed (fx + sound).
+- Model: Shield Petals (2026-10-30): a plasma column on a dark drum, 4 blue shield petals around it, a yellow HP
+  ring on the floor. A petal flies off when its line is crossed (fx + sound).
 - **Lose** = core HP 0. Score = waves survived.
 
 ## 3. Fortress (tune later)

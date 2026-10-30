@@ -276,6 +276,24 @@ $P = "$R\godot"
   (skilled / average / weak) merges into a brain; `tools/siege_balance.gd -- --director=both
   --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
   Not built yet: a second local player, netcode, VS (design only).
+  **Reactor core: Shield Petals** (Victor 2026-10-30, picked design A; colors match the HUD CORE bar). Parts in
+  `core_siege.glb` (`art/core_siege_build.py`, run through `tools/blender_export.py`): `core_base` (low disc with
+  a dark HP track + the dark drum), `core_plasma` (yellow column + crown ring) and `core_plasma_in` (pale veins),
+  `core_bands` (glowing rings and vents on the drum), `core_crown` / `core_crown2` (two counter-spinning rings)
+  and `core_orb` (a floating crystal), and `petal1..4` (blue shield quarters, narrowing to a spire, lit top edge
+  and inner vein, hazard foot band; petal k = `core.rings[k]`, at 45° + k × 90°, so the gaps face the lanes). The yellow HP floor ring is 32 `Mech.flat` segments built at
+  runtime that go out clockwise from 12 o'clock as `core.hp / max` falls. `siege_view.gd` `CORE` holds every
+  knob and color. Petals turn slowly as a group (`spin`); a broken ring's petal flies off (`fly`) with the blue
+  `Fx.ring` + `Fx.flash`, a restored one rises out of the floor (`rise`), both timed from the sim tick, and
+  rings already broken on the first frame make no burst. Below 50% the plasma flickers (`flicker`), below 25%
+  (`smoke`) it turns red #FF4D5E, the HP ring too, and the smoke starts; a lost core goes dark; the green
+  `mend` ring stays. It is never still (Victor 2026-10-30: "look alive, not plain"): the plasma breathes (`beat`,
+  `breath`, faster as HP falls), the crown, second ring and orb spin and bob, each petal's glow rides a wave
+  around the core (`shimmer`) and bobs, 40 `CPUParticles3D` sparks (`sparks`) rise from the column, a yellow
+  ring rolls over the floor every `pulse` (faster when hurt), and the HP ring's last segment glows. A lost
+  core stops all of it. Plasma and petals are `Look.neon` (light-only), so the scene lights never wash them out.
+  Evidence: `production/qa/evidence/core-petals-{full,one-ring-down,critical,repairing,lost}-2026-10-30.png`
+  (`--siege --autopilot --seed=3 --lang=en --at=<tick> --core=<pct>`; repairing needs `--team=2`, an ally repairs it).
 - **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
   and garage restyle on top of it). `hud.gd`: side panel for 1-2 mechs (`side_panel`, Victor 2026-10-30: bottom-left, 176×208, no text: heat and R gauges
   around a robot diagram where every part is a health bar (`part_block`: green > 75%, yellow, orange, red,
@@ -286,14 +304,17 @@ $P = "$R\godot"
   clock; score chips with more than 2 mechs), `callout` (Exo 2 between hazard stripes, -3°), `slam` (round end), `match_over`
   (round list from `rounds`, tracked in `_process`), `pause_screen` (slabs drawn over empty Buttons so focus
   and the pad still work), `replay_bars`. Core Siege uses the same arcade look (2026-10-30 night job): `siege_top` (wave plate + core bar with ring ticks),
-  `siege_left` (fund / wallet / tokens chips, garrison chip, `ally_row` strip: ally color, mini health-bar diagram,
-  status dot / red X / blue recall arc, `siege_tiers`), the same `side_panel` bottom-left for you, `siege_shop`
-  (team shop list + hint tags, build phase only), `siege_calls` (colored `callout`s), `siege_over` (CORE LOST band),
-  `marker` / `edge_arrow` / `ally_marks` (gate tags, hurt rings, allies get a numbered chevron in their color
-  or an edge arrow; `siege_box` keeps arrows clear of the left column, the wave plate and the team shop;
-  ally colors are `A.team[i]`; `view.mark_color` paints each squad mech's floor ring, ▼ and rim in its strip color,
-  `ally_tag` is the number + name chip over an ally or at its edge arrow, `calls_bottom` pushes arrows below the calls). `radial.gd` is restyled to the same palette (Exo 2 names, yellow hot wedge, wallet
-  chips fed by `hud.siege_left`, breadcrumb, hints); the hud hides its own chips and shop list while it is open.
+  `siege_left` (big `stat_chip`s for fund / wallet / tokens, garrison chip, `ally_row` strip: name painted in the ally
+  color, mini health-bar diagram, a red X when down, a blue arc while recalling, recall bar; `siege_tiers` RUN
+  UPGRADES only while the radial shop is open), the same `side_panel` bottom-left for you, `siege_shop` (team shop
+  list + hint tags, build phase only), `siege_calls` (colored `callout`s), `siege_over` (CORE LOST band), `marker` /
+  `edge_arrow` (gate tags and edge arrows), `ally_marks` (an edge arrow in the ally color when an ally is off
+  screen), `siege_box` (keeps arrows clear of the left column, the wave plate, the team shop and `calls_bottom`);
+  ally colors are `A.team[i]` and `view.mark_color` paints each squad mech's floor ring, ▼ and rim in its strip
+  color (`view.squad`). A gate that loses HP flashes its lamps red plus a red light for 100 ticks (`siege_view.gd`
+  `ALARM`) instead of a HUD ring. `radial.gd` is restyled to the same palette (Exo 2 names, yellow hot wedge,
+  wallet chips fed by `hud.siege_left`, breadcrumb, hints); the hud hides its own chips and shop list while it is
+  open.
   Not restyled: the wave 10 / 20 / 30 reward screen (`claim.gd`, other session).
   Look flags: `--format=ffa|2v2` (4 mechs, extra bots; no kill cam), `--pause` (pause at `--at`), `--lang=en`.
   Evidence: `production/qa/evidence/arcade-{before,after}-*-2026-10-30.png`. Test: `tests/hud_test.gd`.
