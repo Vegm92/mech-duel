@@ -24,6 +24,7 @@ const CORE := {"y": 4.3, "spin": 0.35, "bob": 0.12, "glow": 1.6, "flicker": 0.5,
 	"mend": [4.8, 5.2], "mend_y": 0.5}
 const GATE := {"sink": 2.4, "ease": 0.12, "bar_y": 5.0, "bar": 0.22, "width": 10.0}
 const WARN := {"secs": 8, "on": 1.6, "steady": 0.6, "blink": 10}
+const ALARM := {"ticks": 100, "blink": 5, "on": 3.2, "light": 7.0, "range": 11.0, "color": Color(1.0, 0.16, 0.1)}
 const WALL := {"panel": 4.0, "post": 0.15, "vent": 0.7, "spawn": 8.4}
 const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "rows": [0.65, 1.95], "gap": 9.0,
 	"aisle": 40.0, "aisle_w": 0.4, "fan_gap": 0.6, "team": 1}
@@ -755,8 +756,12 @@ func make_gate(g: Dictionary) -> Dictionary:
 	var bar_mat: StandardMaterial3D = Mech.flat(Look.PAL.cyan).duplicate()
 	var back := Mech.add(n, Mech.box(Vector3(GATE.bar, GATE.bar, GATE.width)), Mech.flat(Color(Look.PAL.void, 0.7)), Vector3(0, GATE.bar_y, 0))
 	var fill := Mech.add(back, Mech.box(Vector3(GATE.bar * 1.2, GATE.bar * 1.2, 1.0)), bar_mat)
+	var alarm := accent(Vector3(g.x, 3.0, g.y), ALARM.color)
+	alarm.light_energy = 0.0
+	alarm.omni_range = ALARM.range
 	return {"node": n, "light": m, "door": Mech.add_part(n, "gate_door", MATS, "core_siege"),
-		"broken": Mech.add_part(n, "gate_broken", MATS, "core_siege"), "bar": back, "fill": fill, "bar_mat": bar_mat}
+		"broken": Mech.add_part(n, "gate_broken", MATS, "core_siege"), "bar": back, "fill": fill, "bar_mat": bar_mat,
+		"alarm": alarm, "base": m.emission, "hp": g.hp, "hit": -ALARM.ticks}
 
 
 func draw_gate(gv: Dictionary, g: Dictionary, wave: Dictionary) -> void:
@@ -771,6 +776,15 @@ func draw_gate(gv: Dictionary, g: Dictionary, wave: Dictionary) -> void:
 	gv.fill.position.z = -GATE.width * (1.0 - f) / 2.0
 	gv.bar_mat.albedo_color = Look.PAL.warn.lerp(Look.PAL.cyan, f)
 	lamp(gv.light, wave, g.lane)
+	if g.hp < gv.hp:
+		gv.hit = tick
+	gv.hp = g.hp
+	var hit: bool = tick - gv.hit < ALARM.ticks
+	var flash: bool = hit and (tick / ALARM.blink) % 2 == 0
+	gv.light.emission = ALARM.color if hit else gv.base
+	if hit:
+		gv.light.emission_energy_multiplier = ALARM.on if flash else 0.5
+	gv.alarm.light_energy = ALARM.light if flash else 0.0
 
 
 func make_pad(p: Dictionary) -> Dictionary:

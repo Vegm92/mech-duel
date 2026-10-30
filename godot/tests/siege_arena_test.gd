@@ -120,6 +120,8 @@ func _process(_dt: float) -> bool:
 	s.gates[0].hp = 0.0
 	v.update(s)
 	check(v.gates[0].broken.visible and not v.gates[0].door.visible and not v.gates[0].bar.visible, "a gate at 0 HP shows its broken look")
+	check(v.gates[0].light.emission == SiegeView.ALARM.color, "a gate that just lost HP turns its lamp alarm red")
+	v.gates[0].hit = -1000
 	check(v.pads.slice(0, 3).all(func(p): return p.mods.values().filter(func(m): return m.visible).size() == 1), "lane 0 pads show their modules")
 	check(v.pads.slice(3).all(func(p): return p.mods.values().all(func(m): return not m.visible)), "empty pads show no module")
 	s.wave.next_in = 300

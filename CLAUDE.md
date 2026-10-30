@@ -286,14 +286,17 @@ $P = "$R\godot"
   clock; score chips with more than 2 mechs), `callout` (Exo 2 between hazard stripes, -3°), `slam` (round end), `match_over`
   (round list from `rounds`, tracked in `_process`), `pause_screen` (slabs drawn over empty Buttons so focus
   and the pad still work), `replay_bars`. Core Siege uses the same arcade look (2026-10-30 night job): `siege_top` (wave plate + core bar with ring ticks),
-  `siege_left` (fund / wallet / tokens chips, garrison chip, `ally_row` strip: ally color, mini health-bar diagram,
-  status dot / red X / blue recall arc, `siege_tiers`), the same `side_panel` bottom-left for you, `siege_shop`
-  (team shop list + hint tags, build phase only), `siege_calls` (colored `callout`s), `siege_over` (CORE LOST band),
-  `marker` / `edge_arrow` / `ally_marks` (gate tags, hurt rings, allies get a numbered chevron in their color
-  or an edge arrow; `siege_box` keeps arrows clear of the left column, the wave plate and the team shop;
-  ally colors are `A.team[i]`; `view.mark_color` paints each squad mech's floor ring, ▼ and rim in its strip color,
-  `ally_tag` is the number + name chip over an ally or at its edge arrow, `calls_bottom` pushes arrows below the calls). `radial.gd` is restyled to the same palette (Exo 2 names, yellow hot wedge, wallet
-  chips fed by `hud.siege_left`, breadcrumb, hints); the hud hides its own chips and shop list while it is open.
+  `siege_left` (big `stat_chip`s for fund / wallet / tokens, garrison chip, `ally_row` strip: name painted in the ally
+  color, mini health-bar diagram, a red X when down, a blue arc while recalling, recall bar; `siege_tiers` RUN
+  UPGRADES only while the radial shop is open), the same `side_panel` bottom-left for you, `siege_shop` (team shop
+  list + hint tags, build phase only), `siege_calls` (colored `callout`s), `siege_over` (CORE LOST band), `marker` /
+  `edge_arrow` (gate tags and edge arrows), `ally_marks` (an edge arrow in the ally color when an ally is off
+  screen), `siege_box` (keeps arrows clear of the left column, the wave plate, the team shop and `calls_bottom`);
+  ally colors are `A.team[i]` and `view.mark_color` paints each squad mech's floor ring, ▼ and rim in its strip
+  color (`view.squad`). A gate that loses HP flashes its lamps red plus a red light for 100 ticks (`siege_view.gd`
+  `ALARM`) instead of a HUD ring. `radial.gd` is restyled to the same palette (Exo 2 names, yellow hot wedge,
+  wallet chips fed by `hud.siege_left`, breadcrumb, hints); the hud hides its own chips and shop list while it is
+  open.
   Not restyled: the wave 10 / 20 / 30 reward screen (`claim.gd`, other session).
   Look flags: `--format=ffa|2v2` (4 mechs, extra bots; no kill cam), `--pause` (pause at `--at`), `--lang=en`.
   Evidence: `production/qa/evidence/arcade-{before,after}-*-2026-10-30.png`. Test: `tests/hud_test.gd`.
