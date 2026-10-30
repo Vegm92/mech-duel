@@ -421,28 +421,62 @@ cyl(1.78, 1.78, 2.2, 2.35, "trim", 12, 0.01)
 cyl(1.85, 1.85, 3.85, 4.05, "steel", 12, 0.02)
 
 part("core_plasma")
-cyl(0.46, 0.46, 3.9, 7.0, "plasma", 8, 0.01)
-ring(1.0, 1.2, 6.45, 6.6, "plasma", 16)
+cyl(0.34, 0.5, 3.9, 4.6, "plasma", 8, 0.01)
+cyl(0.5, 0.34, 4.6, 5.6, "plasma", 8, 0.01)
+cyl(0.34, 0.26, 5.6, 7.0, "plasma", 8, 0.01)
 for k in range(4):
     a = k * math.pi / 2
-    rbox((0.7, 0.1, 0.12), (0.78 * math.cos(a), 6.52, 0.78 * math.sin(a)), a, "plasma", 0)
+    rbox((0.5, 0.1, 0.1), (0.62 * math.cos(a), 4.2, 0.62 * math.sin(a)), a, "plasma", 0)
 
 part("core_plasma_in")
-cyl(0.4, 0.4, 6.98, 7.06, "plasma_in", 8, 0)
+cyl(0.2, 0.2, 6.98, 7.1, "plasma_in", 8, 0)
 for k in range(8):
     a = k * math.pi / 4
-    rbox((0.04, 2.9, 0.1), (0.43 * math.cos(a), 5.5, 0.43 * math.sin(a)), a, "plasma_in", 0)
+    rbox((0.04, 1.2, 0.1), (0.46 * math.cos(a), 4.6, 0.46 * math.sin(a)), a, "plasma_in", 0)
+    rbox((0.04, 1.0, 0.08), (0.34 * math.cos(a), 6.2, 0.34 * math.sin(a)), a, "plasma_in", 0)
+
+part("core_bands")
+for y in (1.35, 3.3):
+    ring(1.74, 1.84, y, y + 0.1, "plasma", 12)
+for k in range(6):
+    a = math.pi / 6 + k * math.pi / 3
+    rbox((0.06, 1.1, 0.26), (1.72 * math.cos(a), 2.35, 1.72 * math.sin(a)), a, "plasma", 0)
+
+part("core_crown")
+ring(1.0, 1.2, -0.08, 0.08, "plasma", 16)
+for k in range(4):
+    a = k * math.pi / 2
+    rbox((0.75, 0.1, 0.12), (0.8 * math.cos(a), 0, 0.8 * math.sin(a)), a, "plasma", 0)
+for k in range(8):
+    a = k * math.pi / 4 + math.pi / 8
+    rbox((0.1, 0.34, 0.1), (1.1 * math.cos(a), 0.2, 1.1 * math.sin(a)), a, "plasma_in", 0)
+
+part("core_crown2")
+ring(0.62, 0.74, -0.05, 0.05, "plasma_in", 12)
+for k in range(3):
+    a = k * 2 * math.pi / 3
+    rbox((0.2, 0.14, 0.14), (0.74 * math.cos(a), 0, 0.74 * math.sin(a)), a, "plasma", 0)
+
+part("core_orb")
+pts = [(0, 0.8, 0), (0, -0.8, 0)] + [(0.46 * math.cos(k * math.pi / 3), 0, 0.46 * math.sin(k * math.pi / 3)) for k in range(6)]
+hull(pts, "plasma_in", 0)
 
 PETAL_IN, PETAL_OUT, PETAL_HALF, PETAL_SEGS = 2.1, 2.65, math.radians(34), 6
-PETAL_BANDS = ((0.7, 1.15, 0.0, 0.03, "hazard"), (1.15, 4.35, 0.03, 0.28, "petal"), (4.35, 4.6, 0.28, 0.32, "petal_edge"))
+PETAL_TIP = math.radians(26)
+PETAL_BANDS = ((0.7, 1.15, 0.0, 0.03, 1.0, 1.0, "hazard"), (1.15, 4.35, 0.03, 0.28, 1.0, PETAL_TIP / PETAL_HALF, "petal"),
+               (4.35, 4.6, 0.28, 0.32, PETAL_TIP / PETAL_HALF, 0.94 * PETAL_TIP / PETAL_HALF, "petal_edge"))
 for i in range(4):
     part("petal%d" % (i + 1))
     mid = math.pi / 4 + i * math.pi / 2
     for j in range(PETAL_SEGS):
-        a0 = mid - PETAL_HALF + 2 * PETAL_HALF * j / PETAL_SEGS
-        a1 = mid - PETAL_HALF + 2 * PETAL_HALF * (j + 1) / PETAL_SEGS
-        for y0, y1, l0, l1, mat in PETAL_BANDS:
-            hull([((r + l) * math.cos(a), y, (r + l) * math.sin(a)) for r in (PETAL_IN, PETAL_OUT) for a in (a0, a1) for y, l in ((y0, l0), (y1, l1))], mat, 0)
+        u0 = -1 + 2 * j / PETAL_SEGS
+        u1 = -1 + 2 * (j + 1) / PETAL_SEGS
+        for y0, y1, l0, l1, h0, h1, mat in PETAL_BANDS:
+            hull([((r + l) * math.cos(mid + u * PETAL_HALF * h), y, (r + l) * math.sin(mid + u * PETAL_HALF * h)) for r in (PETAL_IN, PETAL_OUT) for u in (u0, u1) for y, l, h in ((y0, l0, h0), (y1, l1, h1))], mat, 0)
+    top = 0.94 * PETAL_TIP
+    r_mid = (PETAL_IN + PETAL_OUT) / 2 + 0.32
+    hull([((r + 0.32) * math.cos(mid + s * top), 4.6, (r + 0.32) * math.sin(mid + s * top)) for r in (PETAL_IN, PETAL_OUT) for s in (-1, 1)] + [(r_mid * math.cos(mid), 5.5, r_mid * math.sin(mid))], "petal", 0)
+    hull([((PETAL_IN + l) * math.cos(mid + u * 0.2), y, (PETAL_IN + l) * math.sin(mid + u * 0.2)) for y, l in ((1.25, 0.0), (4.5, 0.3)) for u in (-1, 1)] + [((PETAL_IN + l - 0.04) * math.cos(mid + u * 0.2), y, (PETAL_IN + l - 0.04) * math.sin(mid + u * 0.2)) for y, l in ((1.25, 0.0), (4.5, 0.3)) for u in (-1, 1)], "petal_edge", 0)
 
 part("gate")
 for sd in (-1, 1):

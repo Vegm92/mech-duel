@@ -128,7 +128,7 @@ func _process(_dt: float) -> bool:
 	check(v.petals[0].visible and v.petals[0].position.y < 0.0, "a ring coming back raises its petal out of the floor")
 	s.tick += SiegeView.CORE.rise.ticks
 	v.update(s)
-	check(v.petals[0].position == Vector3.ZERO, "a risen petal sits at its place")
+	check(v.petals[0].position.length() <= SiegeView.CORE.bob + 0.001, "a risen petal sits at its place, give or take its bob")
 	s.core.rings = SiegeState.ring_hp(3)
 	s.tick += 1
 	v.update(s)
