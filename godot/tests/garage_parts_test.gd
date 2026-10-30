@@ -6,6 +6,7 @@ const PartView = preload("res://src/part_view.gd")
 const Garage = preload("res://src/garage.gd")
 const Decor = preload("res://src/decor.gd")
 const Progress = preload("res://src/progress.gd")
+const Claim = preload("res://src/claim.gd")
 
 const FLOW := "user://progress_flow_test.cfg"
 
@@ -23,6 +24,8 @@ func _initialize() -> void:
 	await run("garage_locks_parts_you_have_not_won", test_garage_locks_parts_you_have_not_won)
 	await run("winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part", test_winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part)
 	await run("losing_a_match_gives_no_claim", test_losing_a_match_gives_no_claim)
+	await run("claim_lifts_the_hovered_card_and_keep_takes_it", test_claim_lifts_the_hovered_card_and_keep_takes_it)
+	await run("garage_tags_the_equipped_card_after_a_click", test_garage_tags_the_equipped_card_after_a_click)
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
@@ -346,6 +349,38 @@ func test_winning_a_match_opens_the_claim_screen_and_a_pick_unlocks_the_part() -
 	bad += ensure(FileAccess.file_exists(FLOW) and m.progress.next_rival() == "sniper", "progress is saved and the next rival is the next on the ladder")
 	m.queue_free()
 	wipe_flow()
+	await process_frame
+	return int(bad > 0)
+
+
+func test_claim_lifts_the_hovered_card_and_keep_takes_it() -> int:
+	var c = Claim.new()
+	root.add_child(c)
+	var list := [{"slot": "head", "key": "horn"}, {"slot": "legs", "key": "hover"}, {"slot": "core", "key": "titan"}]
+	var got := []
+	c.picked.connect(func(slot, key): got.append([slot, key]))
+	c.open(list, "tank", 1, Progress.new())
+	var bad := ensure(c.sel == 0 and c.cards[0].position.y < c.cards[1].position.y, "the first card starts lifted")
+	c.cards[2].mouse_entered.emit()
+	bad += ensure(c.sel == 2 and c.cards[2].position.y < c.cards[0].position.y and c.cards[0].position.y == c.cards[1].position.y, "hovering a card lifts it and drops the old one")
+	c.keep_btn.pressed.emit()
+	bad += ensure(got == [["core", "titan"]] and not c.visible, "KEEP takes the lifted card")
+	c.queue_free()
+	await process_frame
+	return int(bad > 0)
+
+
+func test_garage_tags_the_equipped_card_after_a_click() -> int:
+	var g = Garage.new()
+	g.progress.unlock_all = true
+	root.add_child(g)
+	g.open(Sim.DEFAULT_LOADOUT)
+	await process_frame
+	var tags := func(): return g.cards.filter(func(c): return c[4].visible).map(func(c): return c[2])
+	var bad := ensure(tags.call() == [{"slot": "head", "key": "rookie"}], "the worn head carries the EQUIPPED tag")
+	g.equip({"slot": "head", "key": "demon"})
+	bad += ensure(tags.call() == [{"slot": "head", "key": "demon"}], "the tag moves to the card you click")
+	g.queue_free()
 	await process_frame
 	return int(bad > 0)
 
