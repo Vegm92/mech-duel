@@ -15,8 +15,24 @@ const PAD := 20.0
 const RX := 880.0
 const RW := 380.0
 const AREA := RX - 16.0 - PAD
-const GRID_Y := 180.0
-const BOTTOM := 700.0
+const GRID_Y := 144.0
+const BOTTOM := 704.0
+const SKEW := 0.2126
+const A_GROUND := Color("0B0A12")
+const A_PANEL := Color("17141F")
+const A_RAISED := Color("221E2E")
+const A_PICKED := Color("2A2440")
+const A_LINE := Color("34304A")
+const A_DIM := Color("B3ACCB")
+const A_INK := Color("D9D4EA")
+const A_HAZARD := Color("FFC93C")
+const A_ORANGE := Color("FF6B1A")
+const A_BLUE := Color("2F9BFF")
+const A_SURGE := Color("C86BFF")
+const A_DANGER := Color("FF4D5E")
+const A_SOFT := Color("FF8A95")
+const A_GOOD := Color("39D98A")
+const A_LOCKED := Color("8E87A8")
 const SLOTS := ["head", "core", "arms", "legs", "booster", "left", "right", "set"]
 const TITLES := ["gHead", "gCore", "gArms", "gLegs", "gBooster", "gLeftHand", "gRightHand", "gSets"]
 const MAIN := [["mainParts", 0, 4], ["mainWeapons", 5, 6], ["mainSets", 7, 7]]
@@ -29,16 +45,16 @@ static var SEL := Color8(26, 66, 124, 247)
 static var LINE := Color8(80, 150, 230, 115)
 static var LINE_HOV := Color8(150, 210, 255, 178)
 static var HI := Color8(160, 215, 255, 242)
-static var TEXT := Color("e8f2ff")
-static var DIM := Color("7fa6d6")
-static var LABEL := Color("5d84b8")
+static var TEXT := Color.WHITE
+static var DIM := A_DIM
+static var LABEL := A_LOCKED
 static var HOLO := Color8(95, 180, 255)
 static var PANEL := Color8(6, 18, 40, 240)
-static var SKILL := Color("e6c8ff")
-static var GUN := Color("ffd27a")
-static var MELEE := Color("ff9c86")
-static var GOOD := Color("7dffa8")
-static var BAD := Color("ff7a6a")
+static var SKILL := A_SURGE
+static var GUN := A_HAZARD
+static var MELEE := A_ORANGE
+static var GOOD := A_GOOD
+static var BAD := A_DANGER
 
 var loadout: Dictionary = Sim.DEFAULT_LOADOUT.duplicate()
 var progress := Progress.new()
@@ -63,15 +79,8 @@ var about_skill: Label
 
 func _init() -> void:
 	bold = Look.font(Look.FONT.bold)
-	var bg := TextureRect.new()
-	var g := GradientTexture2D.new()
-	g.gradient = Gradient.new()
-	g.gradient.set_color(0, Color("03091a"))
-	g.gradient.set_color(1, Color("0a1c3a"))
-	g.fill_to = Vector2(0, 1)
-	bg.texture = g
-	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_SCALE
+	var bg := ColorRect.new()
+	bg.color = A_GROUND
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	root = Control.new()
@@ -98,13 +107,11 @@ func build() -> void:
 	for c in root.get_children():
 		c.queue_free()
 	left = null
-	var head := panel(root, Rect2(PAD, 12, 220, 42), Color8(14, 40, 80, 242), HI, 10)
-	var title := text(head, tr("garage"), Vector2(0, 0), 26, TEXT, 220, true, HORIZONTAL_ALIGNMENT_CENTER, 42)
-	title.add_theme_color_override("font_shadow_color", Color(HOLO, 0.8))
-	title.add_theme_constant_override("shadow_outline_size", 8)
-	title.add_theme_constant_override("shadow_offset_x", 0)
-	title.add_theme_constant_override("shadow_offset_y", 0)
-	text(root, tr("garageHint"), Vector2(PAD + 236, 12), 13, DIM, AREA - 236, false, HORIZONTAL_ALIGNMENT_LEFT, 42)
+	hazard(root, Rect2(0, 0, SIZE.x, 8))
+	var title := big(root, tr("garage"), Vector2(PAD, 12), 42, Color.WHITE, 220, 56)
+	title.add_theme_color_override("font_shadow_color", Color.BLACK)
+	title.add_theme_constant_override("shadow_offset_x", 4)
+	title.add_theme_constant_override("shadow_offset_y", 4)
 	build_right()
 	build_tab()
 
@@ -120,19 +127,19 @@ func build_tab() -> void:
 	var mt: Array = main_of(tab)
 	for i in MAIN.size():
 		var on: bool = MAIN[i] == mt
-		var b := button(left, Rect2(PAD + i * 178, 64, 170, 34), {"tab": MAIN[i][1]}, select_tab.bind(MAIN[i][1]))
-		paint(b, on)
-		text(b, tr(MAIN[i][0]), Vector2.ZERO, 15, Color.WHITE if on else DIM, 170, true, HORIZONTAL_ALIGNMENT_CENTER, 34)
+		var b := button(left, Rect2(250 + i * 146, 18, 140, 40), {"tab": MAIN[i][1]}, select_tab.bind(MAIN[i][1]))
+		skew(b, Color.WHITE if on else A_RAISED)
+		text(b, tr(MAIN[i][0]).to_upper(), Vector2.ZERO, 15, A_GROUND if on else A_DIM, 140, true, HORIZONTAL_ALIGNMENT_CENTER, 40)
 	var n: int = mt[2] - mt[1] + 1
-	var sw := (AREA - 6.0 * (n - 1)) / n
+	var sw := 150.0
 	for j in n:
 		var i: int = mt[1] + j
 		var on := i == tab
-		var b := button(left, Rect2(PAD + j * (sw + 6), 106, sw, 44), {"tab": i}, select_tab.bind(i))
-		paint(b, on)
-		text(b, tr("tab_" + SLOTS[i]), Vector2(0, 3), 13, Color.WHITE if on else TEXT, sw, true, HORIZONTAL_ALIGNMENT_CENTER)
-		subs.append([i, text(b, "", Vector2(4, 22), 11, Color("bfe4ff") if on else LABEL, sw - 8, false, HORIZONTAL_ALIGNMENT_CENTER)])
-	text(left, tr(TITLES[tab]), Vector2(PAD, 156), 12, HOLO, AREA, true)
+		var b := button(left, Rect2(PAD + j * (sw + 6), 72, sw, 44), {"tab": i}, select_tab.bind(i))
+		skew(b, A_HAZARD if on else A_RAISED)
+		text(b, tr("tab_" + SLOTS[i]).to_upper(), Vector2(0, 4), 13, A_GROUND if on else A_DIM, sw, true, HORIZONTAL_ALIGNMENT_CENTER)
+		subs.append([i, text(b, "", Vector2(4, 24), 11, Color(A_GROUND, 0.75) if on else A_LOCKED, sw - 8, false, HORIZONTAL_ALIGNMENT_CENTER)])
+	text(left, tr(TITLES[tab]), Vector2(PAD, 120), 12, A_DIM, AREA, true)
 	var slot: String = SLOTS[tab]
 	var items: Array = Sim.SETS.keys() if slot == "set" else Sim.CATALOG[slot].keys()
 	var cols := 3 if slot == "set" and items.size() > 6 else 4 if items.size() > 10 else 2
@@ -157,7 +164,7 @@ func card(slot: String, key: String, r: Rect2) -> void:
 	b.focus_entered.connect(set_hover.bind(h))
 	b.focus_exited.connect(leave.bind(h))
 	var ts := r.size.y - 12.0
-	panel(b, Rect2(6, 6, ts, ts), Color8(0, 10, 30, 115), Color8(80, 150, 230, 51), 4)
+	panel(b, Rect2(6, 6, ts, ts), Color(A_GROUND, 0.7), 4)
 	var v := PartView.new()
 	v.position = Vector2(6, 6)
 	v.size = Vector2(ts, ts)
@@ -172,13 +179,18 @@ func card(slot: String, key: String, r: Rect2) -> void:
 	var x := ts + 16.0
 	var tw := r.size.x - x - 8.0
 	var lvl := 0 if is_set else progress.level(slot, key)
-	var tag := tr("lockedTag") if lock else (tr("mk").format({"n": lvl}) if lvl > 1 else "")
-	if tag != "":
-		var tagw := bold.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 8.0
-		text(b, tag, Vector2(r.size.x - tagw - 6.0, 6), 11, BAD if lock else GOOD, tagw, true, HORIZONTAL_ALIGNMENT_RIGHT)
-		tw -= tagw
-	var title := text(b, tr(("set_" if is_set else "p_") + key), Vector2(x, 4), 14, DIM if lock else TEXT, tw, true)
-	fit(title, 14, tw, 10)
+	var worn := tag(b, tr("equippedTag"), Vector2(8, ts - 12), A_HAZARD, A_GROUND)
+	worn.visible = not lock and selected(h)
+	if lock:
+		tag(b, tr("lockedTag"), Vector2(8, ts - 12), A_LINE, A_DIM)
+	if lvl > 1 and not lock:
+		var mk := tr("mk").format({"n": lvl})
+		var mkw := bold.get_string_size(mk, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 2.0
+		text(b, mk, Vector2(r.size.x - mkw - 8.0, 6), 11, A_DIM, mkw, true, HORIZONTAL_ALIGNMENT_RIGHT)
+		tw -= mkw
+	var title := text(b, tr(("set_" if is_set else "p_") + key), Vector2(x, 4), 15, A_LOCKED if lock else Color.WHITE, tw, true)
+	title.add_theme_font_override("font", impact(false))
+	fit(title, 15, tw, 10)
 	var kind: Array
 	if is_set:
 		kind = [tr("setSkill"), tr("u_" + Sim.ult_of(p)), SKILL]
@@ -210,23 +222,23 @@ func card(slot: String, key: String, r: Rect2) -> void:
 		para(b, tr(("sd_" if is_set else "d_") + key), Rect2(x, top, tw, r.size.y - top - 4), 10, DIM, 2 if extra != "" else 3)
 	for i in stats.size():
 		var y := r.size.y - (stats.size() - i) * 14.0 - 6.0
-		text(b, tr(stats[i][0]), Vector2(x, y - 5), 10, DIM, 58)
+		text(b, tr(stats[i][0]), Vector2(x, y - 5), 10, A_DIM, 58)
 		var bw := tw - 60.0
-		rect(b, Rect2(x + 60, y + 2, bw, 5), Color8(120, 180, 255, 26))
-		rect(b, Rect2(x + 60, y + 2, maxf(5.0, bw * clampf(stats[i][1], 0.0, 1.0)), 5), Color(HOLO, 0.85))
-	cards.append([b, v, h, title])
+		rect(b, Rect2(x + 60, y + 2, bw, 5), A_LINE)
+		rect(b, Rect2(x + 60, y + 2, maxf(5.0, bw * clampf(stats[i][1], 0.0, 1.0)), 5), A_LOCKED if lock else Color.WHITE)
+	cards.append([b, v, h, title, worn])
 
 
 func build_right() -> void:
-	var tt := panel(root, Rect2(RX, 12, RW, 280), PANEL, LINE, 14)
+	var tt := panel(root, Rect2(RX, 74, RW, 252), A_PANEL, 14)
 	stage = PartView.new()
 	stage.position = Vector2(4, 4)
-	stage.size = Vector2(RW - 80, 272)
+	stage.size = Vector2(RW - 80, 244)
 	tt.add_child(stage)
 	stage.turn(true)
 	shown = {}
 	var sx := RW - 70.0
-	text(tt, tr("weaponsLabel"), Vector2(sx - 8, 8), 11, DIM, 76, true, HORIZONTAL_ALIGNMENT_CENTER)
+	text(tt, tr("weaponsLabel"), Vector2(sx - 8, 8), 11, A_DIM, 76, true, HORIZONTAL_ALIGNMENT_CENTER)
 	hands.clear()
 	for i in Sim.HANDS.size():
 		var hand: String = Sim.HANDS[i]
@@ -235,53 +247,47 @@ func build_right() -> void:
 		v.position = Vector2(3, 3)
 		v.size = Vector2(54, 54)
 		b.add_child(v)
-		text(b, tr("handL" if i == 0 else "handR"), Vector2(44, 40), 12, HI, 0, true)
+		text(b, tr("handL" if i == 0 else "handR"), Vector2(44, 40), 12, A_HAZARD, 0, true)
 		hands[hand] = [b, v, ""]
-	fit(text(tt, tr("skillLabel"), Vector2(sx - 12, 166), 11, DIM, 84, true, HORIZONTAL_ALIGNMENT_CENTER), 11, 84, 8)
+	fit(text(tt, tr("skillLabel"), Vector2(sx - 12, 166), 11, A_DIM, 84, true, HORIZONTAL_ALIGNMENT_CENTER), 11, 84, 8)
 	skill_btn = button(tt, Rect2(sx, 186, 60, 60), {"tab": 1}, select_tab.bind(1))
 	skill_name = text(skill_btn, "", Vector2(2, 0), 11, SKILL, 56, true, HORIZONTAL_ALIGNMENT_CENTER, 60)
 	skill_name.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
 	skill_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var info := panel(root, Rect2(RX, 300, RW, 170), PANEL, LINE, 12)
-	text(info, tr("mechInfo"), Vector2(14, 6), 13, HI, 0, true)
+	var info := panel(root, Rect2(RX, 334, RW, 170), A_PANEL, 12)
+	big(info, tr("mechInfo"), Vector2(14, 5), 16, Color.WHITE, 0, 24)
 	info_rows.clear()
 	var colw := (RW - 28.0) / 2.0
 	for i in 12:
 		var x := 14.0 + (0.0 if i < 6 else colw + 6.0)
 		var y := 32.0 + (i % 6) * 22.0
 		if i % 6:
-			rect(info, Rect2(x, y - 2, colw - 6, 1), Color8(80, 150, 230, 31))
-		info_rows.append([text(info, "", Vector2(x, y), 11, DIM, colw * 0.55), rich(info, Vector2(x, y - 1), colw - 8, 13)])
-	var ab := panel(root, Rect2(RX, 478, RW, 160), PANEL, LINE, 10)
-	about_title = text(ab, "", Vector2(14, 8), 15, HI, RW - 28, true)
-	about_desc = para(ab, "", Rect2(14, 34, RW - 28, 68), 12, DIM, 4)
+			rect(info, Rect2(x, y - 2, colw - 6, 1), A_LINE)
+		info_rows.append([text(info, "", Vector2(x, y), 11, A_DIM, colw * 0.55, true), rich(info, Vector2(x, y - 1), colw - 8, 13)])
+	var ab := panel(root, Rect2(RX, 512, RW, 160), A_PANEL, 12)
+	about_title = big(ab, "", Vector2(14, 6), 18, Color.WHITE, RW - 28, 26)
+	about_desc = para(ab, "", Rect2(14, 36, RW - 28, 66), 12, A_INK, 4)
 	about_skill = para(ab, "", Rect2(14, 106, RW - 28, 48), 12, SKILL, 3)
-	var sw := 132.0
-	var f := Button.new()
-	f.position = Vector2(RX, 646)
-	f.size = Vector2(RW - sw - 8, 54)
-	f.focus_mode = Control.FOCUS_NONE
-	f.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	var glow := Color(1.0, 0.48, 0.18, 0.9)
-	f.add_theme_stylebox_override("normal", plate(Color("ff9447"), Color("ffd2a8"), 2, 12, glow))
-	for s in ["hover", "pressed", "hover_pressed"]:
-		f.add_theme_stylebox_override(s, plate(Color("ffae6e"), Color("ffd2a8"), 2, 12, glow))
-	f.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	f.pressed.connect(go)
-	root.add_child(f)
-	text(f, tr("fightBtn"), Vector2.ZERO, 20, Color("1a0d05"), f.size.x, true, HORIZONTAL_ALIGNMENT_CENTER, 54)
+	text(root, tr("garageHint"), Vector2(RX, 678), 12, A_DIM, RW)
+	var sw := 150.0
 	var sb := Button.new()
-	sb.position = Vector2(RX + RW - sw, 646)
-	sb.size = Vector2(sw, 54)
+	sb.position = Vector2(RX + RW - 190 - 22 - sw, 20)
+	sb.size = Vector2(sw, 40)
 	sb.focus_mode = Control.FOCUS_NONE
 	sb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	sb.add_theme_stylebox_override("normal", plate(PANEL, Color("ffd2a8"), 2, 12))
-	for s in ["hover", "pressed", "hover_pressed"]:
-		sb.add_theme_stylebox_override(s, plate(Color(0.16, 0.12, 0.1), Color("ffd2a8"), 2, 12))
-	sb.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	skew(sb, A_RAISED)
 	sb.pressed.connect(go_siege)
 	root.add_child(sb)
-	text(sb, tr("siegeBtn"), Vector2.ZERO, 16, Color("ffd2a8"), sw, true, HORIZONTAL_ALIGNMENT_CENTER, 54)
+	big(sb, tr("siegeBtn"), Vector2.ZERO, 19, Color.WHITE, sw, 40, true)
+	var f := Button.new()
+	f.position = Vector2(RX + RW - 190, 12)
+	f.size = Vector2(190 - 5, 52)
+	f.focus_mode = Control.FOCUS_NONE
+	f.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	skew(f, A_HAZARD, true)
+	f.pressed.connect(go)
+	root.add_child(f)
+	big(f, tr("go"), Vector2.ZERO, 30, A_GROUND, f.size.x, 52, true)
 
 
 func refresh() -> void:
@@ -289,7 +295,7 @@ func refresh() -> void:
 	for c in cards:
 		var on := selected(c[2])
 		paint(c[0], on)
-		c[3].add_theme_color_override("font_color", Color.WHITE if on else TEXT)
+		c[4].visible = on and not locked(c[2])
 	for s in subs:
 		s[1].text = current(s[0])
 	if next != shown:
@@ -297,13 +303,15 @@ func refresh() -> void:
 		stage.show_mech(next)
 	for hand in hands:
 		var row: Array = hands[hand]
-		paint(row[0], tab == 5 + Sim.HANDS.find(hand))
+		paint(row[0], tab == 5 + Sim.HANDS.find(hand), A_RAISED)
 		if row[2] != loadout[hand]:
 			row[2] = loadout[hand]
 			row[1].show_part(hand, loadout[hand])
 	var ult := Sim.ult_of(next)
 	var changing := ult != Sim.ult_of(loadout)
-	skill_btn.add_theme_stylebox_override("normal", plate(SEL if tab == 1 else CARD, SKILL if changing else Color(SKILL, 0.7), 2 if changing else 1, 8, Color(SKILL, 0.5) if changing else Color.TRANSPARENT))
+	paint(skill_btn, tab == 1, A_RAISED)
+	if changing:
+		skill_btn.add_theme_stylebox_override("normal", box(A_PICKED if tab == 1 else A_RAISED, 12, SKILL))
 	skill_name.text = tr("u_" + ult)
 	var px := 11
 	while px > 8 and Array(skill_name.text.split(" ")).any(func(w): return bold.get_string_size(w, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > 54):
@@ -319,7 +327,7 @@ func refresh() -> void:
 		var s := trend(d, row[2], row[3])
 		var arrow := ""
 		if s != 0:
-			arrow = "[font_size=10][color=#%s]%s%s[/color][/font_size]  " % [(GOOD if s > 0 else BAD).to_html(false), "▲" if d > 0 else "▼", num(absf(d), row[2])]
+			arrow = "[font_size=10][color=#%s]%s%s[/color][/font_size]  " % [(GOOD if s > 0 else A_SOFT).to_html(false), "▲" if d > 0 else "▼", num(absf(d), row[2])]
 		info_rows[i][1].text = "[right]%s[b]%s[/b][/right]" % [arrow, fmt(row[0], row[1], row[2])]
 	about()
 
@@ -564,15 +572,82 @@ static func plate(fill: Color, edge: Color, width: int, cut: int, shadow := Colo
 	return s
 
 
-func paint(b: Button, on: bool) -> void:
-	var cut := 8
-	b.add_theme_stylebox_override("normal", plate(SEL if on else CARD, HI if on else LINE, 2 if on else 1, cut, Color(HOLO, 0.45) if on else Color.TRANSPARENT))
-	var hov := plate(SEL if on else HOV, HI if on else LINE_HOV, 2 if on else 1, cut, Color(HOLO, 0.45) if on else Color.TRANSPARENT)
+func paint(b: Button, on: bool, base := A_PANEL) -> void:
+	var fill := A_PICKED if on else base
+	var stripe := A_HAZARD if on else Color.TRANSPARENT
+	b.add_theme_stylebox_override("normal", box(fill, 12, stripe))
+	var hov := box(fill.lightened(0.1), 12, stripe)
 	for s in ["hover", "pressed", "hover_pressed"]:
 		b.add_theme_stylebox_override(s, hov)
-	var ring := plate(Color.TRANSPARENT, Color.WHITE, 2, cut)
+	var ring := plate(Color.TRANSPARENT, Color.WHITE, 2, 12)
 	ring.set_expand_margin_all(3)
 	b.add_theme_stylebox_override("focus", ring)
+
+
+static func box(fill: Color, cut: int, stripe := Color.TRANSPARENT) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = fill
+	s.corner_detail = 1
+	s.corner_radius_top_left = cut
+	s.corner_radius_bottom_right = cut
+	if stripe.a > 0:
+		s.border_width_top = 4
+		s.border_color = stripe
+	return s
+
+
+static func impact(heavy := true) -> FontVariation:
+	return Look.font(Look.FONT.heavy if heavy else Look.FONT.bold, true, Look.FONT.impact)
+
+
+static func skew(b: Button, fill: Color, shadow := false) -> Polygon2D:
+	for s in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
+		b.add_theme_stylebox_override(s, StyleBoxEmpty.new())
+	var sk := b.size.y * SKEW
+	var pts := PackedVector2Array([Vector2(sk, 0), Vector2(b.size.x, 0), Vector2(b.size.x - sk, b.size.y), Vector2(0, b.size.y)])
+	if shadow:
+		var sh := Polygon2D.new()
+		sh.polygon = pts
+		sh.position = Vector2(5, 5)
+		sh.color = Color.BLACK
+		b.add_child(sh)
+	var p := Polygon2D.new()
+	p.polygon = pts
+	p.color = fill
+	b.add_child(p)
+	b.mouse_entered.connect(func(): p.color = fill.lightened(0.12))
+	b.mouse_exited.connect(func(): p.color = fill)
+	return p
+
+
+static func hazard(parent: Control, r: Rect2) -> Control:
+	var c := Control.new()
+	c.position = r.position
+	c.size = r.size
+	c.clip_contents = true
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.draw.connect(func():
+		c.draw_rect(Rect2(Vector2.ZERO, r.size), A_GROUND)
+		var x := -r.size.y
+		while x < r.size.x:
+			c.draw_colored_polygon(PackedVector2Array([Vector2(x, r.size.y), Vector2(x + 14.14, r.size.y), Vector2(x + 14.14 + r.size.y, 0), Vector2(x + r.size.y, 0)]), A_HAZARD)
+			x += 28.28)
+	parent.add_child(c)
+	return c
+
+
+static func tag(parent: Control, s: String, at: Vector2, fill: Color, ink: Color) -> Control:
+	var f := Look.font(Look.FONT.bold)
+	var w := f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 12.0
+	var c := ColorRect.new()
+	c.color = fill
+	c.position = at
+	c.size = Vector2(w, 16)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var y := (16.0 - f.get_height(10)) / 2.0 + f.get_ascent(10)
+	c.draw.connect(func(): c.draw_string(f, Vector2(0, y), s, HORIZONTAL_ALIGNMENT_CENTER, w, 10, ink))
+	parent.add_child(c)
+	return c
 
 
 func button(parent: Control, r: Rect2, h: Dictionary, press: Callable) -> Button:
@@ -589,12 +664,12 @@ func button(parent: Control, r: Rect2, h: Dictionary, press: Callable) -> Button
 	return b
 
 
-func panel(parent: Control, r: Rect2, fill: Color, edge: Color, cut: int) -> Panel:
+func panel(parent: Control, r: Rect2, fill: Color, cut: int) -> Panel:
 	var p := Panel.new()
 	p.position = r.position
 	p.size = r.size
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	p.add_theme_stylebox_override("panel", plate(fill, edge, 1, cut))
+	p.add_theme_stylebox_override("panel", box(fill, cut))
 	parent.add_child(p)
 	return p
 
@@ -628,6 +703,12 @@ func text(parent: Control, s: String, pos: Vector2, px: int, c: Color, w := 0.0,
 	return l
 
 
+func big(parent: Control, s: String, pos: Vector2, px: int, c: Color, w := 0.0, h := 0.0, center := false) -> Label:
+	var l := text(parent, s, pos, px, c, w, false, HORIZONTAL_ALIGNMENT_CENTER if center else HORIZONTAL_ALIGNMENT_LEFT, h)
+	l.add_theme_font_override("font", impact())
+	return l
+
+
 func para(parent: Control, s: String, r: Rect2, px: int, c: Color, lines: int) -> Label:
 	var l := text(parent, s, r.position, px, c)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -655,7 +736,7 @@ func rich(parent: Control, pos: Vector2, w: float, px: int) -> RichTextLabel:
 	r.add_theme_font_size_override("normal_font_size", px)
 	r.add_theme_font_size_override("bold_font_size", px)
 	r.add_theme_font_override("bold_font", bold)
-	r.add_theme_color_override("default_color", TEXT)
+	r.add_theme_color_override("default_color", Color.WHITE)
 	r.position = pos
 	r.size = Vector2(w, px + 6)
 	parent.add_child(r)

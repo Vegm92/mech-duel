@@ -23,6 +23,7 @@ $G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon
 $G --headless --path godot -s res://tests/hype_test.gd         # crowd hype and crowd sounds
 $G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-run lands on the same K.O., one smooth move, pillars, match flow, skip
 $G --headless --path godot -s res://tests/progress_test.gd     # Salvage: owned parts, claims, levels, rival ladder, save file
+$G --headless --path godot -s res://tests/hud_test.gd          # Arcade HUD: strings, palette, pause, round list, FFA
 $G --headless --path godot -s res://tests/siege_rules_test.gd  # Core Siege: own golden hash, waves, gates, core rings, repair, respawn
 $G --path godot -- --siege --team=2 --wave=6                    # Core Siege (co-op wave defense), from wave 6
 $G --path godot -- --replay=0 --seed=1                          # watch a kill cam right away (bots fight to the first K.O.)
@@ -275,6 +276,27 @@ $P = "$R\godot"
   (skilled / average / weak) merges into a brain; `tools/siege_balance.gd -- --director=both
   --skill=<k> --rows=1` prints a WAVE row per wave and one BALANCE line per run.
   Not built yet: a second local player, netcode, VS (design only).
+- **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
+  and garage restyle on top of it). `hud.gd`: side panel for 1-2 mechs (`side_panel`, Victor 2026-10-30: bottom-left, 176×208, no text: heat and R gauges
+  around a robot diagram where every part is a health bar (`part_block`: green > 75%, yellow, orange, red,
+  black hatch = destroyed), six icon slots from `slot` / `icon_lines`: gun or blade by weapon kind, shield, E
+  skill, dash pips, R surge fill; a cooldown is a fill that rises (`cd_peak`), a jammed arm a red bottom bar; the
+  rival gets a mini health-bar diagram next to its name tag, `rival_bot`), with more mechs a grouped 70% bar per
+  corner (`skill_bar`: `robot` + `group` + `key_cap`, K.O.'d ones faded), `top_bar` (skewed team tags + hex
+  clock; score chips with more than 2 mechs), `callout` (Exo 2 between hazard stripes, -3°), `slam` (round end), `match_over`
+  (round list from `rounds`, tracked in `_process`), `pause_screen` (slabs drawn over empty Buttons so focus
+  and the pad still work), `replay_bars`. Core Siege uses the same arcade look (2026-10-30 night job): `siege_top` (wave plate + core bar with ring ticks),
+  `siege_left` (fund / wallet / tokens chips, garrison chip, `ally_row` strip: ally color, mini health-bar diagram,
+  status dot / red X / blue recall arc, `siege_tiers`), the same `side_panel` bottom-left for you, `siege_shop`
+  (team shop list + hint tags, build phase only), `siege_calls` (colored `callout`s), `siege_over` (CORE LOST band),
+  `marker` / `edge_arrow` / `ally_marks` (gate tags, hurt rings, allies get a numbered chevron in their color
+  or an edge arrow; `siege_box` keeps arrows clear of the left column, the wave plate and the team shop;
+  ally colors are `A.team[i]`; `view.mark_color` paints each squad mech's floor ring, ▼ and rim in its strip color,
+  `ally_tag` is the number + name chip over an ally or at its edge arrow, `calls_bottom` pushes arrows below the calls). `radial.gd` is restyled to the same palette (Exo 2 names, yellow hot wedge, wallet
+  chips fed by `hud.siege_left`, breadcrumb, hints); the hud hides its own chips and shop list while it is open.
+  Not restyled: the wave 10 / 20 / 30 reward screen (`claim.gd`, other session).
+  Look flags: `--format=ffa|2v2` (4 mechs, extra bots; no kill cam), `--pause` (pause at `--at`), `--lang=en`.
+  Evidence: `production/qa/evidence/arcade-{before,after}-*-2026-10-30.png`. Test: `tests/hud_test.gd`.
 - Model viewing (dev keys, main.gd): F freezes the match (sim and view stop), C cycles `CAMS`
   (0 game, 1 front 3/4, 2 side, 3 back 3/4, 4 game angle close; HUD hidden in close-ups), Tab
   picks the mech, and while frozen drag orbits and the wheel zooms.

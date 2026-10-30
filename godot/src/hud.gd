@@ -40,6 +40,17 @@ const READOUT := {
 const SHOP := ["gate", "rebuild", "ring", "wall", "mine", "laser", "post", "garrison"]
 const WALLET := ["kit", "coolant", "surge", "reinforce", "revive"]
 const TIER_ROWS := ["left", "right", "head", "arms", "legs", "booster", "core"]
+const A := Look.ARCADE
+const BAR := Vector2(580, 180)
+const GROUPS := [["larm", "barLarm", ["left"]], ["head", "barHead", ["hook"]], ["core", "barCore", ["shield", "ult"]], ["rarm", "barRarm", ["right"]], ["legs", "barLegs", ["dash"]]]
+const BOT := [["head", Rect2(18, 2, 17, 14)], ["core", Rect2(13, 20, 26, 34)], ["larm", Rect2(1, 22, 10, 36)], ["rarm", Rect2(42, 22, 10, 36)], ["legs", Rect2(14, 58, 11, 38)], ["legs", Rect2(28, 58, 11, 38)]]
+const SIDE := Vector2(176, 208)
+const DIAGRAM := [["head", Rect2(40, 0, 36, 24)], ["larm", Rect2(6, 28, 22, 56)], ["rarm", Rect2(88, 28, 22, 56)], ["legs", Rect2(33, 72, 22, 56)], ["legs", Rect2(61, 72, 22, 56)]]
+const MINI := [["head", Rect2(23, 0, 14, 10)], ["larm", Rect2(9, 12, 8, 24)], ["rarm", Rect2(43, 12, 8, 24)], ["legs", Rect2(20, 30, 9, 22)], ["legs", Rect2(31, 30, 9, 22)]]
+const SLOT_KEYS := ["left", "right", "shield", "hook", "dash", "ult"]
+const SIEGE_LEFT := 262.0
+const ROW_W := 230.0
+const KEYS := {"left": ["kLmb", "capLt"], "right": ["kRmb", "capRt"], "shield": ["capQ", "capRb"], "hook": ["capE", "capL3"], "dash": ["capSpace", "capLb"], "ult": ["capR", "capR3"]}
 const SLOTS := [["left", "capLmb", "capLt"], ["right", "capRmb", "capRt"], ["shield", "capQ", "capRb"], ["hook", "capE", "capL3"], ["dash", "capSpace", "capLb"], ["ult", "capR", "capR3"]]
 
 signal resume
@@ -55,10 +66,19 @@ var canvas: Control
 var font: Font
 var bold: FontVariation
 var heavy: FontVariation
+var semi: FontVariation
+var label_f: FontVariation
 var top := {}
 var last := {}
 var menu: VBoxContainer
+var sound: VBoxContainer
+var values: Array[Label] = []
 var replay := -1.0
+var who := Vector2i(-1, -1)
+var rounds := []
+var fade := 1.0
+var cd_peak := {}
+var calls_bottom := 0.0
 var hp_was := {}
 var best := 0
 var hurt_at := {}
@@ -68,6 +88,8 @@ func _ready() -> void:
 	font = Look.font(Look.FONT.text)
 	bold = Look.font(Look.FONT.bold)
 	heavy = Look.font(Look.FONT.heavy, true, Look.FONT.impact)
+	semi = Look.font(800, true, Look.FONT.impact)
+	label_f = Look.font(700)
 	canvas = Control.new()
 	canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
 	canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -75,32 +97,50 @@ func _ready() -> void:
 	add_child(canvas)
 	menu = VBoxContainer.new()
 	menu.add_theme_constant_override("separation", 10)
-	menu.set_anchors_preset(Control.PRESET_CENTER)
-	menu.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	menu.offset_top = -40
-	for row in [["mResume", resume], ["mRestart", restart], ["mGarage", quit]]:
+	menu.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	menu.position = Vector2(120, 300)
+	for row in [["mResume", resume, Vector2(380, 64)], ["mRestart", restart, Vector2(350, 52)], ["mGarage", quit, Vector2(320, 52)]]:
 		var b := Button.new()
-		b.text = row[0]
-		b.custom_minimum_size = Vector2(280, 46)
+		b.set_meta("key", row[0])
+		b.custom_minimum_size = row[2]
+		b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		b.add_theme_font_size_override("font_size", 18)
-		b.add_theme_stylebox_override("normal", Garage.plate(Garage.CARD, Garage.LINE, 1, 8))
-		for s in ["hover", "pressed", "hover_pressed"]:
-			b.add_theme_stylebox_override(s, Garage.plate(Garage.SEL, Garage.HI, 2, 8))
-		b.add_theme_stylebox_override("focus", Garage.plate(Color.TRANSPARENT, Garage.HI, 3, 8))
+		for s in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
+			b.add_theme_stylebox_override(s, StyleBoxEmpty.new())
 		b.pressed.connect(row[1].emit)
 		b.pressed.connect(ui.emit.bind("select"))
 		b.mouse_entered.connect(ui.emit.bind("hover"))
 		b.focus_entered.connect(ui.emit.bind("hover"))
 		menu.add_child(b)
+	menu.visible = false
+	add_child(menu)
+	sound = VBoxContainer.new()
+	sound.add_theme_constant_override("separation", 14)
+	sound.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	sound.offset_left = -554
+	sound.offset_right = -146
+	sound.offset_top = 362
 	var vol := Sfx.volumes()
+	var img := Image.create_empty(12, 28, false, Image.FORMAT_RGBA8)
+	img.fill(A.hazard)
+	var grab := ImageTexture.create_from_image(img)
+	var track := StyleBoxFlat.new()
+	track.bg_color = A.line
+	track.content_margin_top = 4
+	track.content_margin_bottom = 4
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = A.hazard
+	fill.content_margin_top = 4
+	fill.content_margin_bottom = 4
 	for row in [["vMaster", "Master"], ["vMusic", "Music"], ["vSfx", "SFX"], ["vEnv", "Env"], ["vCrowd", "Crowd"]]:
 		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 12)
 		var l := Label.new()
-		l.text = row[0]
-		l.custom_minimum_size = Vector2(100, 0)
-		l.add_theme_font_size_override("font_size", 15)
-		l.add_theme_color_override("font_color", DIM)
+		l.set_meta("key", row[0])
+		l.custom_minimum_size = Vector2(90, 0)
+		l.add_theme_font_override("font", label_f)
+		l.add_theme_font_size_override("font_size", 13)
+		l.add_theme_color_override("font_color", A.dim)
 		line.add_child(l)
 		var s := HSlider.new()
 		s.min_value = 0.0
@@ -109,20 +149,45 @@ func _ready() -> void:
 		s.value = vol[row[1]]
 		s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		s.custom_minimum_size = Vector2(0, 28)
+		s.add_theme_stylebox_override("slider", track)
+		s.add_theme_stylebox_override("grabber_area", fill)
+		s.add_theme_stylebox_override("grabber_area_highlight", fill)
+		for ic in ["grabber", "grabber_highlight", "grabber_disabled"]:
+			s.add_theme_icon_override(ic, grab)
+		var v := Label.new()
+		v.custom_minimum_size = Vector2(40, 0)
+		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		v.add_theme_font_override("font", label_f)
+		v.add_theme_font_size_override("font_size", 13)
+		v.text = str(roundi(s.value * 100.0))
+		values.append(v)
 		var bus: String = row[1]
-		s.value_changed.connect(func(v: float) -> void: Sfx.set_volume(bus, v))
+		s.value_changed.connect(func(x: float) -> void:
+			Sfx.set_volume(bus, x)
+			v.text = str(roundi(x * 100.0)))
 		s.drag_ended.connect(func(_c: bool) -> void: ui.emit("select"))
 		line.add_child(s)
-		menu.add_child(line)
-	menu.visible = false
-	add_child(menu)
+		line.add_child(v)
+		sound.add_child(line)
+	sound.visible = false
+	add_child(sound)
 
 
 func _process(_dt: float) -> void:
 	var was := menu.visible
 	menu.visible = paused and visible
+	sound.visible = menu.visible
 	if menu.visible and not was:
 		menu.get_child(0).grab_focus()
+	for line in sound.get_children():
+		var l: Label = line.get_child(0)
+		l.text = tr(l.get_meta("key")).to_upper()
+	if not state.is_empty() and not state.has("siege"):
+		if state.round == 1 and state.phase == "countdown":
+			rounds.clear()
+		if state.phase == "ko" and rounds.size() < state.round:
+			rounds.append({"winner": state.winner, "time": state.finalKo < 0})
 	while view != null and view.pops.size() and view.tick - view.pops[0].at >= NUMBER.life:
 		view.pops.pop_front()
 	canvas.queue_redraw()
@@ -130,18 +195,6 @@ func _process(_dt: float) -> void:
 
 func plate(r: Rect2, fill := PANEL) -> void:
 	canvas.draw_style_box(Garage.plate(fill, EDGE, 1, 8), r)
-
-
-func tag(r: Rect2, side: int) -> void:
-	var s := Garage.plate(Color(Mech.TEAM[side].darkened(0.6), 0.9), Mech.TEAM_LIGHT[side], 2, 0)
-	var k := int(r.size.y / 2.0)
-	if side == 0:
-		s.corner_radius_top_left = k
-		s.corner_radius_bottom_left = k
-	else:
-		s.corner_radius_top_right = k
-		s.corner_radius_bottom_right = k
-	canvas.draw_style_box(s, r)
 
 
 func label(s: String, pos: Vector2, size: int, c: Color, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, outline := 0, f: Font = null, glow := 0) -> void:
@@ -172,33 +225,26 @@ func paint() -> void:
 	if replay >= 0.0:
 		replay_bars(size)
 	elif state.has("siege"):
-		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
-		siege_tiers(Vector2(16, 16 + PANEL_SIZE.y + 10))
 		siege_top(size)
+		siege_left(size)
 		siege_marks(size)
 		if not paused:
-			slots(size)
-			if not state.siege.wave.live and state.phase != "over":
+			side_panel(state.mechs[0], Vector2(16, size.y - 16 - SIDE.y))
+			if build_phase() and not shop_open():
 				siege_shop(size)
 			siege_crate(size)
 		if state.phase != "over":
 			siege_calls(size)
-		if state.phase == "over":
-			var cy := size.y * 0.38
-			label(tr("siegeLost"), Vector2(0, cy + 30), 110, HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, heavy, 32)
-			label(tr("siegeHeld").format({"n": maxi(0, state.siege.wave.n - 1)}) + ("   ·   " + tr("siegeBest").format({"n": best}) if best > 0 else ""), Vector2(0, cy + 80), 30, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, bold, 14)
-			label(tr("rematch"), Vector2(0, cy + 118), 22, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
+		else:
+			calls_bottom = 0.0
+			siege_over(size)
 	else:
-		mech_panel(state.mechs[0], Vector2(16, 16), tr("you"))
-		mech_panel(state.mechs[1], Vector2(size.x - 16 - PANEL_SIZE.x, 16), tr("rivalBot"))
-		clock(size)
+		top_bar(size)
 		if not paused:
-			slots(size)
+			skill_bars(size)
 		callouts(size)
 	if paused:
-		canvas.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.5))
-		label(tr("mPaused"), Vector2(0, size.y * 0.3), 72, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, bold)
-		label(tr("pauseHint"), Vector2(0, size.y * 0.3 + 46), 20, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6)
+		pause_screen(size)
 
 
 func pops() -> void:
@@ -212,118 +258,766 @@ func pops() -> void:
 		var px := roundi(NUMBER.size * NUMBER.scale[n.k])
 		var c := Color(Look.POP[n.k], clampf((NUMBER.life - t) / (NUMBER.life - NUMBER.fade), 0.0, 1.0))
 		canvas.draw_set_transform(cam.unproject_position(p), 0.0, Vector2(s, s))
-		label(n.text, Vector2(-200, px * 0.35), px, c, HORIZONTAL_ALIGNMENT_CENTER, 400.0, NUMBER.outline, heavy, NUMBER.glow)
+		var o := Vector2.ONE * roundf(px * 0.09)
+		label(n.text, Vector2(-200, px * 0.35) + o, px, Color(0, 0, 0, c.a), HORIZONTAL_ALIGNMENT_CENTER, 400.0, 0, heavy)
+		label(n.text, Vector2(-200, px * 0.35), px, c, HORIZONTAL_ALIGNMENT_CENTER, 400.0, 0, heavy)
 	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
-func replay_bars(size: Vector2) -> void:
-	var bar := roundf(size.y * BARS * minf(1.0, replay * 20.0))
-	canvas.draw_rect(Rect2(0, 0, size.x, bar), Color.BLACK)
-	canvas.draw_rect(Rect2(0, size.y - bar, size.x, bar), Color.BLACK)
-	canvas.draw_rect(Rect2(0, size.y - bar, size.x * replay, 2), Color(REC, 0.85))
-	if Time.get_ticks_msec() / 500 % 2 == 1:
-		canvas.draw_circle(Vector2(26, bar / 2.0), 6, REC)
-	canvas.draw_string(bold, Vector2(40, bar / 2.0 + 7), tr("kcReplay"), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, Color.WHITE)
-	label(tr("kcSkip"), Vector2(0, size.y - bar / 2.0 + 5), 13, Color(1, 1, 1, 0.5), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 24)
+func ac(c: Color) -> Color:
+	return Color(c, c.a * fade)
 
 
-func segs(at: Vector2, w: float, n: int, frac: float, c: Color) -> void:
-	var sw := (w - 2.0 * (n - 1)) / n
-	var lit := ceili(clampf(frac, 0.0, 1.0) * n)
-	for i in n:
-		var a := at.x + i * (sw + 2.0)
-		var pts := PackedVector2Array([Vector2(a + 2, at.y), Vector2(a + sw, at.y), Vector2(a + sw - 2, at.y + 5), Vector2(a, at.y + 5)])
-		if i < lit:
-			canvas.draw_colored_polygon(pts, c)
+func poly(pts: PackedVector2Array, c: Color) -> void:
+	canvas.draw_colored_polygon(pts, ac(c))
+
+
+func rect_poly(r: Rect2) -> PackedVector2Array:
+	return PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
+
+
+func cut(r: Rect2, n: float) -> PackedVector2Array:
+	return PackedVector2Array([r.position + Vector2(n, 0), Vector2(r.end.x, r.position.y), r.end - Vector2(0, n), r.end - Vector2(n, 0), Vector2(r.position.x, r.end.y), r.position + Vector2(0, n)])
+
+
+func slant(r: Rect2, deg: float) -> PackedVector2Array:
+	var o := tan(deg_to_rad(absf(deg))) * r.size.y
+	if deg < 0.0:
+		return PackedVector2Array([Vector2(r.position.x + o, r.position.y), Vector2(r.end.x, r.position.y), Vector2(r.end.x - o, r.end.y), Vector2(r.position.x, r.end.y)])
+	return PackedVector2Array([r.position, Vector2(r.end.x - o, r.position.y), Vector2(r.end.x, r.end.y), Vector2(r.position.x + o, r.end.y)])
+
+
+func stripes(clip: PackedVector2Array, r: Rect2, c1: Color, c2: Color, period: float, lean: float) -> void:
+	poly(clip, c2)
+	var x := r.position.x - absf(lean) - period
+	while x < r.end.x:
+		var band := PackedVector2Array([Vector2(x, r.end.y), Vector2(x + period, r.end.y), Vector2(x + period + lean, r.position.y), Vector2(x + lean, r.position.y)])
+		var lo := minf(x, x + lean)
+		if lo >= r.position.x and maxf(x + period, x + period + lean) <= r.end.x:
+			poly(band, c1)
 		else:
-			pts.append(pts[0])
-			canvas.draw_polyline(pts, SEG_OFF, 1.0)
+			for p in Geometry2D.intersect_polygons(band, clip):
+				poly(p, c1)
+		x += period * 2.0
 
 
-func mech_panel(m: Dictionary, at: Vector2, title: String) -> void:
-	var t: int = m.team
-	canvas.draw_style_box(Garage.plate(PANEL, EDGE, 1, 10), Rect2(at, PANEL_SIZE))
-	canvas.draw_rect(Rect2(at + Vector2(0, 10), Vector2(3, PANEL_SIZE.y - 20)), Mech.TEAM[t])
-	label(title, at + Vector2(12, 19), 15, Mech.TEAM_LIGHT[t], HORIZONTAL_ALIGNMENT_LEFT, -1.0, 0, bold)
-	canvas.draw_line(at + Vector2(12, 25), at + Vector2(208, 25), Color(ACCENT, 0.4), 1.0)
-	canvas.draw_line(at + Vector2(75, 25), at + Vector2(145, 25), ACCENT, 2.0)
-	var fig := Transform2D(0, at) * FIG
-	for line in SHAPES.core:
-		canvas.draw_polyline(fig * PackedVector2Array(line), WIRE, 1.2, true)
-	for p in PARTS:
-		var f: float = maxf(0.0, m.armor[p]) / float(m.max[p])
-		var c := hp_color(f)
-		for line in SHAPES[p]:
-			canvas.draw_polyline(fig * PackedVector2Array(line), WIRE if f > 0.5 else c, 1.2, true)
-		if f <= 0:
-			var r: Rect2 = fig * BROKEN[p]
-			canvas.draw_line(r.position, r.end, HEAT_C, 2.0, true)
-			canvas.draw_line(Vector2(r.end.x, r.position.y), Vector2(r.position.x, r.end.y), HEAT_C, 2.0, true)
-		var o: Array = READOUT[p]
-		segs(at + o[0], o[1], 6, f, c)
-		canvas.draw_string(bold, at + o[2], str(int(maxf(0.0, m.armor[p]))), o[3], 60, 17, c)
-	var hot := Sim.hot_of(m)
-	label(tr("heat"), at + Vector2(10, 134), 11, Color8(255, 176, 112))
-	segs(at + Vector2(44, 127), 52, 5, m.heat / 100.0, HEAT_C if hot or m.overheat > 0 else ACCENT)
-	canvas.draw_line(at + Vector2(110, 124), at + Vector2(110, 136), Color(ACCENT, 0.5), 1.0)
-	var full: bool = m.surge >= Sim.SURGE.max
-	label(tr("surge"), at + Vector2(118, 134), 11, SURGE_C)
-	segs(at + Vector2(158, 127), 52, 5, m.surge / float(Sim.SURGE.max), SURGE_C if not full else SURGE_C.lightened(0.4))
-	if m.overheat > 0:
-		label(tr("overheat"), at + Vector2(12, PANEL_SIZE.y + 16), 12, HEAT_C, HORIZONTAL_ALIGNMENT_LEFT, -1, 4)
-	elif hot:
-		label(tr("hot"), at + Vector2(12, PANEL_SIZE.y + 16), 12, HEAT_C, HORIZONTAL_ALIGNMENT_LEFT, -1, 4)
+func hazard(r: Rect2) -> void:
+	stripes(rect_poly(r), r, A.hazard, A.ground, r.size.y * 1.4, r.size.y)
 
 
-func clock(size: Vector2) -> void:
-	var r := Rect2(size.x / 2.0 - 60, 12, 120, 52)
+func txt(s: String, pos: Vector2, size: int, c: Color, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, f: Font = null, shadow := 0.0) -> void:
+	if f == null:
+		f = label_f
+	if shadow > 0.0:
+		canvas.draw_string(f, pos + Vector2.ONE * shadow, s, align, width, size, ac(Color.BLACK))
+	canvas.draw_string(f, pos, s, align, width, size, ac(c))
+
+
+func fit(s: String, f: Font, size: int, width: float) -> int:
+	while size > 8 and f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > width:
+		size -= 1
+	return size
+
+
+func tone(f: float) -> Color:
+	return Color.WHITE if f > 0.5 else (A.hazard if f > 0.25 else A.danger)
+
+
+func mech_name(i: int) -> String:
+	return tr("nameMech%d" % mini(i, 3))
+
+
+func skill_bars(size: Vector2) -> void:
+	var ms: Array = state.mechs
+	if ms.size() <= 2:
+		side_panel(ms[0], Vector2(16, size.y - 16 - SIDE.y))
+		return
+	var k := 0.7
+	var w := BAR.x * k
+	var h := BAR.y * k
+	var spots := [Vector2(16, size.y - 16 - h), Vector2(size.x - 16 - w, size.y - 16 - h), Vector2(16, 16), Vector2(size.x - 16 - w, 16)]
+	for i in ms.size():
+		skill_bar(ms[i], spots[i], k, i == 0)
+
+
+func skill_bar(m: Dictionary, at: Vector2, k: float, mine: bool) -> void:
+	var t: Color = A.team[m.team]
+	fade = 0.4 if m.ko else 1.0
+	canvas.draw_set_transform(at, 0.0, Vector2(k, k))
+	poly(cut(Rect2(Vector2.ZERO, BAR), 18), Color(A.panel, 0.94))
+	poly(PackedVector2Array([Vector2(18, 0), Vector2(BAR.x, 0), Vector2(BAR.x, 4), Vector2(14, 4)]), t)
+	var nm := mech_name(m.id).to_upper()
+	var pw := heavy.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 28.0
+	poly(slant(Rect2(16, 14, pw, 24), -12), t)
+	txt(nm, Vector2(16, 32), 16, A.ground, HORIZONTAL_ALIGNMENT_CENTER, pw, heavy)
+	txt(tr("whoYou") if m.id == 0 else tr("whoBot").format({"n": m.id + 1}), Vector2(16 + pw + 10, 31), 11, A.dim)
+	robot(m)
+	var x := 83.0
+	for g in GROUPS:
+		x += group(m, g, x, mine) + 14.0
+	if m.ko:
+		fade = 1.0
+		canvas.draw_set_transform(at + Vector2(BAR.x * 0.72, BAR.y * 0.42) * k, deg_to_rad(-4), Vector2(k, k))
+		canvas.draw_rect(Rect2(-50, -20, 100, 40), A.danger)
+		txt(tr("ko"), Vector2(-50, 8), 22, A.ground, HORIZONTAL_ALIGNMENT_CENTER, 100.0, heavy)
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+	fade = 1.0
+
+
+func robot(m: Dictionary) -> void:
+	for b in BOT:
+		var part: String = b[0]
+		var r: Rect2 = b[1]
+		r.position += Vector2(16, 52)
+		var shape := cut(r, 3)
+		if part == "core":
+			poly(shape, A.core)
+		elif m.armor[part] <= 0 and part != "head":
+			stripes(shape, r, A.danger, A.jam_dark, 8.0, -r.size.y)
+		else:
+			poly(shape, A.line if m.armor[part] <= 0 else tone(m.armor[part] / float(m.max[part])))
+
+
+func group(m: Dictionary, g: Array, x: float, mine: bool) -> float:
+	var part: String = g[0]
+	var keys: Array = g[2]
+	var w := 84.0 if part == "legs" else 64.0 * keys.size() + 8.0 * (keys.size() - 1)
+	var status: String
+	var sc := Color.WHITE
+	if part == "core":
+		status = tr("heatN").format({"n": roundi(m.heat)})
+		sc = A.heat_text
+	elif m.armor[part] <= 0 and part != "head":
+		status = tr("jam")
+		sc = A.jam_text
+	else:
+		status = str(ceili(100.0 * maxf(0.0, m.armor[part]) / m.max[part]))
+		sc = tone(maxf(0.0, m.armor[part]) / float(m.max[part]))
+	txt(tr(g[1]), Vector2(x, 60), 11, A.dim)
+	txt(status, Vector2(x, 62), 15, sc, HORIZONTAL_ALIGNMENT_RIGHT, w, heavy)
+	for i in keys.size():
+		key_cap(m, keys[i], Vector2(x + i * 72.0, 70), mine)
+	return w
+
+
+func key_cap(m: Dictionary, key: String, at: Vector2, mine: bool) -> void:
+	var r := Rect2(at, Vector2(84 if key == "dash" else 64, 64))
+	var kn := tr(KEYS[key][1 if pad and mine else 0])
+	var cd: float = m.cd.get(key, 0.0)
+	var jam: bool = Sim.ARM_OF.has(key) and Sim.jammed(m, Sim.ARM_OF[key])
+	var bg: Color = A.team[m.team]
+	var ink: Color = A.ground
+	var big := kn
+	var small := ""
+	var small_c := Color(0, 0, 0, 0)
+	var name := ""
+	var lit := false
+	var fill := 0.0
+	var pips := 0
+	match key:
+		"left", "right":
+			name = tr("p_" + m.loadout[key])
+		"shield":
+			name = tr("slotShield")
+			lit = Sim.shield_up(m)
+		"hook":
+			var sk := Sim.e_skill(m)
+			if sk == "":
+				poly(cut(r, 10), Color(A.raised, 0.4))
+				return
+			name = tr("e_" + sk)
+			lit = Sim.e_active(m)
+		"dash":
+			name = tr("p_" + m.loadout.booster)
+			pips = Sim.charges(m.loadout)
+			cd = 0.0 if m.dashes > 0 else 1.0
+			big = ""
+			small = kn
+		"ult":
+			name = tr("u_" + Sim.ult_of(m.loadout))
+			cd = 0.0
+			var ready: bool = m.surge >= Sim.SURGE.max
+			bg = A.surge if ready else A.raised
+			ink = A.ground if ready else Color.WHITE
+			if not ready:
+				fill = m.surge / float(Sim.SURGE.max)
+				small = str(int(m.surge))
+				small_c = A.surge_text
+	if cd > 0.0 and key != "ult":
+		bg = A.line
+		ink = A.jam_text if jam else Color.WHITE
+		if key != "dash":
+			big = "%.1f" % (cd / Sim.TICKS)
+			small = kn
+	if jam:
+		small = (small + " " if small != "" else "") + "×2"
+		small_c = A.jam_text if cd > 0.0 else A.ground
+	elif small_c.a == 0.0:
+		small_c = ink
+	var shape := cut(r, 10)
+	poly(shape, bg)
+	if fill > 0.0:
+		var f := Rect2(r.position.x, r.end.y - r.size.y * fill, r.size.x, r.size.y * fill)
+		for p in Geometry2D.intersect_polygons(rect_poly(f), shape):
+			poly(p, Color(A.surge, 0.45))
+	if jam:
+		for p in Geometry2D.intersect_polygons(rect_poly(Rect2(r.position.x, r.end.y - 4, r.size.x, 4)), shape):
+			poly(p, A.danger)
+	if lit:
+		canvas.draw_polyline(shape + PackedVector2Array([shape[0]]), ac(Color.WHITE), 2.0, true)
+	if key == "dash":
+		txt(small, Vector2(r.position.x, r.position.y + 29), 12, ink, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+		for i in pips:
+			var px := r.position.x + r.size.x / 2.0 + (i - (pips - 1) / 2.0) * 15.0 - 5.0
+			canvas.draw_rect(Rect2(px, r.position.y + 36, 10, 10), ac(Color(A.ground, 1.0 if i < m.dashes else 0.3)))
+	else:
+		if small != "":
+			txt(small, r.position + Vector2(6, 14), 10, small_c)
+		txt(big, Vector2(r.position.x, r.position.y + 40), fit(big, heavy, 24, r.size.x - 8.0), ink, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, heavy)
+	txt(name, Vector2(r.position.x - 8, r.end.y + 15), fit(name, label_f, 11, r.size.x + 14.0), A.soft, HORIZONTAL_ALIGNMENT_CENTER, r.size.x + 16.0)
+
+
+func top_bar(size: Vector2) -> void:
+	var ms: Array = state.mechs
+	var cx := size.x / 2.0
 	var n: int = Sim.MATCH.wins
-	var tw := 30.0 + n * 16.0
-	for side in 2:
-		var box := Rect2(r.position.x - tw - 4 if side == 0 else r.end.x + 4, r.position.y + 6, tw, 40)
-		tag(box, side)
-		for i in n:
-			var x: float = box.end.x - 22 - i * 16 if side == 0 else box.position.x + 10 + i * 16
-			var y := box.position.y + 12
-			canvas.draw_colored_polygon(PackedVector2Array([Vector2(x + 5, y), Vector2(x + 12, y), Vector2(x + 7, y + 16), Vector2(x, y + 16)]), Mech.TEAM_LIGHT[side] if state.score[side] > i else Color(Mech.TEAM_LIGHT[side], 0.22))
-	plate(r)
+	if ms.size() == 2:
+		for side in 2:
+			var c: Color = A.team[ms[side].team]
+			var r := Rect2(cx - 68 - 280 if side == 0 else cx + 68, 26, 280, 44)
+			poly(slant(r, -14 if side == 0 else 14), c)
+			var nm := mech_name(side).to_upper()
+			if side == 0:
+				txt(nm, Vector2(r.position.x + 24, 56), 22, A.ground, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy)
+			else:
+				txt(nm, Vector2(r.position.x, 56), 22, A.ground, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 24.0, heavy)
+			for i in n:
+				var px := r.end.x - 24 - 11 - (n - 1 - i) * 16.0 if side == 0 else r.position.x + 24 + i * 16.0
+				canvas.draw_rect(Rect2(px, 38, 11, 20), Color(A.ground, 1.0 if state.score[ms[side].team] > i else 0.25))
+		rival_bot(ms[1], Vector2(cx + 356.0, 18.0))
+	else:
+		for side in 2:
+			var teams := [0, 2] if side == 0 else [1, 3]
+			for i in teams.size():
+				if teams[i] >= state.score.size():
+					continue
+				var r := Rect2(cx - 56 - 8 - 44 - i * 52.0 if side == 0 else cx + 56 + 8 + i * 52.0, 32, 44, 32)
+				poly(slant(r, -14 if side == 0 else 14), A.team[teams[i]])
+				txt(str(state.score[teams[i]]), Vector2(r.position.x, 55), 20, A.ground, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, heavy)
+	var h := Vector2(cx - 56, 18)
+	poly(PackedVector2Array([h + Vector2(14, 0), h + Vector2(98, 0), h + Vector2(112, 30), h + Vector2(98, 60), h + Vector2(14, 60), h + Vector2(0, 30)]), Color.WHITE)
+	txt(tr("round").format({"n": state.round}), h + Vector2(0, 20), 10, A.ground, HORIZONTAL_ALIGNMENT_CENTER, 112.0)
 	var secs := int(ceil(maxf(0.0, state.clock) / Sim.TICKS))
-	label("%d:%02d" % [floori(secs / 60.0), secs % 60], Vector2(r.position.x, r.position.y + 33), 30, TEXT if secs > 10 else HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
-	label(tr("round").format({"n": state.round}), Vector2(r.position.x, r.position.y + 47), 11, DIM, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+	txt("%d:%02d" % [floori(secs / 60.0), secs % 60], h + Vector2(0, 47), 32, A.ground if secs > 10 else A.danger, HORIZONTAL_ALIGNMENT_CENTER, 112.0, heavy)
+
+
+func armor_frac(m: Dictionary, part: String) -> float:
+	return maxf(0.0, m.armor[part]) / float(m.max[part])
+
+
+func health_c(f: float) -> Color:
+	if f > 0.75:
+		return A.good
+	if f > 0.5:
+		return A.hazard
+	return A.orange if f > 0.25 else A.danger
+
+
+func part_block(m: Dictionary, part: String, r: Rect2, n: float) -> void:
+	var shape := cut(r, n) if n > 0.0 else rect_poly(r)
+	if m.armor[part] <= 0:
+		stripes(shape, r, A.jam_dark, A.ground, 4.0, -r.size.y)
+		return
+	poly(shape, A.track)
+	var f := armor_frac(m, part)
+	var fr := Rect2(r.position.x, r.end.y - r.size.y * f, r.size.x, r.size.y * f)
+	for p in Geometry2D.intersect_polygons(rect_poly(fr), shape):
+		poly(p, health_c(f))
+	if n > 0.0:
+		for q in [0.25, 0.5, 0.75]:
+			canvas.draw_rect(Rect2(r.position.x, r.end.y - r.size.y * q - 0.5, r.size.x, 1.0), ac(Color(A.ground, 0.75)))
+
+
+func gauge(p: Vector2, f: float, c: Color, kind: String, ic: Color) -> void:
+	icon(kind, Vector2(p.x + 7.0, p.y + 33.0), 0.5, ic)
+	var bottom := p.y + 156.0
+	var lit := ceili(f * 14.0)
+	for i in 14:
+		canvas.draw_rect(Rect2(p.x, bottom - i * 8.0 - 6.0, 14, 6), ac(c if i < lit else A.track))
+
+
+func side_panel(m: Dictionary, at: Vector2) -> void:
+	var t: Color = A.team[m.team]
+	fade = 0.4 if m.ko else 1.0
+	canvas.draw_set_transform(at)
+	poly(PackedVector2Array([Vector2(12, 0), Vector2(SIDE.x, 0), Vector2(SIDE.x, SIDE.y - 12), Vector2(SIDE.x - 12, SIDE.y), Vector2(0, SIDE.y), Vector2(0, 12)]), Color(A.panel, 0.94))
+	poly(rect_poly(Rect2(12, 0, SIDE.x - 12, 3)), t)
+	poly(slant(Rect2(10, 10, 64, 9), -24.0), t)
+	gauge(Vector2(8, 0), clampf(m.heat / float(Sim.HEAT.max), 0.0, 1.0), A.heat, "heat", A.heat_text)
+	gauge(Vector2(SIDE.x - 22.0, 0), clampf(m.surge / float(Sim.SURGE.max), 0.0, 1.0), A.surge, "ult", A.surge_text)
+	var d := Vector2(30, 30)
+	canvas.draw_rect(Rect2(d + Vector2(52, 22), Vector2(12, 8)), ac(A.line))
+	poly(cut(Rect2(d + Vector2(32, 28), Vector2(52, 40)), 5), A.core)
+	canvas.draw_rect(Rect2(d + Vector2(50, 40), Vector2(16, 16)), ac(A.raised))
+	for b in DIAGRAM:
+		var r: Rect2 = b[1]
+		r.position += d
+		part_block(m, b[0], r, 4.0)
+	for i in SLOT_KEYS.size():
+		slot(m, SLOT_KEYS[i], Rect2(8.0 + i * 27.0, 166, 25, 32))
+	if m.ko:
+		fade = 1.0
+		canvas.draw_set_transform(at + Vector2(88, 100), deg_to_rad(-4))
+		hazard(Rect2(-44, -9, 88, 18))
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+	fade = 1.0
+
+
+func slot(m: Dictionary, key: String, r: Rect2) -> void:
+	var cd: float = m.cd.get(key, 0.0)
+	var id := "%d%s" % [m.id, key]
+	if cd > cd_peak.get(id, 0.0):
+		cd_peak[id] = cd
+	elif cd <= 0.0:
+		cd_peak.erase(id)
+	var rise: float = 1.0 - cd / cd_peak[id] if cd_peak.has(id) else 1.0
+	var jam: bool = Sim.ARM_OF.has(key) and Sim.jammed(m, Sim.ARM_OF[key])
+	var shape := cut(r, 5)
+	var bg: Color = A.track
+	var ink: Color = A.soft
+	var tint := Color(A.soft, 0.3)
+	var kind := key
+	var lit := false
+	var pips := 0
+	var fill := 0.0
+	match key:
+		"left", "right":
+			kind = "blade" if Sim.weapon(m, key).kind == "melee" else "gun"
+			bg = A.team[m.team]
+			ink = A.ground
+			tint = Color(A.team[m.team], 0.75)
+		"shield":
+			lit = Sim.shield_up(m)
+		"hook":
+			if Sim.e_skill(m) == "":
+				canvas.draw_rect(r, ac(Color(A.line, 0.7)), false, 1.0)
+				return
+			kind = "skill"
+			lit = Sim.e_active(m)
+		"dash":
+			pips = Sim.charges(m.loadout)
+			if m.dashes <= 0:
+				bg = A.line
+		"ult":
+			var ready: bool = m.surge >= Sim.SURGE.max
+			if ready:
+				bg = A.surge
+			else:
+				fill = m.surge / float(Sim.SURGE.max)
+			ink = A.ground
+	if cd > 0.0 and key != "ult":
+		bg = A.line if key == "left" or key == "right" else A.track
+		ink = Color.WHITE if key == "left" or key == "right" else A.soft
+		fill = rise
+	poly(shape, bg)
+	if fill > 0.0:
+		var f := Rect2(r.position.x, r.end.y - r.size.y * fill, r.size.x, r.size.y * fill)
+		var c: Color = A.surge if key == "ult" else tint
+		for p in Geometry2D.intersect_polygons(rect_poly(f), shape):
+			poly(p, c)
+	if jam:
+		var jr := Rect2(r.position.x, r.end.y - 6, r.size.x, 6)
+		for p in Geometry2D.intersect_polygons(rect_poly(jr), shape):
+			stripes(p, jr, A.danger, A.jam_dark, 4.0, 6.0)
+	if lit:
+		canvas.draw_polyline(shape + PackedVector2Array([shape[0]]), ac(Color.WHITE), 1.5, true)
+	icon(kind, Vector2(r.get_center().x, r.position.y + (12.5 if key == "dash" else 15.5)), 0.6, ink)
+	for i in pips:
+		canvas.draw_rect(Rect2(r.position.x + 3.0 + i * 7.0, r.position.y + 23, 5, 5), ac(A.hazard if i < m.dashes else A.panel))
+
+
+func ring(c: Vector2, rad: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in 17:
+		pts.append(c + Vector2.from_angle(TAU * i / 16.0) * rad)
+	return pts
+
+
+func icon_lines(kind: String) -> Array:
+	match kind:
+		"gun":
+			return [PackedVector2Array([Vector2(3, 11), Vector2(16, 11), Vector2(16, 19), Vector2(3, 19), Vector2(3, 11)]), PackedVector2Array([Vector2(16, 13), Vector2(25, 13), Vector2(25, 17), Vector2(16, 17)]), PackedVector2Array([Vector2(7, 19), Vector2(7, 24), Vector2(12, 24), Vector2(12, 19)])]
+		"blade":
+			return [ring(Vector2(14, 14), 7.0), ring(Vector2(14, 14), 2.0), PackedVector2Array([Vector2(14, 3), Vector2(14, 7)]), PackedVector2Array([Vector2(14, 21), Vector2(14, 25)]), PackedVector2Array([Vector2(3, 14), Vector2(7, 14)]), PackedVector2Array([Vector2(21, 14), Vector2(25, 14)]), PackedVector2Array([Vector2(6.2, 6.2), Vector2(9, 9)]), PackedVector2Array([Vector2(19, 19), Vector2(21.8, 21.8)]), PackedVector2Array([Vector2(6.2, 21.8), Vector2(9, 19)]), PackedVector2Array([Vector2(19, 9), Vector2(21.8, 6.2)])]
+		"shield":
+			return [PackedVector2Array([Vector2(14, 3), Vector2(23, 6), Vector2(23, 13), Vector2(14, 25), Vector2(5, 13), Vector2(5, 6), Vector2(14, 3)])]
+		"dash":
+			return [PackedVector2Array([Vector2(14, 3), Vector2(18, 8), Vector2(18, 17), Vector2(10, 17), Vector2(10, 8), Vector2(14, 3)]), PackedVector2Array([Vector2(10, 14), Vector2(6, 19), Vector2(10, 19)]), PackedVector2Array([Vector2(18, 14), Vector2(22, 19), Vector2(18, 19)]), PackedVector2Array([Vector2(14, 21), Vector2(14, 25)])]
+		"ult":
+			return [PackedVector2Array([Vector2(16, 3), Vector2(7, 16), Vector2(13, 16), Vector2(11, 25), Vector2(21, 11), Vector2(15, 11), Vector2(16, 3)])]
+		"heat":
+			return [PackedVector2Array([Vector2(14, 3), Vector2(19, 9), Vector2(22, 16), Vector2(21, 22), Vector2(14, 26), Vector2(7, 22), Vector2(6, 16), Vector2(9, 12), Vector2(11, 15), Vector2(14, 3)])]
+	return [PackedVector2Array([Vector2(14, 3), Vector2(24, 14), Vector2(14, 25), Vector2(4, 14), Vector2(14, 3)]), PackedVector2Array([Vector2(14, 10), Vector2(18, 14), Vector2(14, 18), Vector2(10, 14), Vector2(14, 10)])]
+
+
+func icon(kind: String, c: Vector2, k: float, col: Color) -> void:
+	for line in icon_lines(kind):
+		var pts := PackedVector2Array()
+		for p in line:
+			pts.append(c + (p - Vector2(14, 14)) * k)
+		canvas.draw_polyline(pts, ac(col), maxf(1.5, 2.8 * k), true)
+
+
+func rival_bot(m: Dictionary, at: Vector2) -> void:
+	fade = 0.4 if m.ko else 1.0
+	canvas.draw_set_transform(at)
+	poly(PackedVector2Array([Vector2(0, 0), Vector2(84, 0), Vector2(84, 60), Vector2(76, 68), Vector2(0, 68)]), Color(A.panel, 0.94))
+	poly(rect_poly(Rect2(0, 0, 84, 3)), A.team[m.team])
+	var o := Vector2(12, 8)
+	poly(rect_poly(Rect2(o + Vector2(19, 12), Vector2(22, 16))), A.core)
+	for b in MINI:
+		var r: Rect2 = b[1]
+		r.position += o
+		part_block(m, b[0], r, 0.0)
+	var bar := Rect2(12, 61, 60, 4)
+	poly(rect_poly(bar), A.track)
+	poly(rect_poly(Rect2(bar.position, Vector2(bar.size.x * clampf(m.surge / float(Sim.SURGE.max), 0.0, 1.0), bar.size.y))), A.surge)
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+	fade = 1.0
+
+
+func callout(s: String, c: Color, cx: float, y: float, px: int, alpha := 1.0) -> float:
+	var w := maxf(300.0, heavy.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x + 60.0)
+	var band := roundf(px * 0.18)
+	var h := band * 2.0 + px * 1.1
+	fade = alpha
+	canvas.draw_set_transform(Vector2(cx, y + h / 2.0), deg_to_rad(-3.0), Vector2.ONE)
+	hazard(Rect2(-w / 2.0, -h / 2.0, w, band))
+	hazard(Rect2(-w / 2.0, h / 2.0 - band, w, band))
+	txt(s, Vector2(-w / 2.0, px * 0.35), px, c, HORIZONTAL_ALIGNMENT_CENTER, w, heavy, maxf(3.0, px * 0.09))
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+	fade = 1.0
+	return h
+
+
+func callouts(size: Vector2) -> void:
+	var cx := size.x / 2.0
+	var cy := size.y * 0.3
+	match state.phase:
+		"countdown":
+			var y := cy - 60.0
+			y += callout(tr("round").format({"n": state.round}), Color.WHITE, cx, y, 54) + 8.0
+			if state.timer > 0:
+				callout(str(int(ceil(state.timer / float(Sim.TICKS)))), A.hazard, cx, y, 140)
+		"ko":
+			slam(size)
+		"over":
+			match_over(size)
+		"fight":
+			var go = has_fx("fight")
+			if go != null:
+				callout(tr("go"), A.hazard, cx, cy, 110, clampf(go.t / 50.0, 0.0, 1.0))
+	if state.phase != "countdown" and state.phase != "fight":
+		return
+	var y := 118.0
+	if state.mechs[0].overheat > 0:
+		y += callout(tr("overheat"), A.danger, cx, y, 34) + 10.0
+	for f in state.fx:
+		var text := ""
+		var c: Color = A.hazard
+		match f.k:
+			"closing":
+				text = tr("closing")
+			"ventsOn":
+				text = tr("ventsOn")
+			"healUp":
+				text = tr("healReady")
+			"break":
+				text = tr("broke_" + f.part)
+				c = A.team[state.mechs[f.id].team]
+		if text != "":
+			y += callout(text, c, cx, y, 34) + 10.0
+
+
+func slam(size: Vector2) -> void:
+	var title: String = tr("timeUp") if state.finalKo < 0 else tr("ko") + "!"
+	var sub: String = (tr("draw") if state.winner < 0 else (tr("youWin") if state.winner == state.mechs[0].team else tr("rivalWins"))).to_upper()
+	var w := size.x * 1.3
+	canvas.draw_set_transform(Vector2(size.x / 2.0, size.y * 0.47), deg_to_rad(-4.0), Vector2.ONE)
+	canvas.draw_rect(Rect2(-w / 2.0, -100, w, 200), Color(A.ground, 0.96))
+	hazard(Rect2(-w / 2.0, -108, w, 14))
+	hazard(Rect2(-w / 2.0, 94, w, 14))
+	txt(title, Vector2(-w / 2.0, 45), 168, A.hazard, HORIZONTAL_ALIGNMENT_CENTER, w, heavy, 8.0)
+	txt(sub, Vector2(-w / 2.0, 86), 26, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, w, semi)
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+func match_over(size: Vector2) -> void:
+	var mine: int = state.mechs[0].team
+	var won: bool = state.score[mine] == state.score.max()
+	var word := tr("victory") if won else tr("defeat")
+	canvas.draw_rect(Rect2(Vector2.ZERO, size), Color(A.ground, 0.88))
+	var bw := size.x + 160.0
+	canvas.draw_set_transform(Vector2(size.x / 2.0, 145), deg_to_rad(-3.0), Vector2.ONE)
+	canvas.draw_rect(Rect2(-bw / 2.0, -85, bw, 170), A.team[mine] if won else A.line)
+	hazard(Rect2(-bw / 2.0, 81, bw, 12))
+	var tw := heavy.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 140).x
+	txt(word, Vector2(64 - size.x / 2.0, 44), 140, Color("#160800") if won else Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy)
+	txt("%d–%d" % [state.score[mine], state.score[1 - mine] if state.score.size() > 1 else 0], Vector2(64 - size.x / 2.0 + tw + 36, 22), 60, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy, 4.0)
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+	for i in rounds.size():
+		var rd: Dictionary = rounds[i]
+		var r := Rect2(64, 300 + i * 60.0, 700, 52)
+		var who_i := 0
+		for j in state.mechs.size():
+			if state.mechs[j].team == rd.winner:
+				who_i = j
+				break
+		poly(slant(r, -12), A.team[rd.winner] if rd.winner >= 0 else A.line)
+		var ink: Color = A.ground if rd.winner >= 0 else Color.WHITE
+		txt(tr("round").format({"n": i + 1}), Vector2(r.position.x + 24, r.position.y + 31), 11, ink)
+		txt(mech_name(who_i).to_upper() if rd.winner >= 0 else tr("draw").to_upper(), Vector2(r.position.x + 120, r.position.y + 34), 22, ink, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy)
+		txt(tr("timeUp") if rd.time else tr("ko"), Vector2(r.position.x, r.position.y + 31), 14, ink, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 24.0)
+	var b := Rect2(size.x - 64 - 400, size.y - 64 - 52, 400, 52)
+	poly(slant(b, -12), A.raised)
+	txt(tr("backGarage").to_upper(), Vector2(b.position.x + 28, b.position.y + 34), 22, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1.0, semi)
+	txt(tr("keyEnter"), Vector2(b.position.x, b.position.y + 31), 12, A.dim, HORIZONTAL_ALIGNMENT_RIGHT, b.size.x - 28.0)
+
+
+func pause_screen(size: Vector2) -> void:
+	canvas.draw_rect(Rect2(Vector2.ZERO, size), Color(A.ground, 0.7))
+	canvas.draw_set_transform(Vector2(size.x / 2.0, 126), deg_to_rad(-3.0), Vector2.ONE)
+	hazard(Rect2(-size.x / 2.0 - 40, -6, size.x + 80, 12))
+	var title := tr("mPaused")
+	var tw := heavy.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 96).x
+	canvas.draw_set_transform(Vector2(120 + tw / 2.0, 188), deg_to_rad(-3.0), Vector2.ONE)
+	txt(title, Vector2(-tw / 2.0, 34), 96, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy, 6.0)
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+	for b in menu.get_children():
+		var r := Rect2(b.global_position, b.size)
+		var on: bool = b.has_focus() or b.is_hovered()
+		var shape := slant(r, -12)
+		if on:
+			var back := PackedVector2Array()
+			for p in shape:
+				back.append(p + Vector2(5, 5))
+			poly(back, Color.BLACK)
+		poly(shape, A.hazard if on else A.raised)
+		var big: bool = r.size.y > 60
+		txt(tr(b.get_meta("key")).to_upper(), Vector2(r.position.x + 28, r.position.y + r.size.y / 2.0 + (10 if big else 8)), 30 if big else 22, A.ground if on else Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy if big else semi)
+	var p := Rect2(size.x - 580, 300, 460, 280)
+	poly(cut(p, 18), A.panel)
+	txt(tr("soundTitle"), Vector2(p.position.x + 26, p.position.y + 44), 22, A.hazard, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy)
+	txt(tr("pauseHint"), Vector2(0, size.y - 40), 13, A.dim, HORIZONTAL_ALIGNMENT_CENTER, size.x)
+
+
+func replay_bars(size: Vector2) -> void:
+	var bar := roundf(size.y * 0.125 * minf(1.0, replay * 20.0))
+	var by := size.y - bar
+	canvas.draw_rect(Rect2(0, 0, size.x, bar), Color.BLACK)
+	canvas.draw_rect(Rect2(0, by, size.x, bar), Color.BLACK)
+	canvas.draw_rect(Rect2(0, by, size.x, 4), A.raised)
+	canvas.draw_rect(Rect2(0, by, size.x * replay, 4), A.danger)
+	if Time.get_ticks_msec() / 500 % 2 == 1:
+		canvas.draw_circle(Vector2(47, bar / 2.0), 7, A.danger)
+	txt(tr("kcReplay"), Vector2(68, bar / 2.0 + 11), 30, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy)
+	if who.x >= 0 and who.x < state.mechs.size():
+		var t := tr("kcTag").format({"a": mech_name(who.x).to_upper(), "b": mech_name(who.y).to_upper()})
+		var tw := heavy.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 28.0
+		poly(slant(Rect2(size.x - 40 - tw, bar / 2.0 - 15, tw, 30), -12), A.team[state.mechs[who.x].team])
+		txt(t, Vector2(size.x - 40 - tw, bar / 2.0 + 6), 18, A.ground, HORIZONTAL_ALIGNMENT_CENTER, tw, heavy)
+	var hint := tr("kcSkipOr")
+	var hw := label_f.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+	var x := size.x - 40 - hw
+	txt(hint, Vector2(x, by + bar / 2.0 + 5), 14, A.dim)
+	for key in ["A", "Enter"]:
+		var kw := label_f.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 16.0
+		x -= kw + 10.0
+		canvas.draw_rect(Rect2(x, by + bar / 2.0 - 11, kw, 22), A.raised)
+		txt(key, Vector2(x, by + bar / 2.0 + 5), 13, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, kw)
+
+
+func ally_color(i: int) -> Color:
+	return A.team[mini(i, 3)]
+
+
+func recall_of(i: int):
+	for c in state.siege.recall:
+		if c.player == i:
+			return c
+	return null
+
+
+func ally_status(i: int) -> String:
+	if state.mechs[i].ko:
+		return "down"
+	return "recall" if recall_of(i) != null else "alive"
+
+
+func shop_open() -> bool:
+	for c in get_children():
+		if c.has_method("refresh") and c.visible:
+			return true
+	return false
+
+
+func build_phase() -> bool:
+	return not state.siege.wave.live and state.phase != "over"
+
+
+func siege_box(size: Vector2) -> Rect2:
+	var right := 270.0 if build_phase() else 48.0
+	var bottom := 120.0 if build_phase() else 48.0
+	var top := maxf(138.0, calls_bottom + 8.0)
+	return Rect2(Vector2(SIEGE_LEFT, top), Vector2(size.x - SIEGE_LEFT - right, size.y - top - bottom))
+
+
+func chip(s: String, pos: Vector2, c: Color = A.panel, ink: Color = Color.WHITE) -> float:
+	var w := label_f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 24.0
+	poly(rect_poly(Rect2(pos, Vector2(w, 24))), Color(c, 0.92))
+	txt(s, pos + Vector2(0, 17), 12, ink, HORIZONTAL_ALIGNMENT_CENTER, w)
+	return w
+
+
+func tag(s: String, cx: float, y: float, bg: Color, ink: Color) -> void:
+	var w := label_f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 44.0
+	poly(slant(Rect2(cx - w / 2.0, y, w, 26), -12.0), bg)
+	txt(s, Vector2(cx - w / 2.0, y + 18), 13, ink, HORIZONTAL_ALIGNMENT_CENTER, w)
+
+
+func skew_bar(r: Rect2, f: float, c: Color) -> void:
+	poly(slant(r, -20.0), A.line)
+	if f > 0.0:
+		poly(slant(Rect2(r.position, Vector2(r.size.x * clampf(f, 0.0, 1.0), r.size.y)), -20.0), c)
 
 
 func siege_top(size: Vector2) -> void:
 	var sg: Dictionary = state.siege
 	var w: Dictionary = sg.wave
-	var r := Rect2(size.x / 2.0 - 150, 12, 300, 76)
-	plate(r)
-	label(tr("siegeWave").format({"n": w.n if w.live else w.n + 1}), Vector2(r.position.x, r.position.y + 32), 28, TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 0, bold)
+	var cx := size.x / 2.0
+	var title := tr("siegeWave").format({"n": w.n if w.live else w.n + 1}).to_upper()
+	var tw := heavy.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x + 36.0
 	var left: int = sg.enemies.filter(func(e): return e.act != "die" and not e.get("neutral", false)).size() + sg.queue.filter(func(q): return q.has("kind")).size()
 	var sub: String = tr("siegeLeft").format({"n": left}) if w.live or w.next_in > 36000 else tr("siegeNext").format({"s": int(ceil(w.next_in / float(Sim.TICKS)))})
-	label(sub + "   " + tr("siegeFund").format({"n": sg.fund}) + "   " + tr("siegeWallet").format({"n": sg.wallets[0]}) + ("   " + tr("siegeTokens").format({"n": sg.tokens[0]}) if sg.tokens[0] > 0 else ""), Vector2(r.position.x, r.position.y + 50), 13, DIM, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+	var tail := tr("siegeBest").format({"n": best}) if best > 0 else ""
+	var sw := label_f.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+	var bw := label_f.get_string_size(tail, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	var x := cx - (tw + 10.0 + sw + (10.0 + bw if tail != "" else 0.0)) / 2.0
+	poly(slant(Rect2(x, 14, tw, 40), -12.0), Color.WHITE if w.live else A.line)
+	txt(title, Vector2(x, 43), 26, A.ground if w.live else Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, tw, heavy)
+	txt(sub, Vector2(x + tw + 10.0, 39), 14, Color.WHITE)
+	if tail != "":
+		txt(tail, Vector2(x + tw + 20.0 + sw, 39), 12, A.dim)
 	var c: Dictionary = sg.core
-	var bar := Rect2(r.position.x + 16, r.position.y + 58, r.size.x - 32, 10)
-	canvas.draw_rect(bar, SEG_OFF)
-	canvas.draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(c.hp / c.max, 0, 1), bar.size.y)), hp_color(c.hp / c.max))
+	var f := clampf(c.hp / c.max, 0.0, 1.0)
+	var bar := Rect2(cx - 170.0, 66, 310, 14)
+	txt(tr("siegeCore"), Vector2(cx - 220.0, 78), 11, A.hazard)
+	poly(rect_poly(bar), A.line)
+	poly(rect_poly(Rect2(bar.position, Vector2(bar.size.x * f, bar.size.y))), A.hazard)
 	for i in 4:
-		var x := bar.position.x + bar.size.x * (3 - i) / 4.0
-		canvas.draw_rect(Rect2(x - 1, bar.position.y - 3, 2, bar.size.y + 6), WIRE if c.rings[i] > 0 else HEAT_C)
-	label(tr("siegeCore"), Vector2(bar.position.x, bar.position.y - 2), 10, DIM)
-	var G: Dictionary = sg.garrison
-	if G.tier > 0:
-		var gt := tr("siegeGuard").format({"t": G.tier}) if G.respawn_in <= 0 else tr("siegeGuardDown").format({"t": G.tier, "s": int(ceil(G.respawn_in / float(Sim.TICKS)))})
-		label(gt, Vector2(r.position.x, r.position.y + r.size.y + 16), 13, WIRE if G.respawn_in <= 0 else HEAT_C, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 4, bold)
+		var tx := bar.position.x + bar.size.x * (3 - i) / 4.0
+		poly(rect_poly(Rect2(tx - 1.5, bar.position.y - 4, 3, bar.size.y + 8)), A.team[1] if c.rings[i] > 0 else A.danger)
+	txt(str(roundi(f * 100.0)), Vector2(bar.end.x + 10, 79), 16, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1, heavy)
+
+
+func siege_left(size: Vector2) -> void:
+	var sg: Dictionary = state.siege
+	var x := 16.0
+	if not shop_open():
+		x += chip(tr("siegeFund").format({"n": sg.fund}).to_upper(), Vector2(x, 16)) + 6.0
+		x += chip(tr("siegeWallet").format({"n": sg.wallets[0]}).to_upper(), Vector2(x, 16)) + 6.0
+		if sg.tokens[0] > 0:
+			chip(tr("siegeTokens").format({"n": sg.tokens[0]}).to_upper(), Vector2(x, 16))
+	for c in get_children():
+		if c.has_method("refresh") and "chips" in c:
+			c.chips = [[tr("siegeWallet").format({"n": sg.wallets[0]}).to_upper(), true], [tr("siegeFund").format({"n": sg.fund}).to_upper(), false], [tr("siegeTokens").format({"n": sg.tokens[0]}).to_upper(), false]]
+	var g: Dictionary = sg.garrison
+	if g.tier > 0:
+		if g.respawn_in <= 0:
+			chip(tr("siegeGuard").format({"t": g.tier}), Vector2(16, 46), A.team[1], A.ground)
+		else:
+			chip(tr("siegeGuardDown").format({"t": g.tier, "s": int(ceil(g.respawn_in / float(Sim.TICKS)))}), Vector2(16, 46), A.line, A.jam_text)
+	for i in sg.team:
+		ally_row(i, Vector2(16, 80 + i * 54))
+	siege_tiers(Vector2(16, 80 + sg.team * 54 + 8))
+
+
+func ally_row(i: int, at: Vector2) -> void:
+	var m: Dictionary = state.mechs[i]
+	var c := ally_color(i)
+	fade = 0.45 if m.ko else 1.0
+	poly(rect_poly(Rect2(at, Vector2(ROW_W, 50))), Color(A.panel, 0.92))
+	poly(rect_poly(Rect2(at, Vector2(8 if i == 0 else 5, 50))), c)
+	txt(str(i + 1), at + Vector2(16, 34), 24, c, HORIZONTAL_ALIGNMENT_LEFT, -1, heavy)
+	txt(mech_name(i).to_upper(), at + Vector2(42, 31), 13, Color.WHITE)
+	canvas.draw_set_transform(at + Vector2(134, 4), 0.0, Vector2(0.85, 0.85))
+	poly(rect_poly(Rect2(19, 12, 22, 16)), A.core)
+	for b in MINI:
+		part_block(m, b[0], b[1], 0.0)
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+	fade = 1.0
+	var mid := at + Vector2(ROW_W - 20.0, 25)
+	match ally_status(i):
+		"down":
+			canvas.draw_line(mid + Vector2(-8, -8), mid + Vector2(8, 8), A.danger, 4.0)
+			canvas.draw_line(mid + Vector2(8, -8), mid + Vector2(-8, 8), A.danger, 4.0)
+		"recall":
+			var rc = recall_of(i)
+			canvas.draw_arc(mid, 10.0, -PI / 2.0, -PI / 2.0 + TAU * clampf(rc.t / float(rc.max), 0.02, 1.0), 24, A.team[1], 4.0)
+		_:
+			canvas.draw_circle(mid, 7.0, A.good)
+
+
+func siege_tiers(at: Vector2) -> void:
+	var t: Dictionary = state.siege.tiers[0]
+	poly(rect_poly(Rect2(at, Vector2(ROW_W, 18 + TIER_ROWS.size() * 15))), Color(A.panel, 0.92))
+	txt(tr("siegeTiers"), at + Vector2(10, 14), 10, A.dim)
+	for r in TIER_ROWS.size():
+		var y: float = at.y + 30 + r * 15
+		txt(tr("tierShort_" + TIER_ROWS[r]), Vector2(at.x + 10, y), 11, Color.WHITE)
+		for k in 5:
+			poly(slant(Rect2(at.x + 90 + k * 22, y - 9, 18, 8), -20.0), A.team[0] if k < t[TIER_ROWS[r]] else A.line)
+	var rc = recall_of(0)
+	if rc != null:
+		var y := at.y + 30 + TIER_ROWS.size() * 15 + 6.0
+		txt(tr("siegeRecall"), Vector2(at.x, y + 10), 11, A.team[1])
+		skew_bar(Rect2(at.x, y + 16, ROW_W, 8), rc.t / float(rc.max), A.team[1])
+
+
+func siege_crate(size: Vector2) -> void:
+	for y in state.siege.yards:
+		for c in y.crates:
+			if c.progress > 0.0:
+				var r := Rect2(size.x / 2.0 - 100, size.y * 0.62, 200, 12)
+				txt(tr("siegeCrate"), Vector2(r.position.x, r.position.y - 6), 12, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+				skew_bar(r, c.progress, A.surge)
 
 
 func siege_shop(size: Vector2) -> void:
 	var sg: Dictionary = state.siege
-	var y := size.y - SLOT.y - 14 - 30
+	var x := size.x - 266.0
+	txt((tr("radialTeam") + " · " + tr("siegeFund").format({"n": sg.fund})).to_upper(), Vector2(x, 28), 10, A.dim)
+	for i in SHOP.size():
+		var k: String = SHOP[i]
+		var cost: int = Siege.next_cost(sg) if k == "garrison" else Siege.SHOP[k]
+		var can: bool = cost >= 0 and sg.fund >= cost
+		var r := Rect2(x, 36 + i * 34, 250, 30)
+		poly(rect_poly(r), Color(A.panel, 0.92))
+		poly(rect_poly(Rect2(r.position + Vector2(10, 5), Vector2(20, 20))), A.hazard if can else A.line)
+		txt(str(i + 1), r.position + Vector2(10, 20), 11, A.ground if can else A.dim, HORIZONTAL_ALIGNMENT_CENTER, 20.0)
+		txt(tr("shop_" + k).format({"t": sg.garrison.tier + 1}), r.position + Vector2(40, 20), 12, Color.WHITE if can else A.dim)
+		if cost >= 0:
+			txt(str(cost), Vector2(r.position.x, r.position.y + 21), 14, Color.WHITE if can else A.dim, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 10.0, heavy)
 	var left: int = int(ceil(maxf(0, sg.wave.next_in - 480) / float(Sim.TICKS)))
-	var line: String = tr("siegeShop")
+	var y := size.y - 96.0
+	var cx := size.x / 2.0
+	tag(tr("siegeShop"), cx, y, A.hazard, A.ground)
 	if left > 0 and left < 600:
-		line += "   ·   " + tr("siegeCall").format({"n": 2 * left})
-	label(line, Vector2(0, y - 22), 15, ACCENT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4, bold)
-	label(tr("siegeKeys") + "   ·   " + tr("siegeUse"), Vector2(0, y), 12, DIM, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4)
+		tag(tr("siegeCall").format({"n": 2 * left}), cx, y + 30.0, A.team[1], A.ground)
+	var keys := tr("siegeKeys") + "   ·   " + tr("siegeUse")
+	var kw := label_f.get_string_size(keys, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 24.0
+	poly(rect_poly(Rect2(cx - kw / 2.0, y + 62.0 - 15.0, kw, 22.0)), Color(A.panel, 0.88))
+	txt(keys, Vector2(0, y + 62.0), 12, A.soft, HORIZONTAL_ALIGNMENT_CENTER, size.x)
 
 
 func shop_menu(i: int) -> Array:
@@ -366,34 +1060,6 @@ func shop_menu(i: int) -> Array:
 	]
 
 
-func siege_tiers(at: Vector2) -> void:
-	var t: Dictionary = state.siege.tiers[0]
-	plate(Rect2(at, Vector2(PANEL_SIZE.x, 18 + TIER_ROWS.size() * 15)))
-	label(tr("siegeTiers"), at + Vector2(10, 14), 11, DIM)
-	for r in TIER_ROWS.size():
-		var y: float = at.y + 30 + r * 15
-		label(tr("tierShort_" + TIER_ROWS[r]), Vector2(at.x + 10, y), 11, TEXT)
-		for k in 5:
-			canvas.draw_rect(Rect2(at.x + 96 + k * 22, y - 9, 18, 8), ACCENT if k < t[TIER_ROWS[r]] else SEG_OFF)
-	var rc = null
-	for c in state.siege.recall:
-		if c.player == 0:
-			rc = c
-	if rc != null:
-		label(tr("siegeRecall"), at + Vector2(0, 30 + TIER_ROWS.size() * 15 + 12), 13, WIRE, HORIZONTAL_ALIGNMENT_LEFT, -1, 4, bold)
-		canvas.draw_rect(Rect2(at + Vector2(0, 30 + TIER_ROWS.size() * 15 + 18), Vector2(PANEL_SIZE.x * rc.t / float(rc.max), 6)), WIRE)
-
-
-func siege_crate(size: Vector2) -> void:
-	for y in state.siege.yards:
-		for c in y.crates:
-			if c.progress > 0.0:
-				var r := Rect2(size.x / 2.0 - 90, size.y * 0.62, 180, 14)
-				canvas.draw_rect(r, SEG_OFF)
-				canvas.draw_rect(Rect2(r.position, Vector2(r.size.x * c.progress, r.size.y)), SURGE_C)
-				label(tr("siegeCrate"), Vector2(r.position.x, r.position.y - 4), 13, TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 4, bold)
-
-
 func watch(key: String, hp: float, now: int) -> void:
 	if hp < hp_was.get(key, hp):
 		hurt_at[key] = now
@@ -413,67 +1079,101 @@ func siege_marks(size: Vector2) -> void:
 	watch("core", sg.core.hp, now)
 	for key in hurt_at:
 		if now - hurt_at[key] < 1500:
-			marker(cam, size, spots[key], HEAT_C, "", true)
+			marker(cam, size, spots[key], A.danger, "", true)
 	for f in state.fx:
 		if f.k == "warn":
 			var g: Dictionary = sg.gates[f.lane]
-			marker(cam, size, Vector3(g.x, 4.0, g.y), HEAT_C if f.boss else ACCENT, tr("siegeIncoming").format({"bot": tr("bot_" + f.kind), "n": f.n}), int(f.t / 15) % 2 == 0)
+			marker(cam, size, Vector3(g.x, 4.0, g.y), A.danger if f.boss else A.hazard, tr("siegeIncoming").format({"bot": tr("bot_" + f.kind), "n": f.n}), int(f.t / 15) % 2 == 0)
+	ally_marks(size, cam)
+
+
+func edge_arrow(cam: Camera3D, size: Vector2, at: Vector3, c: Color, lit: bool) -> Vector2:
+	var p := cam.unproject_position(at)
+	var behind := cam.is_position_behind(at)
+	var box := siege_box(size)
+	if not behind and box.has_point(p):
+		return Vector2.INF
+	var mid := box.get_center()
+	var d := (p - mid) * (-1.0 if behind else 1.0)
+	var k := minf(absf(box.size.x / 2.0 / d.x) if d.x != 0 else 1e9, absf(box.size.y / 2.0 / d.y) if d.y != 0 else 1e9)
+	var e := mid + d * k
+	var u := d.normalized()
+	var n := Vector2(-u.y, u.x)
+	poly(PackedVector2Array([e + u * 16, e - u * 8 + n * 11, e - u * 8 - n * 11]), Color(c, 1.0 if lit else 0.45))
+	return e - u * 30
 
 
 func marker(cam: Camera3D, size: Vector2, at: Vector3, c: Color, text: String, lit: bool) -> void:
-	var inset := 48.0
-	var p := cam.unproject_position(at)
-	var behind := cam.is_position_behind(at)
-	var box := Rect2(Vector2(inset, inset + 90), size - Vector2(inset * 2, inset * 2 + 270))
-	if behind or not box.has_point(p):
-		var mid := size / 2.0
-		var d := (p - mid) * (-1.0 if behind else 1.0)
-		var k := minf(absf(box.size.x / 2.0 / d.x) if d.x != 0 else 1e9, absf(box.size.y / 2.0 / d.y) if d.y != 0 else 1e9)
-		var e := mid + d * k
-		var u := d.normalized()
-		var n := Vector2(-u.y, u.x)
-		canvas.draw_colored_polygon(PackedVector2Array([e + u * 16, e - u * 8 + n * 11, e - u * 8 - n * 11]), Color(c, 1.0 if lit else 0.45))
-		p = e - u * 30
-	elif text == "":
-		canvas.draw_arc(p, 22, 0, TAU, 24, Color(c, 0.9 if lit else 0.4), 3)
-		return
+	var p := edge_arrow(cam, size, at, c, lit)
+	if p == Vector2.INF:
+		p = cam.unproject_position(at)
+		if text == "":
+			canvas.draw_arc(p, 22, 0, TAU, 24, Color(c, 0.9 if lit else 0.4), 3)
+			return
 	if text == "":
 		return
-	var tw := bold.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 40.0
-	var r := Rect2(p.x - tw / 2.0, p.y - 40, tw, 28)
-	canvas.draw_style_box(Garage.plate(PANEL, c if lit else EDGE, 2, 6), r)
-	var h := r.position + Vector2(10, 7)
-	canvas.draw_rect(Rect2(h + Vector2(0, 4), Vector2(14, 12)), c)
-	canvas.draw_colored_polygon(PackedVector2Array([h + Vector2(9, 4), h + Vector2(14, 4), h + Vector2(16, -3)]), c)
-	canvas.draw_rect(Rect2(h + Vector2(3, 8), Vector2(8, 3)), Color8(80, 190, 255))
-	label(text, Vector2(r.position.x + 30, r.position.y + 20), 15, TEXT, HORIZONTAL_ALIGNMENT_LEFT, -1, 4, bold)
+	var tw := heavy.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 44.0
+	var r := Rect2(p.x - tw / 2.0, p.y - 40, tw, 32)
+	poly(rect_poly(r), Color(A.panel, 0.95))
+	canvas.draw_rect(r, ac(c if lit else A.line), false, 2.0)
+	var h := r.position + Vector2(10, 9)
+	poly(rect_poly(Rect2(h + Vector2(0, 4), Vector2(14, 10))), c)
+	poly(PackedVector2Array([h + Vector2(9, 4), h + Vector2(14, 4), h + Vector2(16, -3)]), c)
+	poly(rect_poly(Rect2(h + Vector2(3, 8), Vector2(8, 3))), A.team[1])
+	txt(text, Vector2(r.position.x + 32, r.position.y + 22), 15, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1, heavy)
+
+
+func ally_marks(size: Vector2, cam: Camera3D) -> void:
+	for i in range(1, state.siege.team):
+		var m: Dictionary = state.mechs[i]
+		if m.ko:
+			continue
+		var at := Vector3(m.x, 3.4, m.y)
+		var c := ally_color(i)
+		var p := edge_arrow(cam, size, at, c, true)
+		if p == Vector2.INF:
+			p = cam.unproject_position(at)
+			poly(PackedVector2Array([p + Vector2(-9, -4), p + Vector2(9, -4), p + Vector2(0, 10)]), c)
+			ally_tag(size, p + Vector2(0, -4), i, c)
+		else:
+			ally_tag(size, p + Vector2(0, 14), i, c)
+
+
+func ally_tag(size: Vector2, p: Vector2, i: int, c: Color) -> void:
+	var s := "%d  %s" % [i + 1, mech_name(i).to_upper()]
+	var w := heavy.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 22.0
+	var x := clampf(p.x, SIEGE_LEFT + 8.0 + w / 2.0, size.x - 8.0 - w / 2.0)
+	var r := Rect2(x - w / 2.0, p.y - 26.0, w, 26)
+	poly(rect_poly(r), c)
+	txt(s, Vector2(r.position.x, r.position.y + 20), 16, A.ground, HORIZONTAL_ALIGNMENT_CENTER, w, heavy)
 
 
 func siege_calls(size: Vector2) -> void:
-	var cy := size.y * 0.3
+	var cy := 118.0
 	var shown := {}
+	calls_bottom = 0.0
 	for f in state.fx:
 		var text := ""
 		var sub := ""
-		var c := TEXT
+		var c: Color = Color.WHITE
 		match f.k:
 			"cleared":
 				text = tr("siegeCleared")
 				sub = tr("siegeBonus").format({"n": f.n}) if f.n > 0 else ""
-				c = Look.POP.heal
+				c = A.good
 			"call":
 				text = tr("siegeBonus").format({"n": f.n})
-				c = WIRE
+				c = A.team[1]
 			"ring":
 				text = tr("siegeRing")
-				c = HEAT_C
+				c = A.danger
 			"raid":
 				text = tr("siegeRaid").format({"yard": Siege.S.QUADS[f.q].name})
-				c = HEAT_C
+				c = A.danger
 			"mutator":
 				text = tr("siegeMutator").format({"name": tr("mut_" + f.id)})
 				sub = tr("mutd_" + f.id)
-				c = SURGE_C
+				c = A.surge
 			"tactic":
 				var names: Array = f.lanes.map(func(l): return Siege.S.LANES[l].name)
 				var air: Array = Siege.S.AIR[f.get("corner", 0)]
@@ -481,79 +1181,41 @@ func siege_calls(size: Vector2) -> void:
 				var parts: PackedStringArray = tr("dir_" + f.id).format({"a": names[0] if names.size() > 0 else "", "b": names[1] if names.size() > 1 else "", "lane": names[0] if names.size() > 0 else "", "corner": yard[0].name}).split("|")
 				text = parts[0]
 				sub = parts[1] if parts.size() > 1 else ""
-				c = WIRE if f.id == "breather" else HEAT_C
+				c = A.team[1] if f.id == "breather" else A.danger
 			"warn":
 				if f.boss:
 					text = tr("siegeBoss")
-					c = HEAT_C
+					c = A.danger
 		if text != "" and not shown.has(text):
 			shown[text] = true
-			label(text, Vector2(0, cy), 54, c, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, heavy, 20)
+			var h := callout(text.to_upper(), c, size.x / 2.0, cy, 44)
 			if sub != "":
-				label(sub, Vector2(0, cy + 36), 24, TEXT, HORIZONTAL_ALIGNMENT_CENTER, size.x, 6, bold)
-			cy += 70
+				txt(sub, Vector2(0, cy + h + 24.0), 20, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, size.x, heavy, 2.0)
+			cy += h + (40.0 if sub != "" else 14.0)
+			calls_bottom = cy
 
 
-func cd_frac(key: String, cur: float) -> float:
-	if cur > last.get(key, 0.0):
-		top[key] = cur
-	last[key] = cur
-	return cur / top.get(key, 1.0) if cur > 0 else 0.0
-
-
-func slots(size: Vector2) -> void:
-	var m = state.mechs[0]
-	var w := SLOT.x
-	var gap := 6.0
-	var x0 := size.x / 2.0 - (SLOTS.size() * w + (SLOTS.size() - 1) * gap) / 2.0
-	var y := size.y - SLOT.y - 14
-	for i in SLOTS.size():
-		var key: String = SLOTS[i][0]
-		var r := Rect2(x0 + i * (w + gap), y, w, SLOT.y)
-		plate(r)
-		if key == "hook" and Sim.e_skill(m) == "":
-			continue
-		var frac := 0.0
-		var lit := false
-		var accent := DIM
-		var name := ""
-		match key:
-			"left", "right":
-				frac = cd_frac(key, m.cd[key])
-				accent = Color8(110, 190, 255) if Sim.is_gun(Sim.weapon(m, key)) else Color8(255, 160, 80)
-				name = tr("p_" + m.loadout[key])
-			"shield":
-				frac = cd_frac(key, m.cd.shield)
-				lit = Sim.shield_up(m)
-				name = tr("slotShield")
-			"hook":
-				frac = cd_frac(key, m.cd.hook)
-				lit = Sim.e_active(m)
-				name = tr("e_" + Sim.e_skill(m))
-			"dash":
-				frac = cd_frac(key, m.cd.dash) if m.dashes == 0 else 0.0
-				name = tr("slotDash")
-			"ult":
-				frac = 1.0 - m.surge / float(Sim.SURGE.max)
-				lit = m.surge >= Sim.SURGE.max
-				accent = SURGE_C
-				name = tr("slotUlt")
-		canvas.draw_rect(Rect2(r.position + Vector2(8, SLOT.y - 4), Vector2(w - 16, 3)), accent)
-		if frac > 0:
-			var shade := Garage.plate(Color(0, 0, 0, 0.6), Color.TRANSPARENT, 0, 8)
-			shade.corner_radius_bottom_right = 0
-			canvas.draw_style_box(shade, Rect2(r.position, Vector2(w, SLOT.y * frac)))
-		if lit:
-			canvas.draw_style_box(Garage.plate(Color.TRANSPARENT, SURGE_C if key == "ult" else Color8(140, 200, 255), 2, 9), r.grow(2))
-		label(tr(SLOTS[i][2 if pad else 1]), r.position + Vector2(0, 22), 15, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 4, bold)
-		var fs := 11
-		while fs > 8 and font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 6:
-			fs -= 1
-		label(name, r.position + Vector2(0, 39), fs, DIM, HORIZONTAL_ALIGNMENT_CENTER, w, 3)
-		if key == "dash":
-			var n := Sim.charges(m.loadout)
-			for k in n:
-				canvas.draw_circle(r.position + Vector2(w / 2.0 + (k - (n - 1) / 2.0) * 10, 47), 3.0, TEXT if k < m.dashes else Color(1, 1, 1, 0.2))
+func siege_over(size: Vector2) -> void:
+	canvas.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.45))
+	var cx := size.x / 2.0
+	canvas.draw_set_transform(Vector2(cx, 300), deg_to_rad(-3.0))
+	canvas.draw_rect(Rect2(-size.x, -95, size.x * 2.0, 190), A.danger)
+	hazard(Rect2(-size.x, 91, size.x * 2.0, 14))
+	txt(tr("siegeLost"), Vector2(-size.x / 2.0, 50), 140, Color("#1A0508"), HORIZONTAL_ALIGNMENT_CENTER, size.x, heavy)
+	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
+	var held := tr("siegeHeld").format({"n": maxi(0, state.siege.wave.n - 1)})
+	var hw := heavy.get_string_size(held, HORIZONTAL_ALIGNMENT_LEFT, -1, 36).x
+	var tail := tr("siegeBest").format({"n": best}).to_upper() if best > 0 else ""
+	var bw := label_f.get_string_size(tail, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 24.0
+	var x := cx - (hw + (18.0 + bw if tail != "" else 0.0)) / 2.0
+	txt(held, Vector2(x, 460), 36, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1, heavy, 3.0)
+	if tail != "":
+		poly(rect_poly(Rect2(x + hw + 18.0, 434, bw, 30)), A.line)
+		txt(tail, Vector2(x + hw + 18.0, 455), 14, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, bw)
+	var btn := tr("rematch")
+	var bt := heavy.get_string_size(btn, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x + 60.0
+	poly(slant(Rect2(cx - bt / 2.0, size.y - 132.0, bt, 60), -12.0), A.hazard)
+	txt(btn, Vector2(cx - bt / 2.0, size.y - 132.0 + 40.0), 26, A.ground, HORIZONTAL_ALIGNMENT_CENTER, bt, heavy)
 
 
 func has_fx(kind: String):
@@ -563,50 +1225,3 @@ func has_fx(kind: String):
 	return null
 
 
-func callouts(size: Vector2) -> void:
-	var cy := size.y * 0.38
-	var w := size.x
-	match state.phase:
-		"countdown":
-			label(tr("round").format({"n": state.round}), Vector2(0, cy - 40), 34, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 8, bold, 16)
-			if state.timer > 0:
-				label(str(int(ceil(state.timer / float(Sim.TICKS)))), Vector2(0, cy + 70), 120, Color8(255, 214, 120), HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
-		"ko":
-			var title: String = tr("timeUp") if state.finalKo < 0 else tr("ko")
-			label(title, Vector2(0, cy + 30), 120, Color8(255, 214, 120), HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
-			var sub: String = tr("draw") if state.winner < 0 else (tr("youWin") if state.winner == state.mechs[0].team else tr("rivalWins"))
-			var c: Color = TEXT if state.winner < 0 else Mech.TEAM_LIGHT[state.winner]
-			label(sub, Vector2(0, cy + 80), 30, c, HORIZONTAL_ALIGNMENT_CENTER, w, 8, bold, 14)
-		"over":
-			var won: bool = state.score[0] > state.score[1]
-			label(tr("victory") if won else tr("defeat"), Vector2(0, cy + 30), 120, Mech.TEAM_LIGHT[0] if won else Mech.TEAM_LIGHT[1], HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
-			label(tr("rematch"), Vector2(0, cy + 84), 26, TEXT, HORIZONTAL_ALIGNMENT_CENTER, w, 8, bold)
-		"fight":
-			var go = has_fx("fight")
-			if go != null:
-				label(tr("go"), Vector2(0, cy + 40), 110, Color(1, 0.84, 0.47, go.t / 50.0), HORIZONTAL_ALIGNMENT_CENTER, w, 14, heavy, 32)
-	var at := [Vector2(16, 16 + PANEL_SIZE.y + 28), Vector2(size.x - 16, 16 + PANEL_SIZE.y + 28), Vector2(size.x / 2.0, 72)]
-	for f in state.fx:
-		var text := ""
-		var c := TEXT
-		var side := 2
-		match f.k:
-			"closing":
-				text = tr("closing")
-				c = Look.POP.head
-			"ventsOn":
-				text = tr("ventsOn")
-				c = Look.POP.block
-			"healUp":
-				text = tr("healReady")
-				c = Look.POP.heal
-			"break":
-				text = tr("broke_" + f.part)
-				c = Mech.TEAM_LIGHT[state.mechs[f.id].team]
-				side = mini(f.id, 1)
-		if text != "":
-			var tw := bold.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 24.0
-			var x: float = at[side].x - [0.0, tw, tw / 2.0][side]
-			canvas.draw_style_box(Garage.plate(PANEL, c, 1, 6), Rect2(x, at[side].y, tw, 26))
-			label(text, Vector2(x, at[side].y + 19), 16, c, HORIZONTAL_ALIGNMENT_CENTER, tw, 4, bold)
-			at[side].y += 30
