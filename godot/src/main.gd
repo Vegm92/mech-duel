@@ -104,6 +104,7 @@ var wave_arg := 1
 var director_on := false
 var spawn_arg := ""
 var modules_arg := false
+var turret_arg := false
 var top_arg := false
 var guard_arg := 0
 var farm_arg := false
@@ -195,6 +196,8 @@ func _ready() -> void:
 			shot_on = a.substr(10)
 		elif a == "--modules":
 			modules_arg = true
+		elif a == "--turret":
+			turret_arg = true
 		elif a.begins_with("--spawn="):
 			spawn_arg = a.substr(8)
 		elif a.begins_with("--director="):
@@ -422,6 +425,15 @@ func new_match() -> void:
 				Siege.build(state, state.siege.pads[b[0]], b[1])
 		if Siege.BOTS.has(spawn_arg):
 			Siege.look(state, spawn_arg)
+		if turret_arg:
+			var pd: Dictionary = state.siege.pads[1]
+			Siege.build(state, pd, "turret")
+			state.mechs[0].x = pd.x + 3.0
+			state.mechs[0].y = pd.y - 2.0
+			Siege.look(state, "heavy")
+			for e in state.siege.enemies:
+				state.mechs[e.m].x = pd.x + e.side
+				state.mechs[e.m].y = pd.y - 9.0
 	elif Sim.FORMATS.has(format_arg) and format_arg != "1v1":
 		var los := [progress.with_levels(loadout.duplicate()), rival]
 		extras = []
@@ -608,6 +620,13 @@ func _input(event: InputEvent) -> void:
 			tapped[k] = true
 
 
+func show_reach() -> void:
+	var sg: Dictionary = state.siege
+	var m: Dictionary = state.mechs[0]
+	var kind := Siege.where(sg, m) if not sg.wave.live and not m.ko else ""
+	siege_view.reach(Siege.pad_at(sg, m, Siege.MODULE.pad) if kind == "square" else null, Siege.gate_at(sg, m) if kind == "gate" else null)
+
+
 func open_shop() -> void:
 	if not siege or shop.visible or paused or state.phase == "over" or state.mechs[0].ko:
 		return
@@ -700,6 +719,7 @@ func _physics_process(delta: float) -> void:
 		view.sync(state, aim, delta)
 		if siege:
 			siege_view.update(state.siege)
+			show_reach()
 			siege_bots.sync(state.siege, delta)
 	track()
 	crowd_sound.update(view.fresh_fx, 0.0 if siege else view.hype, state.phase == "fight" and not paused and not siege, not paused)

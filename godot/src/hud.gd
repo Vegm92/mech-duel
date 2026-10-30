@@ -1019,7 +1019,8 @@ func siege_shop(size: Vector2) -> void:
 		txt(tr("shop_" + k).format({"t": sg.garrison.tier + 1}), r.position + Vector2(40, 20), 12, Color.WHITE if can else A.dim)
 		if cost >= 0:
 			txt(str(cost), Vector2(r.position.x, r.position.y + 21), 14, Color.WHITE if can else A.dim, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 10.0, heavy)
-	txt(tr("siegeBuildHint"), Vector2(x, 36 + SHOP.size() * 34 + 14), 11, A.soft)
+	poly(rect_poly(Rect2(x, 36 + SHOP.size() * 34, 250, 22)), Color(A.panel, 0.92))
+	txt(tr("siegeBuildHint"), Vector2(x + 10, 36 + SHOP.size() * 34 + 15), 11, A.soft)
 	var left: int = int(ceil(maxf(0, sg.wave.next_in - 480) / float(Sim.TICKS)))
 	var y := size.y - 96.0
 	var cx := size.x / 2.0

@@ -223,6 +223,15 @@ $P = "$R\godot"
   `target` so melee bots line up on it). Gate wheel = repair +20% / rebuild at 50% for the gate you
   stand at (`gate_at`). Plaza wheel keeps tiers, parts, heals and a Team wedge of Core ring +
   Garrison only. All of them are build phase only except the plaza's wallet items.
+  View: the turret is `mod_turret` (base) + `mod_turret_head` in `core_siege.glb` (`art/core_siege_build.py`);
+  `siege_view.draw_pad` swivels the head to `pd.aim`, kicks it back after a shot (`TURRET`) and flashes the
+  muzzle; a destroyed turret loses its head. `siege_view.reach(pad, gate)` (fed by `main.show_reach`) lights a
+  yellow floor ring (`REACH`) on the pad or gate you can buy at. Look flags: `--turret` (turret on lane pad 1,
+  3 heavies in range; pair with `--shot-on=zap --at=600`), `--shop=square|gate|plaza`. Evidence:
+  `production/qa/evidence/lane-build-{square-wheel,gate-wheel,plaza-wheel,turret-firing}-2026-10-30.png`.
+  After changing the .blend: `blender -b art/core_siege.blend --python tools/blender_export.py -- --build --save`
+  reads the text block inside the .blend, so paste `art/core_siege_build.py` into it first; run Godot with
+  `--headless --import` once so the new .glb parts load.
   AI allies hold lane posts, fall back to the core when a bot gets inside, repair it between
   waves, buy rings, and walk to a hurt or broken gate to fix it (`chore_for`). HUD: wave plate, shop, warning markers over gates
   (edge arrow off screen), red arrows to gates or the core under attack. `--modules` builds one

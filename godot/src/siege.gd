@@ -12,7 +12,7 @@ const RUN := {
 }
 const MODULE := {"pad": 4.0, "gate": 4.5, "wall": {"hp": 800, "depth": 1.0, "len": 6.0}, "mine": {"n": 4, "spread": 2.5, "dmg": 60, "arm": 30},
 	"laser": {"every": 180, "warn": 60, "dmg": 80, "half": 0.6}, "post": {"dmg": 120, "cd": 240, "reach": 2.0, "range": 40.0, "half": 0.5},
-	"turret": {"cost": 180, "hp": 600, "depth": 1.6, "len": 1.6, "range": 22.0, "dmg": 6, "every": 12}}
+	"turret": {"cost": 180, "hp": 600, "depth": 1.6, "len": 1.6, "range": 22.0, "dmg": 6, "every": 12, "muzzle": 2.5}}
 const SHOP := {"gate": 40, "rebuild": 120, "ring": 200, "wall": 60, "mine": 80, "laser": 150, "post": 120, "turret": MODULE.turret.cost, "garrison": 0}
 const WHEEL := {"square": ["wall", "mine", "laser", "post", "turret"], "gate": ["gate", "rebuild"], "plaza": ["ring", "garrison"]}
 const WALLET := {"kit": 40, "coolant": 20, "surge": 60, "reinforce": 100, "revive": 50}
@@ -1904,7 +1904,7 @@ static func gun(state, sg: Dictionary, pd: Dictionary) -> void:
 	pd.cd = T.every
 	pd.aim = atan2(best.y - pd.y, best.x - pd.x)
 	Sim.hit(state, state.mechs[0], best, T.dmg, "LEGS", 0, pd.aim + PI, Sim.next_cast(state))
-	state.fx.append({"k": "zap", "kind": "laser", "x1": pd.x, "y1": pd.y, "x2": best.x, "y2": best.y, "t": 4})
+	state.fx.append({"k": "zap", "kind": "laser", "x1": pd.x + cos(pd.aim) * T.muzzle, "y1": pd.y + sin(pd.aim) * T.muzzle, "x2": best.x, "y2": best.y, "t": 4})
 
 
 static func fire_post(state, sg: Dictionary, m: Dictionary) -> void:
