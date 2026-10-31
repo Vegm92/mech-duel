@@ -16,6 +16,7 @@ const Killcam = preload("res://src/killcam.gd")
 const Look = preload("res://src/look.gd")
 const Edition = preload("res://src/edition.gd")
 const Seats = preload("res://src/seats.gd")
+const Menu = preload("res://src/menu.gd")
 const SIEGE_CAM := {"dist": 48.0, "edge": 62.0, "near": 36.0, "far": 64.0, "top": 205.0}
 
 const PITCH := deg_to_rad(60.0)
@@ -100,9 +101,14 @@ var locals: Array = ["kb"]
 var aims: Array = []
 var taps := {}
 var seats: CanvasLayer
+var menu: CanvasLayer
+var play_mode := "solo"
+var mode_arg := ""
+var next_seed := -1
 var pending := {}
 var seat_picks: Array = []
 var seats_arg := false
+var menu_arg := false
 var seats_demo := ""
 var credits_arg := false
 var humans_arg := 1
@@ -233,6 +239,10 @@ func _ready() -> void:
 			TranslationServer.set_locale(a.substr(7))
 		elif a == "--pad":
 			pad_flag = true
+		elif a == "--menu":
+			menu_arg = true
+		elif a.begins_with("--mode="):
+			mode_arg = a.substr(7)
 		elif a == "--seats" or a.begins_with("--seats="):
 			seats_arg = true
 			seats_demo = a.substr(8)
@@ -281,42 +291,48 @@ func _ready() -> void:
 	loadout = flag_loadout()
 	garage = Garage.new()
 	garage.progress = progress
-	garage.format = format_arg
 	add_child(garage)
 	seats = Seats.new()
 	add_child(seats)
-	seats.confirmed.connect(seated)
-	seats.back.connect(func(): garage.visible = true)
+	seats.confirmed.connect(func(list: Array, picks: Array) -> void:
+		format_arg = seats.fmt
+		seated(list, picks))
+	seats.back.connect(to_menu)
 	seats.ui.connect(sfx.ui)
+	menu = Menu.new()
+	add_child(menu)
+	menu.picked.connect(chosen)
+	menu.ui.connect(sfx.ui)
 	claim = Claim.new()
 	add_child(claim)
 	claim.picked.connect(claimed)
 	claim.ui.connect(sfx.ui)
-	garage.fight.connect(join)
-	if Edition.siege:
-		garage.siege.connect(start.bind(true))
+	garage.fight.connect(garage_done)
 	hud.resume.connect(resume)
 	hud.restart.connect(new_match)
-	hud.quit.connect(to_garage)
+	hud.quit.connect(to_menu)
 	hud.ui.connect(sfx.ui)
 	garage.ui.connect(sfx.ui)
 	if sandbox and gun < 0:
 		gun = maxi(0, Sim.WEAPONS.keys().find(loadout.left))
 	for d in range(1, humans_arg):
 		locals.append(d)
-	if garage_arg >= 0 or not (autopilot or shot_at >= 0 or sandbox):
-		to_garage()
-		if credits_arg:
-			garage.open_credits()
+	var screens := garage_arg >= 0 or credits_arg or seats_arg or menu_arg or not (autopilot or shot_at >= 0 or sandbox)
+	if screens:
+		if garage_arg >= 0 or credits_arg:
+			to_garage()
+			if credits_arg:
+				garage.open_credits()
+		else:
+			to_menu()
 		if seats_arg:
-			pending = loadout
-			garage.visible = false
-			seats.open(["kb", 0, 1, 2] if seats_demo != "" else ["kb", 0], format_arg, loadout)
+			open_seats(mode_arg if mode_arg != "" else "versus")
 			var demo := seats_demo.split(",", false)
-			for j in mini(demo.size(), seats.list.size()):
-				var bits := demo[j].split(":")
-				seats.picks[seats.list[j]] = {"set": bits[0], "team": bits[1].to_int()}
-			seats.refresh()
+			if not demo.is_empty():
+				for j in mini(demo.size(), seats.list.size()):
+					var bits := demo[j].split(":")
+					seats.picks[seats.list[j]] = {"set": bits[0], "team": bits[1].to_int()}
+				seats.refresh()
 	else:
 		garage.visible = false
 		new_match()
@@ -397,16 +413,44 @@ func save_loadout() -> void:
 	cfg.save(SAVE)
 
 
-func join(lo: Dictionary) -> void:
-	format_arg = garage.format
+func garage_done(lo: Dictionary) -> void:
+	loadout = lo
 	if autopilot or sandbox or shot_path != "":
 		seat_picks = []
 		start(lo)
 		return
-	pending = lo
+	save_loadout()
+	to_menu()
+
+
+func chosen(picked: String) -> void:
+	match picked:
+		"garage":
+			to_garage()
+		"siege":
+			start(loadout, true)
+		_:
+			open_seats(picked)
+
+
+func open_seats(picked: String) -> void:
+	play_mode = picked
+	next_seed = int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
+	pending = loadout
+	menu.visible = false
 	garage.visible = false
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
-	seats.open(["kb"] if last_pad < 0 else [last_pad], format_arg, lo)
+	var bots := []
+	for i in 4:
+		bots.append(build_for(i, next_seed, rival_of(next_seed)[1], []))
+	seats.open(["kb"] if last_pad < 0 else [last_pad], "2v2" if picked == "coop" else format_arg, loadout, picked, bots)
+
+
+func rival_of(s: int) -> Array:
+	if progress.unlock_all:
+		return ["", Sim.SETS.values()[s % Sim.SETS.size()].duplicate()]
+	var key := progress.next_rival()
+	return [key, progress.rival(key)]
 
 
 func seated(list: Array, picks: Array) -> void:
@@ -430,9 +474,9 @@ func match_teams() -> Array:
 	return out.slice(0, base.size())
 
 
-func build_for(i: int, s: int, rival: Dictionary) -> Dictionary:
-	if i < seat_picks.size():
-		var k: String = seat_picks[i].set
+func build_for(i: int, s: int, rival: Dictionary, picks: Array = seat_picks) -> Dictionary:
+	if i < picks.size():
+		var k: String = picks[i].set
 		return progress.with_levels(loadout.duplicate()) if k == "" else Sim.SETS[k].duplicate()
 	if i == 0:
 		return progress.with_levels(loadout.duplicate())
@@ -446,12 +490,16 @@ func seat_up() -> void:
 		aims.append({"reach": Vector2.ZERO, "recent": [], "on_pad": w is int or pad_flag, "at": Vector3(Sim.CX, 0, Sim.CY)})
 
 
+func ui_open() -> bool:
+	return garage.visible or claim.visible or seats.visible or menu.visible
+
+
 func resume() -> void:
 	paused = false
 	tapped.clear()
 
 
-func to_garage() -> void:
+func idle() -> void:
 	end_replay()
 	paused = false
 	crowd_sound.update([], 0.0, false, false)
@@ -460,6 +508,22 @@ func to_garage() -> void:
 	view.visible = false
 	hud.visible = false
 	get_viewport().disable_3d = true
+	garage.visible = false
+	seats.visible = false
+	menu.visible = false
+
+
+func to_menu() -> void:
+	idle()
+	menu.open()
+	if shot_path != "":
+		for i in 8:
+			await get_tree().process_frame
+		take_shot()
+
+
+func to_garage() -> void:
+	idle()
 	garage.open(loadout, garage_arg)
 	if hover_arg != "":
 		garage.set_hover({"set": hover_arg} if garage.SLOTS[garage.tab] == "set" else {"slot": garage.SLOTS[garage.tab], "key": hover_arg})
@@ -481,6 +545,7 @@ func start(lo: Dictionary, mode := false) -> void:
 		save_loadout()
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 	garage.visible = false
+	menu.visible = false
 	view.visible = true
 	get_viewport().disable_3d = false
 	new_match()
@@ -494,14 +559,11 @@ func new_match() -> void:
 	Engine.time_scale = 1.0
 	tapped.clear()
 	rec = Killcam.recorder()
-	var s := seed_arg if seed_arg >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff
-	var rival: Dictionary
-	if progress.unlock_all:
-		rival_key = ""
-		rival = Sim.SETS.values()[s % Sim.SETS.size()].duplicate()
-	else:
-		rival_key = progress.next_rival()
-		rival = progress.rival(rival_key)
+	var s := seed_arg if seed_arg >= 0 else (next_seed if next_seed >= 0 else int(Time.get_unix_time_from_system() * 1000.0) & 0x7fffffff)
+	next_seed = -1
+	var made := rival_of(s)
+	rival_key = made[0]
+	var rival: Dictionary = made[1]
 	rival_lo = rival
 	broke = []
 	foe_ko = false
@@ -695,7 +757,7 @@ func _input(event: InputEvent) -> void:
 		last_pad = event.device
 	elif event is InputEventKey or event is InputEventMouseButton:
 		last_pad = -1
-	if garage.visible or claim.visible or seats.visible:
+	if ui_open():
 		return
 	if event is InputEventMouseMotion:
 		for i in locals.size():
@@ -720,7 +782,7 @@ func _input(event: InputEvent) -> void:
 				if skip():
 					get_viewport().set_input_as_handled()
 				elif state.phase == "over":
-					to_garage()
+					to_menu()
 					get_viewport().set_input_as_handled()
 			KEY_L:
 				I18n.toggle()
@@ -804,7 +866,7 @@ func _notification(what: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if garage.visible or claim.visible or seats.visible:
+	if ui_open():
 		return
 	for i in locals.size():
 		aims[i].at = aim_point(i)
