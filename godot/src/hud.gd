@@ -5,7 +5,7 @@ const Mech = preload("res://src/mech.gd")
 const Garage = preload("res://src/garage.gd")
 const Sfx = preload("res://src/sfx.gd")
 const Look = preload("res://src/look.gd")
-const Siege = preload("res://src/siege.gd")
+const Edition = preload("res://src/edition.gd")
 
 const PANEL := Color(0.04, 0.11, 0.23, 0.82)
 const EDGE := Color(0.31, 0.59, 0.9, 0.5)
@@ -37,7 +37,6 @@ const READOUT := {
 	"rarm": [Vector2(158, 71), 52.0, Vector2(150, 66), HORIZONTAL_ALIGNMENT_RIGHT],
 	"legs": [Vector2(85, 99), 50.0, Vector2(80, 120), HORIZONTAL_ALIGNMENT_CENTER],
 }
-const SHOP: Array = Siege.WHEEL.plaza
 const WALLET := ["kit", "coolant", "surge", "reinforce", "revive"]
 const TIER_ROWS := ["left", "right", "head", "arms", "legs", "booster", "core"]
 const A := Look.ARCADE
@@ -62,6 +61,9 @@ var state: Dictionary
 var view: Node3D
 var paused := false
 var pad := false
+var humans := 1
+var Siege
+var SHOP: Array = []
 var canvas: Control
 var font: Font
 var bold: FontVariation
@@ -82,6 +84,12 @@ var calls_bottom := 0.0
 var hp_was := {}
 var best := 0
 var hurt_at := {}
+
+
+func _init() -> void:
+	if Edition.siege:
+		Siege = load("res://src/siege.gd")
+		SHOP = Siege.WHEEL.plaza
 
 
 func _ready() -> void:
@@ -351,7 +359,7 @@ func skill_bar(m: Dictionary, at: Vector2, k: float, mine: bool) -> void:
 	var pw := heavy.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 28.0
 	poly(slant(Rect2(16, 14, pw, 24), -12), t)
 	txt(nm, Vector2(16, 32), 16, A.ground, HORIZONTAL_ALIGNMENT_CENTER, pw, heavy)
-	txt(tr("whoYou") if m.id == 0 else tr("whoBot").format({"n": m.id + 1}), Vector2(16 + pw + 10, 31), 11, A.dim)
+	txt(tr("whoYou") if m.id == 0 else tr("whoPlayer" if m.id < humans else "whoBot").format({"n": m.id + 1}), Vector2(16 + pw + 10, 31), 11, A.dim)
 	robot(m)
 	var x := 83.0
 	for g in GROUPS:
@@ -1056,18 +1064,18 @@ func shop_menu(i: int, kind := "plaza") -> Array:
 	var m: Dictionary = state.mechs[i]
 	var w: int = sg.wallets[i]
 	var tier := func(slot: String) -> Dictionary:
-		var c := Siege.price_of(sg, m, "tier:" + slot)
+		var c: int = Siege.price_of(sg, m, "tier:" + slot)
 		var t: int = sg.tiers[i][slot]
 		var note: String = tr("noteMax") if c < 0 else tr("noteTier").format({"a": t, "b": t + 1}) + " · " + tr("fx_" + ("hand" if slot in ["left", "right"] else slot))
 		return {"id": "tier:" + slot, "label_key": "tier_" + slot, "cost": c, "enabled": c >= 0 and w >= c, "sub": [], "note": note}
 	var wallet := func(id: String) -> Dictionary:
-		var c := Siege.price_of(sg, m, id)
+		var c: int = Siege.price_of(sg, m, id)
 		return {"id": id, "label_key": "shop_" + id, "cost": c, "enabled": w >= c or (id == "reinforce" and sg.tokens[i] > 0), "sub": [], "note": ""}
 	var parts := []
 	for slot in Siege.S.PART_SLOTS:
 		var keys := []
 		for key in Sim.CATALOG[slot]:
-			var c := Siege.price_of(sg, m, "swap:%s:%s" % [slot, key])
+			var c: int = Siege.price_of(sg, m, "swap:%s:%s" % [slot, key])
 			if c >= 0:
 				keys.append({"id": "swap:%s:%s" % [slot, key], "label_key": "p_" + key, "cost": c, "enabled": w >= c, "sub": [], "note": tr("noteLevel").format({"n": Siege.owned_level(sg, i, slot, key)})})
 		if not keys.is_empty():

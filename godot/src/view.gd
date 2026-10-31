@@ -205,6 +205,8 @@ var pops := []
 var replaying := false
 var kick := Vector3.ZERO
 var reticle: MeshInstance3D
+var reticles: Array[MeshInstance3D] = []
+var extra_aims: Array = []
 var danger: MeshInstance3D
 var danger_mesh := ImmediateMesh.new()
 var last_shrink := -1.0
@@ -464,6 +466,9 @@ func react(state: Dictionary, fresh: Array) -> void:
 func reset(state: Dictionary) -> void:
 	squad = state.siege.team if state.has("siege") else 0
 	pops.clear()
+	for r in reticles:
+		r.queue_free()
+	reticles.clear()
 	for m in mechs:
 		for g in m.get_meta("ghosts", []):
 			g.queue_free()
@@ -607,6 +612,12 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 			settle(cab)
 	reticle.position = aim + Vector3(0, 0.05, 0)
 	reticle.visible = state.phase == "fight" and not state.mechs[0].ko and not replaying
+	while reticles.size() < extra_aims.size():
+		reticles.append(Mech.add(self, Mech.ring(0.35, 0.45), Mech.flat(Color(Mech.TEAM_LIGHT[state.mechs[reticles.size() + 1].team], 0.8))))
+	for i in reticles.size():
+		reticles[i].visible = i < extra_aims.size() and state.phase == "fight" and not state.mechs[i + 1].ko and not replaying
+		if i < extra_aims.size():
+			reticles[i].position = extra_aims[i] + Vector3(0, 0.05, 0)
 	var fresh := []
 	for f in state.fx:
 		if not f.has("seen"):

@@ -17,7 +17,7 @@ func _initialize() -> void:
 	await run("every_part_builds_alone_with_a_model", test_every_part_builds_alone_with_a_model)
 	await run("garage_previews_on_hover_and_equips_on_click", test_garage_previews_on_hover_and_equips_on_click)
 	await run("match_flow_comes_back_to_the_garage", test_match_flow_comes_back_to_the_garage)
-	await run("siege_button_starts_a_siege_and_fight_goes_back_to_a_duel", test_siege_button_starts_a_siege_and_fight_goes_back_to_a_duel)
+	await run("siege_starts_a_siege_and_fight_goes_back_to_a_duel", test_siege_starts_a_siege_and_fight_goes_back_to_a_duel)
 	await run("pad_moves_aims_acts_and_pauses", test_pad_moves_aims_acts_and_pauses)
 	await run("garage_works_with_a_pad", test_garage_works_with_a_pad)
 	await run("decor_keeps_off_pads_spawns_and_traps", test_decor_keeps_off_pads_spawns_and_traps)
@@ -138,7 +138,7 @@ func test_match_flow_comes_back_to_the_garage() -> int:
 	enter.pressed = true
 	root.push_input(enter)
 	await process_frame
-	bad += ensure(m.garage.visible, "Enter after the match opens the garage and stays there")
+	bad += ensure(m.menu.visible and not m.garage.visible, "Enter after the match opens the menu and stays there")
 	m.garage.equip({"set": "tank"})
 	m.garage.go()
 	await physics_frame
@@ -148,12 +148,12 @@ func test_match_flow_comes_back_to_the_garage() -> int:
 	await process_frame
 	var quit: Button = m.hud.menu.get_child(2)
 	await mouse(quit.get_global_rect().get_center(), true)
-	bad += ensure(m.garage.visible and m.garage.loadout == Sim.SETS.tank, "Quit to garage keeps your bot")
+	bad += ensure(m.menu.visible and m.loadout == Sim.SETS.tank, "Quit to menu keeps your bot")
 	m.queue_free()
 	return int(bad > 0)
 
 
-func test_siege_button_starts_a_siege_and_fight_goes_back_to_a_duel() -> int:
+func test_siege_starts_a_siege_and_fight_goes_back_to_a_duel() -> int:
 	var m = load("res://main.tscn").instantiate()
 	m.autopilot = true
 	root.add_child(m)
@@ -161,10 +161,10 @@ func test_siege_button_starts_a_siege_and_fight_goes_back_to_a_duel() -> int:
 	m.state.phase = "over"
 	m.to_garage()
 	await process_frame
-	m.garage.go_siege()
+	m.start(m.loadout, true)
 	await physics_frame
 	await physics_frame
-	var bad := ensure(m.siege and m.state.has("siege") and m.siege_view != null, "CORE SIEGE starts a siege run")
+	var bad := ensure(m.siege and m.state.has("siege") and m.siege_view != null, "starting a siege runs one")
 	bad += ensure(m.view.visible and not m.garage.visible, "the siege view shows")
 	m.state.phase = "over"
 	m.to_garage()
@@ -218,14 +218,14 @@ func test_pad_moves_aims_acts_and_pauses() -> int:
 	axis(JOY_AXIS_RIGHT_X, 1.0)
 	for i in 4:
 		await settle()
-	var bad := ensure(m.on_pad and m.reach == Vector2(16, 0) and m.hud.pad, "full right stick aims 16 m right and the HUD shows pad buttons")
+	var bad := ensure(m.aims[0].on_pad and m.aims[0].reach == Vector2(16, 0) and m.hud.pad, "full right stick aims 16 m right and the HUD shows pad buttons")
 	bad += ensure(m.player_input().mx == 0.0, "left stick drift inside the dead zone does not walk")
 	axis(JOY_AXIS_RIGHT_X, 0.5)
 	await settle()
-	bad += ensure(m.reach == Vector2(8, 0), "half tilt aims half as far")
+	bad += ensure(m.aims[0].reach == Vector2(8, 0), "half tilt aims half as far")
 	axis(JOY_AXIS_RIGHT_X, 0.0)
 	await settle()
-	bad += ensure(m.reach == Vector2(16, 0), "letting go keeps the aim from before the stick sprang back")
+	bad += ensure(m.aims[0].reach == Vector2(16, 0), "letting go keeps the aim from before the stick sprang back")
 	axis(JOY_AXIS_LEFT_X, 1.0)
 	axis(JOY_AXIS_TRIGGER_RIGHT, 0.9)
 	pad(JOY_BUTTON_LEFT_SHOULDER, true)
@@ -245,13 +245,13 @@ func test_pad_moves_aims_acts_and_pauses() -> int:
 	move.relative = Vector2(5, 0)
 	root.push_input(move, true)
 	await settle()
-	bad += ensure(not m.on_pad and not m.hud.pad, "moving the mouse hands aim back to the mouse")
+	bad += ensure(not m.aims[0].on_pad and not m.hud.pad, "moving the mouse hands aim back to the mouse")
 	await press(JOY_BUTTON_START)
 	bad += ensure(m.paused and get_root().gui_get_focus_owner() == m.hud.menu.get_child(0), "Start pauses with Resume picked")
 	await press(JOY_BUTTON_DPAD_DOWN)
 	await press(JOY_BUTTON_DPAD_DOWN)
 	await press(JOY_BUTTON_A)
-	bad += ensure(m.garage.visible, "D-pad down twice and A quits to the garage")
+	bad += ensure(m.menu.visible, "D-pad down twice and A quits to the menu")
 	axis(JOY_AXIS_LEFT_X, 0.0)
 	await process_frame
 	m.queue_free()

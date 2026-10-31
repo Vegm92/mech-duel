@@ -1,7 +1,6 @@
 extends CanvasLayer
 
 signal fight(lo: Dictionary)
-signal siege(lo: Dictionary)
 signal ui(kind: String)
 
 const Sim = preload("res://src/sim.gd")
@@ -36,6 +35,11 @@ const A_LOCKED := Color("8E87A8")
 const SLOTS := ["head", "core", "arms", "legs", "booster", "left", "right", "set"]
 const TITLES := ["gHead", "gCore", "gArms", "gLegs", "gBooster", "gLeftHand", "gRightHand", "gSets"]
 const MAIN := [["mainParts", 0, 4], ["mainWeapons", 5, 6], ["mainSets", 7, 7]]
+const CREDITS := [
+	["Kenney", "kenney.nl", "CC0", "creditsKenney"],
+	["Gregor Quendel", "opengameart.org/content/free-crowd-cheering-sounds", "CC BY 4.0", "creditsQuendel"],
+	["Nocturnal_Vanguard", "opengameart.org/content/oooooooooooooo", "CC0", "creditsNocturnal"],
+]
 const UNIT := {"siSpeed": "vMs", "siDash": "vM", "siDashCd": "vS", "siHandling": "vPct", "siCharge": "vPct", "siVent": "vPs"}
 
 static var SERIES_C := {"light": Color("7ef0ff"), "standard": Color("c6d4e8"), "heavy": Color("ffb45f")}
@@ -57,6 +61,7 @@ static var GOOD := A_GOOD
 static var BAD := A_DANGER
 
 var loadout: Dictionary = Sim.DEFAULT_LOADOUT.duplicate()
+var credits: Control
 var progress := Progress.new()
 var tab := 0
 var hover = null
@@ -107,6 +112,7 @@ func build() -> void:
 	for c in root.get_children():
 		c.queue_free()
 	left = null
+	credits = null
 	hazard(root, Rect2(0, 0, SIZE.x, 8))
 	var title := big(root, tr("garage"), Vector2(PAD, 12), 42, Color.WHITE, 220, 56)
 	title.add_theme_color_override("font_shadow_color", Color.BLACK)
@@ -269,16 +275,15 @@ func build_right() -> void:
 	about_desc = para(ab, "", Rect2(14, 36, RW - 28, 66), 12, A_INK, 4)
 	about_skill = para(ab, "", Rect2(14, 106, RW - 28, 48), 12, SKILL, 3)
 	text(root, tr("garageHint"), Vector2(RX, 678), 12, A_DIM, RW)
-	var sw := 150.0
-	var sb := Button.new()
-	sb.position = Vector2(RX + RW - 190 - 22 - sw, 20)
-	sb.size = Vector2(sw, 40)
-	sb.focus_mode = Control.FOCUS_NONE
-	sb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	skew(sb, A_RAISED)
-	sb.pressed.connect(go_siege)
-	root.add_child(sb)
-	big(sb, tr("siegeBtn"), Vector2.ZERO, 19, Color.WHITE, sw, 40, true)
+	var cb := Button.new()
+	cb.position = Vector2(RX + RW - 124, 338)
+	cb.size = Vector2(110, 24)
+	cb.focus_mode = Control.FOCUS_NONE
+	cb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	skew(cb, A_RAISED)
+	cb.pressed.connect(open_credits)
+	root.add_child(cb)
+	big(cb, tr("creditsBtn"), Vector2.ZERO, 13, A_DIM, 110, 24, true)
 	var f := Button.new()
 	f.position = Vector2(RX + RW - 190, 12)
 	f.size = Vector2(190 - 5, 52)
@@ -287,7 +292,7 @@ func build_right() -> void:
 	skew(f, A_HAZARD, true)
 	f.pressed.connect(go)
 	root.add_child(f)
-	big(f, tr("go"), Vector2.ZERO, 30, A_GROUND, f.size.x, 52, true)
+	big(f, tr("garageDone"), Vector2.ZERO, 30, A_GROUND, f.size.x, 52, true)
 
 
 func refresh() -> void:
@@ -400,14 +405,38 @@ func select_tab(i: int) -> void:
 	build_tab()
 
 
+func open_credits() -> void:
+	ui.emit("tab")
+	close_credits()
+	credits = Control.new()
+	credits.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(credits)
+	rect(credits, Rect2(Vector2.ZERO, SIZE), A_GROUND)
+	hazard(credits, Rect2(0, 0, SIZE.x, 8))
+	big(credits, tr("creditsTitle"), Vector2(60, 30), 54, Color.WHITE, 0, 70)
+	text(credits, tr("creditsSound"), Vector2(60, 124), 14, A_HAZARD, 0, true)
+	for i in CREDITS.size():
+		var c: Array = CREDITS[i]
+		var y := 156.0 + i * 130.0
+		panel(credits, Rect2(60, y, SIZE.x - 120, 116), A_PANEL, 12)
+		big(credits, c[0], Vector2(84, y + 10), 28, Color.WHITE, 0, 36)
+		text(credits, c[2], Vector2(SIZE.x - 84 - 120, y + 16), 18, A_HAZARD if c[2] != "CC0" else A_GOOD, 120, true, HORIZONTAL_ALIGNMENT_RIGHT)
+		text(credits, c[1], Vector2(84, y + 48), 13, A_BLUE)
+		para(credits, tr(c[3]), Rect2(84, y + 72, SIZE.x - 168, 40), 14, A_INK, 2)
+	var back := button(credits, Rect2(SIZE.x - 260, SIZE.y - 60, 200, 40), {}, close_credits)
+	back.focus_mode = Control.FOCUS_NONE
+	text(back, tr("creditsBack"), Vector2.ZERO, 15, A_DIM, 200, true, HORIZONTAL_ALIGNMENT_CENTER, 40)
+
+
+func close_credits() -> void:
+	if credits != null:
+		credits.queue_free()
+		credits = null
+
+
 func go() -> void:
 	ui.emit("start")
 	fight.emit(loadout.duplicate())
-
-
-func go_siege() -> void:
-	ui.emit("start")
-	siege.emit(loadout.duplicate())
 
 
 func point() -> void:
@@ -437,6 +466,11 @@ func _input(e: InputEvent) -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	if not visible or not (e is InputEventJoypadButton and e.pressed):
 		return
+	if credits != null:
+		if e.button_index in [JOY_BUTTON_B, JOY_BUTTON_A, JOY_BUTTON_START]:
+			close_credits()
+		get_viewport().set_input_as_handled()
+		return
 	match e.button_index:
 		JOY_BUTTON_LEFT_SHOULDER:
 			select_tab((tab + SLOTS.size() - 1) % SLOTS.size())
@@ -451,6 +485,11 @@ func _unhandled_input(e: InputEvent) -> void:
 
 func _unhandled_key_input(e: InputEvent) -> void:
 	if not visible or not e.pressed or e.echo:
+		return
+	if credits != null:
+		if e.physical_keycode in [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER]:
+			close_credits()
+		get_viewport().set_input_as_handled()
 		return
 	match e.physical_keycode:
 		KEY_TAB:
