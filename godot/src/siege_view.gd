@@ -37,12 +37,13 @@ const ALARM := {"ticks": 100, "blink": 5, "on": 3.2, "light": 7.0, "range": 11.0
 const TURRET := {"size": 1.3, "muzzle": Vector3(1.9, 1.08, 0.0), "kick": 0.35, "flash": 0.55, "flash_secs": 0.08, "turn": 0.35}
 const REACH := {"y": 0.08, "flat": 0.3, "inner": 0.93, "pulse": 0.04, "rate": 6.0, "alpha": 0.8}
 const WALL := {"panel": 4.0, "post": 0.15, "vent": 0.7, "spawn": 8.4}
+const DOOR := {"gap": 0.6, "post": 0.2, "arch": 3.6}
 const STAND := {"front": 2.4, "depth": 2.6, "base": 1.4, "rise": 1.3, "tiers": 3, "rows": [0.65, 1.95], "gap": 9.0,
 	"aisle": 40.0, "aisle_w": 0.4, "fan_gap": 0.6, "team": 1}
 const TOWER := {"out": 94.0, "head": Vector3(0.4, 17.8, 0), "angle": 5.0, "range": 240.0, "energy": 2.0, "aim": 30.0}
 const YARD := {"rust": 0.5, "warm": 0.15, "dirt": 0.95, "tint": 0.45, "polish": 0.1, "tiers": {"small": 1, "medium": 2, "big": 3, "elite": 4},
 	"size": {"small": 0.8, "medium": 1.0, "big": 1.2, "elite": 1.5}, "pip": 3.6, "pip_gap": 0.6, "alive": 0.75, "dead": 0.06,
-	"wake": 2.0, "ring": 1.6, "segs": 16, "lid": 1.17, "lift": 0.3, "lights": [[30.0, -1.0, 0.0, 1.0], [-1.0, 30.0, 1.0, 0.0], [52.0, -1.0, 0.0, 1.0], [-1.0, 54.0, 1.0, 0.0], [60.0, 80.0, 0.0, -1.0], [80.0, 60.0, -1.0, 0.0]],
+	"wake": 2.0, "ring": 1.6, "segs": 16, "lid": 1.17, "lift": 0.3, "lights": [[30.0, -1.0, 0.0, 1.0], [-1.0, 30.0, 1.0, 0.0], [49.5, -1.0, 0.0, 1.0], [-1.0, 49.5, 1.0, 0.0], [60.0, 80.0, 0.0, -1.0], [80.0, 60.0, -1.0, 0.0]],
 	"raid": 6,
 	"wall_top": 1.3, "crate_h": 1.24, "light": 3.0, "light_range": 16.0, "light_energy": 8.0,
 	"debris": 22, "sheet": Vector3(2.0, 0.05, 1.4), "pallet": Vector3(1.2, 0.14, 1.0), "crane": 85.0, "crane_y": 4.0,
@@ -269,6 +270,7 @@ func build_walls() -> void:
 	var posts := []
 	var lane_posts := []
 	var stacks := []
+	var doors := []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
 	for q in SiegeState.QUADS.size():
@@ -282,8 +284,13 @@ func build_walls() -> void:
 			lane_posts.append(Transform3D(Basis(), d * SiegeState.BLOCK + p * s * (W + SiegeState.LANE_WALL / 2.0)))
 		var holes := SiegeState.CHOKES.map(func(c): return [c - SiegeState.CHOKE_R, c + SiegeState.CHOKE_R])
 		holes += SiegeState.VENTS.map(func(v): return [v - WALL.vent, v + WALL.vent])
+		holes += SiegeState.OPENINGS.map(func(o): return [o.d - o.half - DOOR.gap, o.d + o.half + DOOR.gap])
 		holes.sort_custom(func(x, y): return x[0] < y[0])
 		for s in [-1.0, 1.0]:
+			for o in SiegeState.OPENINGS:
+				var out: Vector3 = p * s
+				var xf: Transform3D = Transform3D(Basis.from_euler(Vector3(0, -atan2(out.z, out.x), 0)).scaled_local(Vector3(1, 1, (o.half + DOOR.gap + DOOR.post) / DOOR.arch)), d * o.d + out * (W + SiegeState.LANE_WALL / 2.0))
+				doors.append(xf)
 			for seg in cuts(SiegeState.BLOCK, HALF, holes):
 				run(cyan, d * seg[0] + p * s * W, d * seg[1] + p * s * W, p * s)
 				run(amber, d * seg[0] + p * s * (W + SiegeState.LANE_WALL), d * seg[1] + p * s * (W + SiegeState.LANE_WALL), -p * s)
@@ -312,6 +319,7 @@ func build_walls() -> void:
 		arch.position = out * (SiegeState.BLOCK + SiegeState.YARD_IN) / 2.0
 		arch.rotation.y = -atan2(out.z, out.x)
 		arch.scale.z = SiegeState.ARCH / 6.0
+	batch("core_siege", "yard_arch", doors)
 	batch("arena", "wall", cyan, CYAN_LAMPS)
 	batch("arena", "wall", amber)
 	batch("arena", "wall_post", posts)

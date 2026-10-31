@@ -235,6 +235,7 @@ func paint() -> void:
 			siege_crate(size)
 		if state.phase != "over":
 			siege_calls(size)
+			siege_down(size)
 		else:
 			calls_bottom = 0.0
 			siege_over(size)
@@ -935,13 +936,12 @@ func siege_left(size: Vector2) -> void:
 	var sg: Dictionary = state.siege
 	var x := 16.0
 	if not shop_open():
-		x += stat_chip(tr("siegeFund").format({"n": ""}), str(sg.fund), Vector2(x, 14), A.team[1]) + 8.0
 		x += stat_chip(tr("siegeWallet").format({"n": ""}), str(sg.wallets[0]), Vector2(x, 14), A.hazard) + 8.0
 		if sg.tokens[0] > 0:
 			stat_chip(tr("siegeTokens").format({"n": ""}), str(sg.tokens[0]), Vector2(x, 14), A.surge)
 	for c in get_children():
 		if c.has_method("refresh") and "chips" in c:
-			c.chips = [[tr("siegeWallet").format({"n": sg.wallets[0]}).to_upper(), true], [tr("siegeFund").format({"n": sg.fund}).to_upper(), false], [tr("siegeTokens").format({"n": sg.tokens[0]}).to_upper(), false]]
+			c.chips = [[tr("siegeWallet").format({"n": sg.wallets[0]}).to_upper(), true], [tr("siegeTokens").format({"n": sg.tokens[0]}).to_upper(), false]]
 	var g: Dictionary = sg.garrison
 	if g.tier > 0:
 		if g.respawn_in <= 0:
@@ -1008,11 +1008,11 @@ func siege_crate(size: Vector2) -> void:
 func siege_shop(size: Vector2) -> void:
 	var sg: Dictionary = state.siege
 	var x := size.x - 266.0
-	txt((tr("radialTeam") + " · " + tr("siegeFund").format({"n": sg.fund})).to_upper(), Vector2(x, 28), 10, A.dim)
+	txt((tr("radialTeam") + " · " + tr("siegeWallet").format({"n": sg.wallets[0]})).to_upper(), Vector2(x, 28), 10, A.dim)
 	for i in SHOP.size():
 		var k: String = SHOP[i]
 		var cost: int = Siege.next_cost(sg) if k == "garrison" else Siege.SHOP[k]
-		var can: bool = cost >= 0 and sg.fund >= cost
+		var can: bool = cost >= 0 and sg.wallets[0] >= cost
 		var r := Rect2(x, 36 + i * 34, 250, 30)
 		poly(rect_poly(r), Color(A.panel, 0.92))
 		txt(tr("shop_" + k).format({"t": sg.garrison.tier + 1}), r.position + Vector2(12, 20), 12, Color.WHITE if can else A.dim)
@@ -1040,12 +1040,12 @@ func build_menu(i: int, kind: String) -> Array:
 	var out := []
 	for k in Siege.WHEEL[kind]:
 		var c: int = Siege.SHOP[k]
-		var ok: bool = not sg.wave.live and sg.fund >= c
+		var ok: bool = not sg.wave.live and sg.wallets[i] >= c
 		if kind == "square":
 			ok = ok and pd != null and (pd.module == "" or (pd.module == k and pd.get("hp", 1) <= 0))
 		elif g != null:
 			ok = ok and (g.hp <= 0 if k == "rebuild" else g.hp > 0 and g.hp < g.max)
-		out.append({"id": k, "label_key": "shop_" + k, "cost": c, "enabled": ok, "sub": [], "note": tr("noteFund").format({"n": sg.fund})})
+		out.append({"id": k, "label_key": "shop_" + k, "cost": c, "enabled": ok, "sub": [], "note": tr("siegeWallet").format({"n": sg.wallets[i]})})
 	return out
 
 
@@ -1075,7 +1075,7 @@ func shop_menu(i: int, kind := "plaza") -> Array:
 	var team := []
 	for k in SHOP:
 		var c: int = Siege.next_cost(sg) if k == "garrison" else Siege.SHOP[k]
-		team.append({"id": k, "label_key": "shop_" + k, "cost": c, "enabled": c >= 0 and not sg.wave.live and sg.fund >= c, "sub": [], "note": tr("noteFund").format({"n": sg.fund}) if k == "ring" else ""})
+		team.append({"id": k, "label_key": "shop_" + k, "cost": c, "enabled": c >= 0 and not sg.wave.live and w >= c, "sub": [], "note": tr("siegeWallet").format({"n": w}) if k == "ring" else ""})
 	var group := func(id: String, key: String, sub: Array) -> Dictionary:
 		return {"id": id, "label_key": key, "cost": -1, "enabled": true, "sub": sub, "note": ""}
 	return [
@@ -1205,6 +1205,16 @@ func siege_calls(size: Vector2) -> void:
 				txt(sub, Vector2(0, cy + h + 24.0), 20, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, size.x, heavy, 2.0)
 			cy += h + (40.0 if sub != "" else 14.0)
 			calls_bottom = cy
+
+
+func siege_down(size: Vector2) -> void:
+	var left = state.siege.down.get(0)
+	if not state.mechs[0].ko or left == null:
+		return
+	var y := size.y * 0.42
+	var h := callout(tr("siegeDown").to_upper(), A.danger, size.x / 2.0, y, 44)
+	txt(tr("siegeBackIn"), Vector2(0, y + h + 34.0), 22, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, size.x, heavy, 2.0)
+	txt(str(int(ceil(left / float(Sim.TICKS)))), Vector2(0, y + h + 130.0), 96, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, size.x, heavy, 4.0)
 
 
 func siege_over(size: Vector2) -> void:

@@ -44,7 +44,7 @@ func run(seed: int, from: int, waves: int, team: int, tier: int, guard: int, ski
 		Siege.outfit(s.mechs[i], s.siege.tiers[i], 0)
 		s.mechs[i].armor = s.mechs[i].max.duplicate()
 	for t in guard:
-		s.siege.fund += Siege.GARRISON.cost[t]
+		s.siege.wallets[0] += Siege.GARRISON.cost[t]
 		Siege.buy(s, s.siege, "garrison", s.mechs[0])
 	s.siege.wave.n = from - 1
 	var low := 1.0

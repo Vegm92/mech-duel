@@ -103,7 +103,7 @@ func test_wheels() -> int:
 	var m = await start_siege(1)
 	var sg: Dictionary = m.state.siege
 	var me: Dictionary = m.state.mechs[0]
-	sg.fund = 1000
+	sg.wallets[0] = 1000
 	var bad := 0
 	var plaza: Array = m.hud.shop_menu(0, "plaza")
 	var team: Array = plaza.filter(func(e): return e.id == "team")[0].sub
@@ -114,10 +114,10 @@ func test_wheels() -> int:
 	var square: Array = m.hud.shop_menu(0, "square")
 	bad += ensure(ids(square) == ["wall", "mine", "laser", "post", "turret"], "the square wheel sells the five modules, got %s" % [ids(square)])
 	bad += ensure(square.all(func(e): return e.enabled), "an empty pad with 1000 in the fund can buy all of them")
-	sg.fund = 100
+	sg.wallets[0] = 100
 	square = m.hud.shop_menu(0, "square")
 	bad += ensure(square.filter(func(e): return not e.enabled).map(func(e): return e.id) == ["laser", "post", "turret"], "what 100 cannot pay is dimmed")
-	sg.fund = 1000
+	sg.wallets[0] = 1000
 	me.x = sg.gates[2].x
 	me.y = sg.gates[2].y
 	sg.gates[2].hp = 100.0

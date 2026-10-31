@@ -101,10 +101,12 @@ var replay_at := -1
 var siege := false
 var team_n := 2
 var wave_arg := 1
-var director_on := false
+var director_on := true
 var spawn_arg := ""
 var modules_arg := false
+var down_arg := false
 var turret_arg := false
+var door_arg := false
 var top_arg := false
 var guard_arg := 0
 var farm_arg := false
@@ -196,8 +198,12 @@ func _ready() -> void:
 			shot_on = a.substr(10)
 		elif a == "--modules":
 			modules_arg = true
+		elif a == "--down":
+			down_arg = true
 		elif a == "--turret":
 			turret_arg = true
+		elif a == "--door":
+			door_arg = true
 		elif a.begins_with("--spawn="):
 			spawn_arg = a.substr(8)
 		elif a.begins_with("--director="):
@@ -413,13 +419,15 @@ func new_match() -> void:
 			state.siege.owned[0] = own
 		state.siege.wave.n = wave_arg - 1
 		for t in guard_arg:
-			state.siege.fund += Siege.GARRISON.cost[t]
+			state.siege.wallets[0] += Siege.GARRISON.cost[t]
 			Siege.buy(state, state.siege, "garrison", state.mechs[0])
 		if guard_arg > 0 and cam_mode > 0:
 			target = state.siege.guard
 		if core_arg_pct >= 0.0:
 			state.siege.core.hp = state.siege.core.max * core_arg_pct / 100.0
 			Siege.rings(state, state.siege)
+		if down_arg:
+			state.mechs[0].armor.head = 0
 		if modules_arg:
 			for b in [[0, "wall"], [1, "mine"], [2, "laser"], [3, "post"]]:
 				Siege.build(state, state.siege.pads[b[0]], b[1])
@@ -697,9 +705,15 @@ func _physics_process(delta: float) -> void:
 			Sim.step(state, ins)
 		if not siege and extras.is_empty() and Killcam.wants(state, rec):
 			start_replay()
+	if siege and door_arg and state.tick >= 60:
+		var door: Dictionary = Siege.S.doors(0)[1]
+		var me: Dictionary = state.mechs[0]
+		me.x = door.yp.x
+		me.y = door.yp.y
+		me.tx = door.yp.x
+		me.ty = door.yp.y
 	if siege and shop_arg != "" and state.tick == 60:
-		state.siege.fund += 2000
-		state.siege.wallets[0] += 600
+		state.siege.wallets[0] += 2600
 		var me: Dictionary = state.mechs[0]
 		var at: Dictionary = {"square": state.siege.pads[1], "gate": state.siege.gates[0]}.get(shop_arg, me)
 		me.x = at.x
@@ -734,9 +748,10 @@ func _physics_process(delta: float) -> void:
 		kick = view.kick
 		kick_t = 0.0
 	view.kick = Vector3.ZERO
-	stop = maxi(stop, view.stop)
+	if not siege:
+		stop = maxi(stop, view.stop)
+		slow = maxf(slow, view.slow)
 	view.stop = 0
-	slow = maxf(slow, view.slow)
 	view.slow = 0.0
 	view.process_mode = Node.PROCESS_MODE_DISABLED if stop > 0 else Node.PROCESS_MODE_INHERIT
 	if replay.is_empty() and cam_mode == 0:
