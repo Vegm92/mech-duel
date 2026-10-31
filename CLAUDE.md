@@ -366,8 +366,11 @@ $P = "$R\godot"
   around a robot diagram where every part is a health bar (`part_block`: green > 75%, yellow, orange, red,
   black hatch = destroyed), six icon slots from `slot` / `icon_lines`: gun or blade by weapon kind, shield, E
   skill, dash pips, R surge fill; a cooldown is a fill that rises (`cd_peak`), a jammed arm a red bottom bar; the
-  rival gets a mini health-bar diagram next to its name tag, `rival_bot`), with more mechs a grouped 70% bar per
-  corner (`skill_bar`: `robot` + `group` + `key_cap`, K.O.'d ones faded), `top_bar` (skewed team tags + hex
+  rival gets a mini health-bar diagram next to its name tag, `rival_bot`), with 3-4 mechs, or two humans in a 1v1,
+  one slim strip per mech (`strip`, 262×44 in the 1280×720 canvas; `strip_rects` puts them in the four screen
+  corners along the top and bottom edges, Victor 2026-10-31: "the hud is too big"): mini health-bar robot, name tag,
+  heat and R meters, the six `slot`s. A human's slots print its own device's keys (`cap(seat, key)`: keyboard names,
+  or pad names when `main.aims[seat].on_pad`), a bot's show icons. K.O.'d ones faded. `top_bar` (skewed team tags + hex
   clock; score chips with more than 2 mechs), `callout` (Exo 2 between hazard stripes, -3°), `slam` (round end), `match_over`
   (round list from `rounds`, tracked in `_process`), `pause_screen` (slabs drawn over empty Buttons so focus
   and the pad still work), `replay_bars`. Core Siege uses the same arcade look (2026-10-30 night job): `siege_top` (wave plate + core bar with ring ticks),
