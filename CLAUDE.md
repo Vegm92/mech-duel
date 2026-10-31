@@ -7,6 +7,10 @@ passive, Arms, Legs = movement, Booster = Space dash) plus two hands that each h
 
 Stage: playable prototype, you vs an AI rival (or training dummies), 63 parts in the garage. The spec is `COMBAT_DESIGN.md`.
 
+**Release goal (Victor, 2026-10-31): ship on Steam.** The product is the **duel**: 1v1, FFA or 2v2,
+up to 4 players, each seat local (keyboard or gamepad), online, or a bot. Core Siege stays in the
+code but is not part of the release; the duel must run and ship without it.
+
 ## Stack and run
 
 Godot 4.7, GDScript, lit low-poly 3D. The project lives in `godot/`; Blender sources for the

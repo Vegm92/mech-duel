@@ -3,6 +3,7 @@
 CONTEXT.md
 REFERENCES.md
 PRD.md
+production/session-logs/
 
 # Blender auto-backups
 *.blend1
