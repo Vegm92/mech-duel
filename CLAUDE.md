@@ -368,10 +368,12 @@ $P = "$R\godot"
   `production/qa/evidence/duel-*-2026-10-31.png`.
 - **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
   and garage restyle on top of it). `hud.gd`: one slim strip per mech, always, whatever the format or the number of players (`strip`, 262×44
-  in the 1280×720 canvas; `strip_rects` puts them in the four screen corners along the top and bottom edges,
-  Victor 2026-10-31: "the hud is too big", then "always use the slim HUD, no matter how many players"): mini
+  in the 1280×720 canvas; `strip_rects` puts them in one row in the top band, y 74, right under the name banners or
+  score chips, a team's strips on its side of the clock: even teams left, odd right, so a 2v2 groups by team and
+  nothing sits at the bottom; Victor 2026-10-31: "the hud is too big", "always use the slim HUD, no matter how many
+  players", "they should be next to the name"): mini
   health-bar robot where every part is a bar (`part_block`: green > 75%, yellow, orange, red, black hatch =
-  destroyed), name tag, heat and R meters, the six `slot`s from `slot` / `icon_lines` (gun or blade by weapon kind,
+  destroyed), name tag (only with 3-4 mechs: the 1v1 banner already has it), heat and R meters, the six `slot`s from `slot` / `icon_lines` (gun or blade by weapon kind,
   shield, E skill, dash pips, R surge fill; a cooldown is a fill that rises (`cd_peak`), a jammed arm a red bottom
   bar). The big `side_panel` (176×208) is now Core Siege only. A human's slots print its own device's keys (`cap(seat, key)`: keyboard names,
   or pad names when `main.aims[seat].on_pad`), a bot's show icons. K.O.'d ones faded. `top_bar` (skewed team tags + hex
