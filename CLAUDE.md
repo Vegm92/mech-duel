@@ -347,14 +347,19 @@ $P = "$R\godot"
   (`"kb"` = keyboard + mouse, an int = that gamepad's device id), human `i` drives mech `i`, every other mech
   is a bot. Keyboard seat also takes any gamepad no seat owns (so the old one-player pad play still works).
   A pad joins with A, leaves with B, Start / Enter fights, Space toggles the keyboard, Esc goes back; FIGHT
-  from a pad pre-seats that pad instead of the keyboard. `player_input(seat)` is the one place a seat becomes
+  from a pad pre-seats that pad instead of the keyboard. Each seat card picks a build
+  (left / right: A / D or arrows, d-pad or left stick on a pad; "MY BUILD" = the garage loadout, then the
+  12 `Sim.SETS`; a pad remembers its last pick for the session) and, in 2v2 only, a team (up / down; two
+  humans per team at most). `seats.confirmed(list, picks)` gives `main.seat_picks`; `match_teams()` builds the
+  per-match teams array (humans first, bots fill each team to two) and `build_for(i, ...)` the loadouts, so
+  `sim.gd` is untouched. No picks (autopilot, look checks) keeps the old rules: P2 = the ladder rival. `player_input(seat)` is the one place a seat becomes
   an input dictionary, and `Sim.step` gets one per mech per tick (the seam netcode plugs into). Each seat has
   its own aim state in `main.aims` (`aim_point(seat)`, right stick = tilt x `REACH`, no assist; owned pads latch
   taps in `main.taps`); other seats' reticles are `view.extra_aims`. The camera frames every local human
   (`frame_points`, `frame_box`), still never rotating; Salvage only runs for one human in 1v1. Credits: the
   CREDITS button in the garage (`Garage.CREDITS`, strings in `i18n.gd`) lists every asset in
   `godot/assets/sounds/LICENSE.txt`; add a line there and in `CREDITS` for any new third-party asset. Look flags:
-  `--seats`, `--credits`, `--humans=<1..4>` (extra local humans on pads 1..3, idle). Evidence:
+  `--seats[=set:team,...]` (e.g. `--seats=sniper:0,tank:0,:1`), `--credits`, `--humans=<1..4>` (extra local humans on pads 1..3, idle). Evidence:
   `production/qa/evidence/duel-*-2026-10-31.png`.
 - **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
   and garage restyle on top of it). `hud.gd`: side panel for 1-2 mechs (`side_panel`, Victor 2026-10-30: bottom-left, 176×208, no text: heat and R gauges

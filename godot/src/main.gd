@@ -101,7 +101,9 @@ var aims: Array = []
 var taps := {}
 var seats: CanvasLayer
 var pending := {}
+var seat_picks: Array = []
 var seats_arg := false
+var seats_demo := ""
 var credits_arg := false
 var humans_arg := 1
 var rec := Killcam.recorder()
@@ -231,8 +233,9 @@ func _ready() -> void:
 			TranslationServer.set_locale(a.substr(7))
 		elif a == "--pad":
 			pad_flag = true
-		elif a == "--seats":
+		elif a == "--seats" or a.begins_with("--seats="):
 			seats_arg = true
+			seats_demo = a.substr(8)
 		elif a == "--credits":
 			credits_arg = true
 		elif a.begins_with("--humans="):
@@ -308,7 +311,12 @@ func _ready() -> void:
 		if seats_arg:
 			pending = loadout
 			garage.visible = false
-			seats.open(["kb", 0], format_arg)
+			seats.open(["kb", 0, 1, 2] if seats_demo != "" else ["kb", 0], format_arg, loadout)
+			var demo := seats_demo.split(",", false)
+			for j in mini(demo.size(), seats.list.size()):
+				var bits := demo[j].split(":")
+				seats.picks[seats.list[j]] = {"set": bits[0], "team": bits[1].to_int()}
+			seats.refresh()
 	else:
 		garage.visible = false
 		new_match()
@@ -392,17 +400,43 @@ func save_loadout() -> void:
 func join(lo: Dictionary) -> void:
 	format_arg = garage.format
 	if autopilot or sandbox or shot_path != "":
+		seat_picks = []
 		start(lo)
 		return
 	pending = lo
 	garage.visible = false
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
-	seats.open(["kb"] if last_pad < 0 else [last_pad], format_arg)
+	seats.open(["kb"] if last_pad < 0 else [last_pad], format_arg, lo)
 
 
-func seated(list: Array) -> void:
+func seated(list: Array, picks: Array) -> void:
 	locals = list
+	seat_picks = picks
 	start(pending)
+
+
+func match_teams() -> Array:
+	var base: Array = Sim.FORMATS[format_arg]
+	if format_arg != "2v2" or seat_picks.is_empty():
+		return base
+	var out := []
+	var left := [2, 2]
+	for p in seat_picks:
+		out.append(p.team)
+		left[p.team] -= 1
+	for t in 2:
+		for k in maxi(left[t], 0):
+			out.append(t)
+	return out.slice(0, base.size())
+
+
+func build_for(i: int, s: int, rival: Dictionary) -> Dictionary:
+	if i < seat_picks.size():
+		var k: String = seat_picks[i].set
+		return progress.with_levels(loadout.duplicate()) if k == "" else Sim.SETS[k].duplicate()
+	if i == 0:
+		return progress.with_levels(loadout.duplicate())
+	return rival if i == 1 else Sim.SETS.values()[(s + i) % Sim.SETS.size()].duplicate()
 
 
 func seat_up() -> void:
@@ -438,6 +472,7 @@ func to_garage() -> void:
 func start(lo: Dictionary, mode := false) -> void:
 	if mode:
 		locals = ["kb"]
+		seat_picks = []
 	if mode != siege:
 		siege = mode
 		make_view()
@@ -516,16 +551,15 @@ func new_match() -> void:
 			for e in state.siege.enemies:
 				state.mechs[e.m].x = pd.x + e.side
 				state.mechs[e.m].y = pd.y - 9.0
-	elif format_arg != "1v1":
-		var los := [progress.with_levels(loadout.duplicate()), rival]
-		extras = []
-		for i in range(2, Sim.FORMATS[format_arg].size()):
-			los.append(Sim.SETS.values()[(s + i) % Sim.SETS.size()].duplicate())
-			extras.append(Bot.create_brain(s + 20 + i))
-		state = Sim.create_state(los, Sim.FORMATS[format_arg])
 	else:
+		var teams := match_teams()
+		var los := []
 		extras = []
-		state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
+		for i in teams.size():
+			los.append(build_for(i, s, rival))
+			if i >= 2:
+				extras.append(Bot.create_brain(s + 20 + i))
+		state = Sim.create_state(los, teams)
 	if sandbox:
 		pin()
 	seat_up()

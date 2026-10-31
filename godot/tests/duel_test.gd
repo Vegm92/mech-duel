@@ -7,7 +7,7 @@ const Edition = preload("res://src/edition.gd")
 const I18n = preload("res://src/i18n.gd")
 
 const SAVE := "user://loadout.cfg"
-const KEYS := ["fmtLabel", "fmt_1v1", "fmt_ffa", "fmt_2v2", "whoPlayer", "seatsTitle", "seatKb", "seatPad", "seatBot", "seatFree", "seatsHint", "seatsNeed", "creditsBtn", "creditsTitle", "creditsSound", "creditsBack", "creditsKenney", "creditsQuendel", "creditsNocturnal"]
+const KEYS := ["fmtLabel", "fmt_1v1", "fmt_ffa", "fmt_2v2", "whoPlayer", "seatsTitle", "seatKb", "seatPad", "seatBot", "seatFree", "seatsHint", "seatsNeed", "creditsBtn", "creditsTitle", "creditsSound", "creditsBack", "creditsKenney", "creditsQuendel", "creditsNocturnal", "seatMine", "seatBuild", "seatTeamA", "seatTeamB"]
 
 var failed := 0
 var filter := ""
@@ -22,6 +22,9 @@ func _initialize() -> void:
 	await run("the_format_picker_sets_the_format_and_the_match_follows_it", test_picker)
 	await run("the_format_is_saved_with_the_loadout", test_saved_format)
 	await run("seats_join_leave_and_start", test_seats)
+	await run("a_seat_picks_a_build_with_keys_pad_and_stick_and_remembers_it", test_build_pick)
+	await run("a_picked_build_reaches_the_match_and_bots_keep_the_old_rules", test_pick_in_match)
+	await run("in_2v2_humans_pick_teams_and_bots_fill_to_two_against_two", test_teams)
 	await run("two_local_humans_read_their_own_pads_and_aim_with_no_assist", test_two_humans)
 	await run("the_camera_frames_every_local_human_and_never_rotates", test_camera)
 	await run("a_full_duel_runs_with_siege_off", test_siege_off)
@@ -138,7 +141,7 @@ func test_seats() -> int:
 	var s = Seats.new()
 	root.add_child(s)
 	var sent := []
-	s.confirmed.connect(func(list): sent.append(list))
+	s.confirmed.connect(func(list, picks): sent.append(list))
 	s.open(["kb"], "1v1")
 	var bad := ensure(s.list == ["kb"], "the keyboard starts seated")
 	s._input(joy(JOY_BUTTON_A, 3))
@@ -295,4 +298,113 @@ func test_files() -> int:
 	for f in dir.get_files():
 		if f.ends_with(".gd.uid"):
 			bad += ensure(FileAccess.file_exists("res://src/" + f.trim_suffix(".uid")), "%s has its script" % f)
+	return int(bad > 0)
+
+
+func key(code: Key) -> InputEventKey:
+	var e := InputEventKey.new()
+	e.physical_keycode = code
+	e.pressed = true
+	return e
+
+
+func tilt(device: int, a: JoyAxis, v: float) -> InputEventJoypadMotion:
+	var e := InputEventJoypadMotion.new()
+	e.device = device
+	e.axis = a
+	e.axis_value = v
+	return e
+
+
+func test_build_pick() -> int:
+	var s = Seats.new()
+	root.add_child(s)
+	s.open(["kb", 3], "1v1")
+	var sets: Array = Sim.SETS.keys()
+	var bad := ensure(s.picks["kb"].set == "" and s.picks[3].set == sets[1], "the first seat starts on MY BUILD, the next on a set")
+	s._input(key(KEY_D))
+	bad += ensure(s.picks["kb"].set == sets[0], "D moves the keyboard seat to the first set")
+	s._input(key(KEY_LEFT))
+	s._input(key(KEY_LEFT))
+	bad += ensure(s.picks["kb"].set == sets[sets.size() - 1], "left wraps round to the last set")
+	s._input(joy(JOY_BUTTON_DPAD_RIGHT, 3))
+	bad += ensure(s.picks[3].set == sets[2], "the d-pad of pad 3 moves pad 3 only")
+	s._input(tilt(3, JOY_AXIS_LEFT_X, 1.0))
+	s._input(tilt(3, JOY_AXIS_LEFT_X, 1.0))
+	bad += ensure(s.picks[3].set == sets[3], "a held stick tilt moves one step, not one per event")
+	s._input(tilt(3, JOY_AXIS_LEFT_X, 0.0))
+	s._input(tilt(3, JOY_AXIS_LEFT_X, -1.0))
+	bad += ensure(s.picks[3].set == sets[2], "letting go and tilting back moves again")
+	await process_frame
+	var labels := texts(s.root)
+	bad += ensure(labels.has(s.tr("set_" + sets[2])) and labels.has(s.tr("seatMine")) == false, "the card shows the set name")
+	bad += ensure(labels.any(func(t): return t.contains(s.tr("u_" + Sim.ult_of(Sim.SETS[sets[2]])))), "and its R skill")
+	s.leave(3)
+	s.join(3)
+	bad += ensure(s.picks[3].set == sets[2], "a pad remembers its last pick when it joins again")
+	s.queue_free()
+	await process_frame
+	return int(bad > 0)
+
+
+func test_pick_in_match() -> int:
+	var m = await duel("1v1", ["kb", 3])
+	var picks := [{"set": "", "team": 0}, {"set": "sniper", "team": 1}]
+	m.autopilot = true
+	m.pending = m.loadout
+	m.seated(["kb", 3], picks)
+	await physics_frame
+	var bad := ensure(m.state.mechs[1].loadout.left == Sim.SETS.sniper.left and m.state.mechs[1].loadout.core == Sim.SETS.sniper.core, "the second human fights with the picked set")
+	bad += ensure(m.state.mechs[0].loadout.head == m.loadout.head and m.state.mechs[0].loadout.core == m.loadout.core, "MY BUILD is the garage loadout")
+	m.seated(["kb"], [{"set": "tank", "team": 0}])
+	await physics_frame
+	bad += ensure(m.state.mechs[0].loadout.core == Sim.SETS.tank.core, "the first seat can take a set too")
+	bad += ensure(m.state.mechs.size() == 2 and m.locals.size() == 1 and m.state.mechs[1].loadout.core != Sim.SETS.tank.core, "the other mech stays a bot with its own build")
+	m.queue_free()
+	await process_frame
+	return int(bad > 0)
+
+
+func teams_for(picks: Array) -> Array:
+	var m = await duel("2v2")
+	m.autopilot = true
+	m.pending = m.loadout
+	m.seated(range(picks.size()).map(func(i): return "kb" if i == 0 else i), picks)
+	await physics_frame
+	var out: Array = m.state.mechs.map(func(x): return x.team)
+	m.queue_free()
+	await process_frame
+	return out
+
+
+func test_teams() -> int:
+	var s = Seats.new()
+	root.add_child(s)
+	s.open(["kb", 3], "2v2")
+	var bad := ensure(s.picks["kb"].team == 0 and s.picks[3].team == 1, "seats start on alternate teams")
+	s._input(joy(JOY_BUTTON_DPAD_UP, 3))
+	bad += ensure(s.picks[3].team == 0 and s.humans_on(0) == 2, "up on pad 3 moves it to team A, two friends together")
+	s.join(4)
+	bad += ensure(s.picks[4].team == 1, "a third human lands on the team with room")
+	s._input(joy(JOY_BUTTON_DPAD_UP, 4))
+	bad += ensure(s.picks[4].team == 1, "a full team refuses a third human")
+	s._input(key(KEY_S))
+	bad += ensure(s.picks["kb"].team == 1 and s.humans_on(1) == 2, "S moves the keyboard seat to team B")
+	var plain = Seats.new()
+	root.add_child(plain)
+	plain.open(["kb", 3], "ffa")
+	plain._input(joy(JOY_BUTTON_DPAD_DOWN, 3))
+	bad += ensure(plain.picks[3].team == 1 and plain.picks["kb"].team == 0, "teams stay as seated outside 2v2")
+	plain.queue_free()
+	s.queue_free()
+	var ab := [{"set": "", "team": 0}, {"set": "tank", "team": 0}]
+	var a: Array = await teams_for(ab)
+	bad += ensure(a == [0, 0, 1, 1], "two humans on team A: the bots are team B, got %s" % [a])
+	var b: Array = await teams_for([{"set": "", "team": 1}, {"set": "tank", "team": 1}])
+	bad += ensure(b == [1, 1, 0, 0], "two humans on team B: the bots are team A, got %s" % [b])
+	var c: Array = await teams_for([{"set": "", "team": 0}, {"set": "tank", "team": 1}])
+	bad += ensure(c == [0, 1, 0, 1], "one each side: a bot fills each team, got %s" % [c])
+	var d: Array = await teams_for([{"set": "", "team": 1}])
+	bad += ensure(d.count(0) == 2 and d.count(1) == 2 and d[0] == 1, "one human on team B still gets 2 v 2, got %s" % [d])
+	await process_frame
 	return int(bad > 0)
