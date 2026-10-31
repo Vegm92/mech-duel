@@ -12,6 +12,7 @@ const Progress = preload("res://src/progress.gd")
 const Claim = preload("res://src/claim.gd")
 const CrowdSound = preload("res://src/crowd_sound.gd")
 const Sfx = preload("res://src/sfx.gd")
+const Radio = preload("res://src/radio.gd")
 const Killcam = preload("res://src/killcam.gd")
 const Look = preload("res://src/look.gd")
 const Siege = preload("res://src/siege.gd")
@@ -35,6 +36,7 @@ const SANDBOX := {"gap": 0.8, "pad": 0.8, "min": 2.4, "max": 10.0, "refill": 0.5
 var state: Dictionary
 var crowd_sound := CrowdSound.new()
 var sfx := Sfx.new()
+var radio := Radio.new()
 var brain: Dictionary
 var pilot: Dictionary
 var view: Node3D
@@ -240,6 +242,8 @@ func _ready() -> void:
 	add_child(cam)
 	add_child(crowd_sound)
 	add_child(sfx)
+	radio.sfx = sfx
+	add_child(radio)
 	hud = Hud.new()
 	add_child(hud)
 	shop_action()
@@ -547,7 +551,10 @@ func aim_point() -> Vector3:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode in [KEY_M, KEY_N]:
-		Sfx.toggle("muted" if event.physical_keycode == KEY_M else "music_on")
+		if event.physical_keycode == KEY_M:
+			Sfx.toggle("muted")
+		else:
+			radio.next()
 	if garage.visible or claim.visible:
 		return
 	if event is InputEventMouseMotion:

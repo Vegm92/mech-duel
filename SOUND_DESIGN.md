@@ -36,11 +36,13 @@ The sound twin of "punch, not glow".
 | Alarms | Overheat hiss + 3 beeps, "ready" click when it clears, low-head beep (you only). |
 | Crowd | `src/crowd_sound.gd` (hype-driven), on the Crowd bus. |
 | Music | Procedural loop from the JS version, baked into 3 stems (calm / drive / fight) in an `AudioStreamSynchronized`. Garage and pause = calm, countdown = + drive, fight = + drums. |
+| Radio | `src/radio.gd` (Victor 2026-10-31): N steps Arena mix → ACID FM → TECHNO 7 → DEEP DUB → off. Each station is an `AudioStreamPlaylist` of files in `assets/music/` on the Music bus (so hits still duck it), at `RADIO.db`; a radio station fades the arena stems out (`sfx.quiet`). The 15 s Algate loop repeats per version (`[file, n]` entries) into a 28-part playlist with no crossfade. A switch plays a hiss (`ui_tune`) and shows the station name for 2.5 s. |
 | Menus | Garage and pause menu: hover, tab, equip, set, select, FIGHT. |
-| Settings | Pause menu sliders (master, music, effects, arena, crowd), M mute, N music. Saved in `user://settings.cfg`. |
+| Settings | Pause menu sliders (master, music, effects, arena, crowd), M mute, N radio station (`station` + `music_on`). Saved in `user://settings.cfg`. |
 
 Samples: Kenney "Sci-fi Sounds" + "Impact Sounds" (CC0) and the crowd clips, same files as the JS
-version (`assets/sounds/LICENSE.txt`).
+version (`assets/sounds/LICENSE.txt`). Radio music: CC0 and CC BY tracks, sources and the two required
+credit lines in `assets/music/LICENSE.txt` (the credits screen / store page must carry them).
 
 ## Checks
 
