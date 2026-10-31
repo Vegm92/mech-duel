@@ -2,6 +2,7 @@ extends SceneTree
 
 const Sim = preload("res://src/sim.gd")
 const Sfx = preload("res://src/sfx.gd")
+const Radio = preload("res://src/radio.gd")
 const BRANCHED := ["muzzle", "slash", "hit", "boom", "count", "beam"]
 
 var failed := 0
@@ -70,6 +71,26 @@ func _initialize() -> void:
 	sfx.ui("hover")
 	sfx.menu()
 	check(sfx.engines.is_empty() and sfx.level == 0, "the garage stops engines and calms the music")
+	var bad_tracks := []
+	for i in range(1, Radio.STATIONS.size()):
+		for t in Radio.STATIONS[i].tracks:
+			if not load(Radio.DIR + (t if t is String else t[0])) is AudioStream:
+				bad_tracks.append(t)
+	check(bad_tracks.is_empty(), "every radio track loads (bad: %s)" % [bad_tracks])
+	var radio := Radio.new()
+	radio.sfx = sfx
+	root.add_child(radio)
+	var seen := []
+	var hushed := []
+	for k in Radio.STATIONS.size() + 1:
+		radio.next()
+		seen.append(radio.station if radio.on else -1)
+		hushed.append(sfx.quiet)
+	check(seen == [1, 2, 3, -1, 0] and Sfx.volumes().station == 0 and Sfx.volumes().music_on, "N steps through the stations, then off, then back to the arena mix, and saves it (got %s)" % [seen])
+	check(hushed[0] and not hushed[4], "a radio station silences the arena mix, the arena mix brings it back")
+	check(radio.playlist(3).stream_count == 28, "the dub loop repeats into a 28-part playlist")
+	radio.queue_free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Sfx.save_path))
 	sfx.queue_free()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)

@@ -150,6 +150,7 @@ const RECIPES := {
 	"ui_set": [{"bank": "launch", "vol": 0.25, "rate": 1.3, "dur": 0.35}, {"bank": "plate", "vol": 0.5, "at": 0.18}, {"bank": "clank", "vol": 0.3, "rate": 1.4, "at": 0.26}],
 	"ui_select": [{"bank": "ting", "vol": 0.35, "rate": 1.25}],
 	"ui_start": [{"bank": "punch", "vol": 0.7}, {"bank": "field", "vol": 0.3, "rate": 1.2, "dur": 0.7}],
+	"ui_tune": [{"synth": {"wave": "noise", "a": 0.01, "dur": 0.3, "filter": ["bandpass", 1200.0, 3800.0, 0.8]}, "vol": 0.12}],
 	"ui_rewind": [{"synth": {"wave": "noise", "a": 0.15, "dur": 0.45, "filter": ["bandpass", 3200.0, 300.0, 1.4]}, "vol": 0.25}],
 }
 
@@ -169,6 +170,7 @@ var music := AudioStreamPlayer.new()
 var song: AudioStreamSynchronized
 var stems := [0.0, 0.0, 0.0]
 var level := 0
+var quiet := false
 var mode := "garage"
 var engines := {}
 var heat := {}
@@ -455,7 +457,7 @@ func _process(delta: float) -> void:
 	if song == null:
 		return
 	for i in stems.size():
-		var want := 1.0 if level >= i else 0.0
+		var want := 1.0 if level >= i and not quiet else 0.0
 		stems[i] = move_toward(stems[i], want, delta * MIX.fade)
 		song.set_sync_stream_volume(i, linear_to_db(maxf(stems[i], 0.0001)))
 
@@ -505,6 +507,7 @@ static func volumes() -> Dictionary:
 		out[k] = clampf(float(cfg.get_value("audio", k, VOLUME[k])), 0.0, 1.0)
 	out.muted = bool(cfg.get_value("audio", "muted", false))
 	out.music_on = bool(cfg.get_value("audio", "music_on", true))
+	out.station = int(cfg.get_value("audio", "station", 0))
 	return out
 
 

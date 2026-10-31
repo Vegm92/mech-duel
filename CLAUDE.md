@@ -23,7 +23,7 @@ G=/c/Users/victo/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
 $G --path godot                                                # play
 $G --headless --path godot -s res://tests/sim_rules_test.gd     # sim tests (golden hash, determinism, FFA)
 $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow; gamepad in match + garage
-$G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon has a sound, banks load, synth + music bake, volume settings
+$G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon has a sound, banks load, synth + music bake, volume settings, radio stations (N)
 $G --headless --path godot -s res://tests/hype_test.gd         # crowd hype and crowd sounds
 $G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-run lands on the same K.O., one smooth move, pillars, match flow, skip
 $G --headless --path godot -s res://tests/progress_test.gd     # Salvage: owned parts, claims, levels, rival ladder, save file

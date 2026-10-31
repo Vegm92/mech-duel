@@ -1,0 +1,20 @@
+Radio music (src/radio.gd). Licenses checked on each source page, 2026-10-31.
+
+ACID FM
+- acid_trance.mp3: "Acid Trance" by Shane Ivers, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+  Required credit: Music: Acid Trance by Shane Ivers - https://www.silvermansound.com
+  Source: https://www.silvermansound.com/free-music/acid-trance
+  Not allowed: selling or sharing the song on its own, Content ID registration.
+- dirty_acid.mp3: "Diryt Acid" by Bogart VGM, CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/).
+  Required credit (credit + link asked by the author): Music: Dirty Acid by Bogart VGM - https://www.facebook.com/BogartVGM/
+  Source: https://opengameart.org/node/109002
+
+TECHNO 7
+- techno_1.mp3 .. techno_7.mp3: "Techno", "Techno_2" .. "Techno_7" by Pro Sensory, CC0.
+  Source: https://opengameart.org/content/electronic
+
+DEEP DUB
+- algate.wav, algate_no_kick.wav, algate_bass.wav, algate_low.wav: "Algate" dub techno loop pack, CC0.
+  Source: https://opengameart.org/content/algate
+
+Credits screen / store page must carry the two required credit lines above.
