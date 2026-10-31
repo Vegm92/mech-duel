@@ -29,6 +29,7 @@ $G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-ru
 $G --headless --path godot -s res://tests/progress_test.gd     # Salvage: owned parts, claims, levels, rival ladder, save file
 $G --headless --path godot -s res://tests/hud_test.gd          # Arcade HUD: strings, palette, pause, round list, FFA
 $G --headless --path godot -s res://tests/siege_rules_test.gd  # Core Siege: own golden hash, waves, gates, core rings, repair, respawn
+$G --headless --path godot -s res://tests/net_test.gd          # netcode: lockstep over a fake network, loss, bot on disconnect, desync, ENet loopback
 $G --path godot -- --siege --team=2 --wave=6                    # Core Siege (co-op wave defense), from wave 6
 $G --path godot -- --replay=0 --seed=1                          # watch a kill cam right away (bots fight to the first K.O.)
 ```
@@ -585,6 +586,13 @@ $P = "$R\godot"
   `.blend`; every "export the X collection" step in this file is `blender -b art/<x>.blend
   --python tools/blender_export.py -- --build --save`). Sandbox stills need `--seed` (the rival,
   and so the K.O. tick, follows the seed). Run one Godot window at a time: two at once can hang.
+
+- **Netcode core** (Victor 2026-10-31, Steam release; spec `NETCODE_DESIGN.md`): `godot/src/net/`, not wired into
+  the menus yet. Delay-based lockstep over `Sim.step`: the host sequences every seat's 9-byte input into frames, every
+  peer runs the sim on the same frames (6 ticks input delay), hashes agree every 30 ticks (`NetSession.state_hash`),
+  a dropped seat becomes a bot on the same tick for all. `net_session.gd` (`pump(sampler)` per physics frame),
+  transports behind `net_transport.gd`: `net_enet.gd` (built-in ENet), `net_fake.gd` (tests: delay, jitter, loss),
+  a Steam one later. The design doc lists what `sim.gd` still needs for cross-platform play (own sin/cos/atan2).
 
 ## Hard rules
 
