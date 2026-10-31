@@ -642,12 +642,26 @@ func new_match() -> void:
 
 
 func frame_points() -> Array:
+	var humans := range(mini(locals.size(), state.mechs.size()))
+	if siege:
+		var me = state.mechs[0]
+		return [Vector3(me.x, 0, me.y), Vector3(me.x, 0, me.y)]
+	var alive := humans.filter(func(i): return not state.mechs[i].ko)
 	var out := []
-	for i in mini(locals.size(), state.mechs.size()):
-		out.append(Vector3(state.mechs[i].x, 0, state.mechs[i].y))
-	if out.size() < 2:
-		var foe = state.mechs[0 if siege else 1]
-		out.append(Vector3(foe.x, 0, foe.y))
+	for i in (alive if not alive.is_empty() else humans):
+		var m = state.mechs[i]
+		if not out.has(Vector3(m.x, 0, m.y)):
+			out.append(Vector3(m.x, 0, m.y))
+		var best = null
+		for f in state.mechs:
+			if f.ko or f.team == m.team:
+				continue
+			if best == null or Vector2(f.x - m.x, f.y - m.y).length() < Vector2(best.x - m.x, best.y - m.y).length():
+				best = f
+		if best != null:
+			var p := Vector3(best.x, 0, best.y)
+			if not out.has(p):
+				out.append(p)
 	return out
 
 
@@ -1070,7 +1084,7 @@ func pin() -> void:
 func follow(delta: float) -> void:
 	var pts := frame_points()
 	var a: Vector3 = pts[0]
-	var b: Vector3 = pts[1]
+	var b: Vector3 = pts[1] if pts.size() > 1 else pts[0]
 	var box := frame_box(pts)
 	var target: Vector3 = (box[0] + box[1]) / 2.0
 	var want := clampf(maxf((box[1].x - box[0].x) * 0.9 + 8.0, (box[1].z - box[0].z) * 2.0 + 12.0), 28.0, 64.0)
