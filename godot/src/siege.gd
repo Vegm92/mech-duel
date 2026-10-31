@@ -1507,6 +1507,7 @@ static func spend(state, sg: Dictionary, item: String, m: Dictionary) -> bool:
 			outfit(m, sg.tiers[i], sg.boost[i])
 		"swap":
 			m.loadout[bits[1]] = bits[2]
+			m.loadout.get("mod", {}).erase(bits[1])
 			var lv: Dictionary = m.loadout.get("lv", {})
 			var n := owned_level(sg, i, bits[1], bits[2])
 			if n > 1:
@@ -1584,7 +1585,7 @@ static func outfit(m: Dictionary, tiers: Dictionary, boost: int) -> void:
 	var lv: Dictionary = lo.get("lv", {})
 	var rows := {}
 	for slot in Sim.DEFAULT_LOADOUT:
-		var row := Sim.tuned(slot, lo[slot], lv.get(slot, 1)).duplicate()
+		var row := Sim.tuned(slot, lo[slot], lv.get(slot, 1), lo.get("mod", {}).get(slot, "")).duplicate()
 		var t: int = tiers.get(slot, 0)
 		var fx: Dictionary = TIER.hand if Sim.HANDS.has(slot) else TIER[slot]
 		for key in fx:

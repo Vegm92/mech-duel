@@ -7,9 +7,11 @@ const LADDER := ["duelist", "sniper", "speedster", "assassin", "glasscannon", "v
 const BOSS := [["core", "reactor"], ["core", "titan"], ["core", "flywheel"], ["core", "bastion"], ["core", "deflector"], ["core", "shroud"], ["right", "fist"]]
 const KO_DROPS := ["head", "core", "booster"]
 const BREAK_DROPS := {"larm": ["arms", "left"], "rarm": ["arms", "right"], "legs": ["legs"]}
+const MOD_KEYS := ["a", "b"]
 const SIEGE_SPOILS := {10: "tank", 20: "artillery", 30: "reflector"}
 
 var owned := {}
+var mods := {}
 var beaten := {}
 var best := 0
 var unlock_all := true
@@ -53,19 +55,38 @@ func complete(lo: Dictionary) -> bool:
 func fit(lo: Dictionary) -> Dictionary:
 	var out := Sim.normalize(lo)
 	out.erase("lv")
+	out.erase("mod")
 	for slot in Sim.DEFAULT_LOADOUT:
 		if not has(slot, out[slot]):
 			out[slot] = Sim.DEFAULT_LOADOUT[slot]
 	return out
 
 
+func mod_of(slot: String, key: String) -> String:
+	var v: String = mods.get(id(slot, key), "")
+	return v if level(slot, key) >= 2 and Sim.has_mod(slot, key, v) else ""
+
+
+func choose(slot: String, key: String, v: String) -> void:
+	if level(slot, key) >= 2 and Sim.has_mod(slot, key, v):
+		mods[id(slot, key)] = v
+
+
 func with_levels(lo: Dictionary) -> Dictionary:
 	var lv := {}
+	var mod := {}
 	for slot in Sim.DEFAULT_LOADOUT:
 		var n := level(slot, lo[slot])
 		if n > 1:
 			lv[slot] = n
-	return lo.merged({"lv": lv}, true) if not lv.is_empty() else lo
+			if mod_of(slot, lo[slot]) != "":
+				mod[slot] = mod_of(slot, lo[slot])
+	if lv.is_empty():
+		return lo
+	var out := lo.merged({"lv": lv}, true)
+	if not mod.is_empty():
+		out.mod = mod
+	return out
 
 
 func pool(broke: Array, foe: Dictionary, ko: bool) -> Array:
@@ -142,6 +163,11 @@ func load_file() -> void:
 		for part_id in saved:
 			if part_id is String and known(part_id) and saved[part_id] is int:
 				owned[part_id] = clampi(saved[part_id], 1, Sim.MAX_LEVEL)
+	var picked = cfg.get_value("salvage", "mods", {})
+	if picked is Dictionary:
+		for part_id in picked:
+			if part_id is String and known(part_id) and picked[part_id] is String and MOD_KEYS.has(picked[part_id]):
+				mods[part_id] = picked[part_id]
 	var wins = cfg.get_value("salvage", "beaten", {})
 	if wins is Dictionary:
 		for set_key in wins:
@@ -157,6 +183,7 @@ func save_file() -> void:
 		return
 	var cfg := ConfigFile.new()
 	cfg.set_value("salvage", "owned", owned)
+	cfg.set_value("salvage", "mods", mods)
 	cfg.set_value("salvage", "beaten", beaten)
 	cfg.set_value("siege", "best", best)
 	cfg.save(path)

@@ -403,7 +403,7 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 	var lob: bool = g != null and g.kind == "lob"
 	if m.surge >= Sim.SURGE.max and wants_ult(h.kind, d, sight, open, health(m) < 0.55, threat, h, m.heat):
 		inp.ult = true
-	elif Sim.e_skill(m) == "hook" and m.cd.hook == 0 and (melees.is_empty() or melee_ready(m)) and sight and not facing and d > 4 and d < Sim.HOOK.range - 1:
+	elif Sim.e_skill(m) == "hook" and m.cd.hook == 0 and (melees.is_empty() or melee_ready(m)) and sight and not facing and d > 4 and d < Sim.espec(m).range - 1:
 		inp.hook = true
 		var travel := d / Sim.HOOK.speed
 		inp.ax = o.x + o.vx * travel
