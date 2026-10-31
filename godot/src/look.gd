@@ -49,6 +49,14 @@ const FONT := {"family": "saira", "impact": "exo2", "width": 87.5, "text": 600, 
 
 const POP := {"hit": Color("#ffffff"), "head": Color("#ff8c28"), "block": Color("#2ba7ff"), "heal": Color("#2dd66b")}
 
+const ARCADE := {
+	"ground": Color("#0B0A12"), "panel": Color("#17141F"), "raised": Color("#221E2E"), "line": Color("#34304A"),
+	"dim": Color("#B3ACCB"), "soft": Color("#D9D4EA"), "hazard": Color("#FFC93C"), "surge": Color("#C86BFF"), "danger": Color("#FF4D5E"),
+	"team": [Color("#FF6B1A"), Color("#2F9BFF"), Color("#39D98A"), Color("#FF4FA3")],
+	"core": Color("#4A4462"), "heat": Color("#FF6B3D"), "heat_text": Color("#FF8A6A"), "jam_text": Color("#FF8A95"),
+	"jam_dark": Color("#3A1620"), "surge_text": Color("#E3C2FF"), "good": Color("#39D98A"), "orange": Color("#FF8A1F"), "track": Color("#2A2540"),
+}
+
 const HAZARD := {"paint": PAL.hazard, "black": PAL.void, "metal": FAMILY.hazard[0], "rough": FAMILY.hazard[1], "width": 0.16, "wear": 0.3, "warn_color": PAL.warn}
 
 const NOISE := """

@@ -37,6 +37,19 @@ func _process(_dt: float) -> bool:
 		s.pads[k].module = ["wall", "mine", "laser"][k]
 	v.update(s)
 	check(v.gates.size() == 4 and v.pads.size() == 12, "4 gates and 12 build pads from the state")
+	var tp: Dictionary = s.pads[4]
+	tp.merge({"module": "turret", "hp": 600.0, "max": 600, "aim": 0.0, "cd": 0}, true)
+	v.update(s)
+	check(v.pads[4].mods.turret.visible and v.pads[4].head.visible and not v.pads[4].mods.wall.visible, "a turret pad shows the turret and its head")
+	tp.hp = 0.0
+	v.update(s)
+	check(v.pads[4].mods.turret.visible and not v.pads[4].head.visible, "a destroyed turret loses its head")
+	tp.module = ""
+	v.reach(s.pads[5], null)
+	check(v.pads[5].reach.visible and not v.pads[4].reach.visible and not v.gates[0].reach.visible, "the pad in reach gets a highlight ring, no other does")
+	v.reach(null, s.gates[1])
+	check(v.gates[1].reach.visible and not v.gates[0].reach.visible and not v.pads[5].reach.visible, "the gate in reach gets the ring, the pad ring goes out")
+	v.reach(null, null)
 	var stray := 0
 	for f in v.fans:
 		var at: Vector3 = f[0].origin
@@ -91,10 +104,14 @@ func _process(_dt: float) -> bool:
 	for n in [4, 3, 2, 1, 0]:
 		s.core.rings = SiegeState.ring_hp(n)
 		v.update(s)
-		check(v.rings.filter(func(r): return r.visible).size() == n, "%d rings up shows %d rings" % [n, n])
+		s.tick += SiegeView.CORE.fly.ticks + SiegeView.CORE.rise.ticks
+		v.update(s)
+		check(v.petals.filter(func(r): return r.visible).size() == n, "%d rings up shows %d petals" % [n, n])
 	s.core.rings = SiegeState.ring_hp(2)
 	v.update(s)
-	check(v.rings.map(func(r): return r.visible) == [false, false, true, true], "outer rings break first, inner last")
+	s.tick += SiegeView.CORE.fly.ticks + SiegeView.CORE.rise.ticks
+	v.update(s)
+	check(v.petals.map(func(r): return r.visible) == [false, false, true, true], "outer petals break first, inner last")
 	var whole := SiegeView.new()
 	var cracked := SiegeView.new()
 	for w in [whole, cracked]:
@@ -111,6 +128,30 @@ func _process(_dt: float) -> bool:
 	s.core.hp = s.core.max * 0.1
 	v.update(s)
 	check(v.smoke.emitting, "a core under 25 % smokes")
+	check(v.plasma_mat.emission == SiegeView.CORE.red and v.hp_mat.albedo_color == SiegeView.CORE.red, "a core under 25 % turns its plasma and HP ring red")
+	check(v.hp_segs.filter(func(m): return m.visible).size() == ceili(0.1 * v.hp_segs.size()), "the HP floor ring drains with the core HP")
+	s.core.hp = 0.0
+	v.update(s)
+	check(v.plasma_mat.emission == SiegeView.CORE.dark and v.core_light.light_energy == 0.0, "a lost core goes dark")
+	s.core.hp = s.core.max
+	v.update(s)
+	check(v.plasma_mat.emission == SiegeView.CORE.yellow and v.hp_segs.all(func(m): return m.visible), "a whole core is yellow with a full HP ring")
+	s.core.rings = SiegeState.ring_hp(4)
+	v.update(s)
+	check(v.petals[0].visible and v.petals[0].position.y < 0.0, "a ring coming back raises its petal out of the floor")
+	s.tick += SiegeView.CORE.rise.ticks
+	v.update(s)
+	check(v.petals[0].position.length() <= SiegeView.CORE.bob + 0.001, "a risen petal sits at its place, give or take its bob")
+	s.core.rings = SiegeState.ring_hp(3)
+	s.tick += 1
+	v.update(s)
+	s.tick += SiegeView.CORE.fly.ticks / 2
+	v.update(s)
+	check(v.petals[0].visible and v.petals[0].position.length() > 0.0, "a petal that just broke is still flying off")
+	s.tick += SiegeView.CORE.fly.ticks
+	v.update(s)
+	check(not v.petals[0].visible, "a flown-off petal is gone")
+	s.core.hp = s.core.max * 0.1
 	s.core.repairing = true
 	v.update(s)
 	check(v.mend.visible, "a repairing core shows the repair glow")
@@ -120,6 +161,8 @@ func _process(_dt: float) -> bool:
 	s.gates[0].hp = 0.0
 	v.update(s)
 	check(v.gates[0].broken.visible and not v.gates[0].door.visible and not v.gates[0].bar.visible, "a gate at 0 HP shows its broken look")
+	check(v.gates[0].light.emission == SiegeView.ALARM.color, "a gate that just lost HP turns its lamp alarm red")
+	v.gates[0].hit = -1000
 	check(v.pads.slice(0, 3).all(func(p): return p.mods.values().filter(func(m): return m.visible).size() == 1), "lane 0 pads show their modules")
 	check(v.pads.slice(3).all(func(p): return p.mods.values().all(func(m): return not m.visible)), "empty pads show no module")
 	s.wave.next_in = 300

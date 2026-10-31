@@ -1649,6 +1649,8 @@ static func hit(state, atk, t, raw, tag: String, impact, frm: float, cast) -> vo
 	else:
 		side = "larm" if rel < 0 else "rarm"
 	hurt(state, t, "head" if tag == "HEAD" else ("legs" if tag == "LEGS" else side), dmg)
+	if t.has("bot"):
+		t.by = atk.id
 	var c = core(atk)
 	if c.has("leech"):
 		heal_weakest(atk, dmg * c.leech)

@@ -34,8 +34,10 @@ MAT = {
     "hazard": material("hazard", srgb(214, 168, 44), 0.2, 0.5),
     "strip": material("strip", srgb(43, 182, 221), 0.0, 1.0, 3.0),
     "white": material("white", srgb(215, 235, 255), 0.0, 1.0, 3.0),
-    "crystal": material("crystal", srgb(150, 230, 255), 0.0, 0.2, 4.0),
-    "shield": material("shield", srgb(90, 200, 255), 0.0, 1.0, 3.0),
+    "plasma": material("plasma", srgb(255, 201, 60), 0.0, 0.2, 4.0),
+    "plasma_in": material("plasma_in", srgb(255, 243, 196), 0.0, 0.2, 4.0),
+    "petal": material("petal", srgb(47, 155, 255), 0.0, 0.5, 1.0),
+    "petal_edge": material("petal_edge", srgb(156, 208, 255), 0.0, 0.5, 3.0),
     "pylon": material("pylon", srgb(43, 182, 221), 0.0, 1.0, 3.0),
     "warn": material("warn", srgb(255, 60, 40), 0.0, 1.0, 3.0),
     "concrete": material("concrete", srgb(48, 54, 70), 0.0, 0.85),
@@ -410,39 +412,71 @@ for dx, dz in DIRS[:2] + DIRS[3:]:
             hull([pt(r + 0.5, 0), pt(r, 1.2), pt(r + 0.35, 1.2), pt(r + 0.85, 0, 0.07)], "white", 0)
 
 part("core_base")
-cyl(2.5, 2.45, 0.0, 0.14, "dark", 8, 0.02, rot=math.pi / 8)
-ring(2.58, 2.68, 0.0, 0.012, "strip", 8, math.pi / 8)
-cyl(2.4, 2.4, 0.14, 0.44, "hazard", 8, 0.01, rot=math.pi / 8)
-cyl(2.3, 2.3, 0.44, 1.2, "dark", 8, 0.02, rot=math.pi / 8)
+cyl(4.6, 4.4, 0.0, 0.5, "dark", 16, 0.02)
+cyl(4.4, 4.4, 0.5, 0.6, "steel", 16, 0.01)
+ring(3.55, 4.05, 0.6, 0.63, "dark", 32)
+cyl(1.7, 1.7, 0.6, 4.0, "dark", 12, 0.03)
+cyl(1.85, 1.85, 0.6, 0.85, "steel", 12, 0.02)
+cyl(1.78, 1.78, 2.2, 2.35, "trim", 12, 0.01)
+cyl(1.85, 1.85, 3.85, 4.05, "steel", 12, 0.02)
+
+part("core_plasma")
+cyl(0.34, 0.5, 3.9, 4.6, "plasma", 8, 0.01)
+cyl(0.5, 0.34, 4.6, 5.6, "plasma", 8, 0.01)
+cyl(0.34, 0.26, 5.6, 7.0, "plasma", 8, 0.01)
+for k in range(4):
+    a = k * math.pi / 2
+    rbox((0.5, 0.1, 0.1), (0.62 * math.cos(a), 4.2, 0.62 * math.sin(a)), a, "plasma", 0)
+
+part("core_plasma_in")
+cyl(0.2, 0.2, 6.98, 7.1, "plasma_in", 8, 0)
 for k in range(8):
     a = k * math.pi / 4
-    rbox((0.14, 0.8, 0.12), (2.26 * math.cos(a), 0.82, 2.26 * math.sin(a)), a + math.pi / 2, "trim", 0.02)
-    f = math.pi / 8 + k * math.pi / 4
-    rbox((0.03, 0.6, 0.3), (2.14 * math.cos(f), 0.82, 2.14 * math.sin(f)), f, "strip", 0)
-cyl(2.35, 2.3, 1.2, 1.32, "steel", 8, 0.02, rot=math.pi / 8)
-cyl(1.1, 0.8, 1.32, 2.5, "trim", 8, 0.03)
-for k in range(4):
-    a = math.pi / 4 + k * math.pi / 2
-    c, s = math.cos(a), math.sin(a)
-    hull([(1.0 * c, 1.6, 1.0 * s), (2.2 * c, 1.32, 2.2 * s), (2.3 * c, 2.6, 2.3 * s), (1.6 * c, 3.4, 1.6 * s), (0.9 * c, 2.6, 0.9 * s), (1.8 * c + 0.25 * s, 2.2, 1.8 * s - 0.25 * c), (1.8 * c - 0.25 * s, 2.2, 1.8 * s + 0.25 * c)], "trim", 0.03)
-for dx, dz in DIRS:
-    yaw = math.atan2(dz, dx)
-    r = 2.0
-    hull([(dx * (r - 0.4) - dz * w, 1.32, dz * (r - 0.4) + dx * w) for w in (-0.45, 0.45)] + [(dx * (r + 0.4) - dz * w, 1.32, dz * (r + 0.4) + dx * w) for w in (-0.45, 0.45)] + [(dx * (r - 0.1) - dz * w, 5.0, dz * (r - 0.1) + dx * w) for w in (-0.2, 0.2)] + [(dx * (r + 0.15) - dz * w, 5.0, dz * (r + 0.15) + dx * w) for w in (-0.2, 0.2)], "dark", 0.04)
-    rbox((0.08, 3.0, 0.22), (dx * (r + 0.3), 3.0, dz * (r + 0.3)), yaw, "pylon", 0)
-    cyl(0.26, 0.26, 5.0, 5.15, "steel", 8, 0.01, dx * r, dz * r)
-    cyl(0.17, 0.17, 5.15, 5.25, "pylon", 8, 0, dx * r, dz * r)
+    rbox((0.04, 1.2, 0.1), (0.46 * math.cos(a), 4.6, 0.46 * math.sin(a)), a, "plasma_in", 0)
+    rbox((0.04, 1.0, 0.08), (0.34 * math.cos(a), 6.2, 0.34 * math.sin(a)), a, "plasma_in", 0)
 
-part("core_crystal")
-pts = [(0, 1.7, 0), (0, -1.5, 0)]
+part("core_bands")
+for y in (1.35, 3.3):
+    ring(1.74, 1.84, y, y + 0.1, "plasma", 12)
 for k in range(6):
-    a = k * math.pi / 3
-    pts += [(0.95 * math.cos(a), 0.35, 0.95 * math.sin(a)), (0.75 * math.cos(a + 0.5), -0.45, 0.75 * math.sin(a + 0.5))]
-hull(pts, "crystal", 0)
+    a = math.pi / 6 + k * math.pi / 3
+    rbox((0.06, 1.1, 0.26), (1.72 * math.cos(a), 2.35, 1.72 * math.sin(a)), a, "plasma", 0)
 
-for i, r in enumerate((4.0, 3.4, 2.8, 2.2)):
-    part("ring%d" % (i + 1))
-    ring(r - 0.1, r, -0.05, 0.05, "shield", 12, i * 0.2, 0.08)
+part("core_crown")
+ring(1.0, 1.2, -0.08, 0.08, "plasma", 16)
+for k in range(4):
+    a = k * math.pi / 2
+    rbox((0.75, 0.1, 0.12), (0.8 * math.cos(a), 0, 0.8 * math.sin(a)), a, "plasma", 0)
+for k in range(8):
+    a = k * math.pi / 4 + math.pi / 8
+    rbox((0.1, 0.34, 0.1), (1.1 * math.cos(a), 0.2, 1.1 * math.sin(a)), a, "plasma_in", 0)
+
+part("core_crown2")
+ring(0.62, 0.74, -0.05, 0.05, "plasma_in", 12)
+for k in range(3):
+    a = k * 2 * math.pi / 3
+    rbox((0.2, 0.14, 0.14), (0.74 * math.cos(a), 0, 0.74 * math.sin(a)), a, "plasma", 0)
+
+part("core_orb")
+pts = [(0, 0.8, 0), (0, -0.8, 0)] + [(0.46 * math.cos(k * math.pi / 3), 0, 0.46 * math.sin(k * math.pi / 3)) for k in range(6)]
+hull(pts, "plasma_in", 0)
+
+PETAL_IN, PETAL_OUT, PETAL_HALF, PETAL_SEGS = 2.1, 2.65, math.radians(34), 6
+PETAL_TIP = math.radians(26)
+PETAL_BANDS = ((0.7, 1.15, 0.0, 0.03, 1.0, 1.0, "hazard"), (1.15, 4.35, 0.03, 0.28, 1.0, PETAL_TIP / PETAL_HALF, "petal"),
+               (4.35, 4.6, 0.28, 0.32, PETAL_TIP / PETAL_HALF, 0.94 * PETAL_TIP / PETAL_HALF, "petal_edge"))
+for i in range(4):
+    part("petal%d" % (i + 1))
+    mid = math.pi / 4 + i * math.pi / 2
+    for j in range(PETAL_SEGS):
+        u0 = -1 + 2 * j / PETAL_SEGS
+        u1 = -1 + 2 * (j + 1) / PETAL_SEGS
+        for y0, y1, l0, l1, h0, h1, mat in PETAL_BANDS:
+            hull([((r + l) * math.cos(mid + u * PETAL_HALF * h), y, (r + l) * math.sin(mid + u * PETAL_HALF * h)) for r in (PETAL_IN, PETAL_OUT) for u in (u0, u1) for y, l, h in ((y0, l0, h0), (y1, l1, h1))], mat, 0)
+    top = 0.94 * PETAL_TIP
+    r_mid = (PETAL_IN + PETAL_OUT) / 2 + 0.32
+    hull([((r + 0.32) * math.cos(mid + s * top), 4.6, (r + 0.32) * math.sin(mid + s * top)) for r in (PETAL_IN, PETAL_OUT) for s in (-1, 1)] + [(r_mid * math.cos(mid), 5.5, r_mid * math.sin(mid))], "petal", 0)
+    hull([((PETAL_IN + l) * math.cos(mid + u * 0.2), y, (PETAL_IN + l) * math.sin(mid + u * 0.2)) for y, l in ((1.25, 0.0), (4.5, 0.3)) for u in (-1, 1)] + [((PETAL_IN + l - 0.04) * math.cos(mid + u * 0.2), y, (PETAL_IN + l - 0.04) * math.sin(mid + u * 0.2)) for y, l in ((1.25, 0.0), (4.5, 0.3)) for u in (-1, 1)], "petal_edge", 0)
 
 part("gate")
 for sd in (-1, 1):
@@ -508,6 +542,24 @@ part("mod_mine")
 for x, z in ((-0.9, -0.9), (0.9, -0.9), (-0.9, 0.9), (0.9, 0.9)):
     cyl(0.45, 0.4, 0.12, 0.3, "dark", 8, 0.02, x, z)
     cyl(0.18, 0.18, 0.3, 0.36, "strip", 8, 0, x, z)
+
+part("mod_turret")
+cyl(1.15, 1.0, 0.0, 0.18, "dark", 8, 0.03)
+cyl(1.2, 1.2, 0.0, 0.05, "hazard", 8, 0)
+cyl(0.55, 0.45, 0.18, 0.7, "steel", 8, 0.04)
+box((0.9, 0.12, 0.9), (0, 0.76, 0), "trim", 0.03)
+box((0.5, 0.05, 0.12), (0.36, 0.2, 0), "strip", 0)
+box((0.5, 0.05, 0.12), (-0.36, 0.2, 0), "strip", 0)
+
+part("mod_turret_head")
+hull([(-0.5, 0.8, -0.5), (0.5, 0.8, -0.4), (0.5, 0.8, 0.4), (-0.5, 0.8, 0.5), (-0.4, 1.35, -0.3), (0.3, 1.3, -0.3), (0.3, 1.3, 0.3), (-0.4, 1.35, 0.3)], "steel", 0.05)
+box((0.7, 0.14, 0.9), (0.0, 1.38, 0), "trim", 0.03)
+for z in (-0.28, 0.28):
+    box((1.3, 0.2, 0.18), (0.95, 1.08, z), "dark", 0.03)
+    box((0.3, 0.26, 0.24), (1.62, 1.08, z), "trim", 0.03)
+    box((0.1, 0.1, 0.1), (1.78, 1.08, z), "warn", 0)
+box((0.06, 0.1, 0.5), (0.52, 1.05, 0), "strip", 0)
+box((0.4, 0.3, 0.3), (-0.55, 1.05, 0), "hazard", 0.03)
 
 for name, (ob, bm) in parts.items():
     bm.to_mesh(ob.data)

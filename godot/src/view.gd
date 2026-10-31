@@ -182,6 +182,7 @@ var hype := 0.0
 var hype_tick := 0
 var fresh_fx := []
 var mechs := []
+var squad := 0
 var pool := {}
 var active := []
 var tick := 0
@@ -461,6 +462,7 @@ func react(state: Dictionary, fresh: Array) -> void:
 
 
 func reset(state: Dictionary) -> void:
+	squad = state.siege.team if state.has("siege") else 0
 	pops.clear()
 	for m in mechs:
 		for g in m.get_meta("ghosts", []):
@@ -497,7 +499,7 @@ func reset(state: Dictionary) -> void:
 	follow(state, 0.0)
 
 
-func remake(i: int, m: Dictionary) -> void:
+func remake(i: int, m: Dictionary, by: int) -> void:
 	var old: Node3D = mechs[i]
 	for g in old.get_meta("ghosts", []):
 		g.queue_free()
@@ -509,17 +511,19 @@ func remake(i: int, m: Dictionary) -> void:
 	add_child(node)
 	node.build(m.loadout, m.team)
 	node.smoke = Fx.wreck(node)
-	mark(node, m)
+	mark(node, m, by)
 	node.set_meta("guard", m.guard)
-	var halo := Mech.add(node, Mech.ring(1.25, 1.45), Mech.flat(Color(Look.PAL.cyan, 0.85), true))
-	halo.top_level = true
-	node.set_meta("halo", halo)
 	mechs[i] = node
 
 
 ## Team markers: a ring on the floor, an arrow over the head and a rim on the edges, all in the team color.
-func mark(node: Node3D, m: Dictionary) -> void:
-	var c := Mech.flat(Color(Mech.TEAM[m.team].darkened(MARK.dim), MARK.alpha))
+func mark_color(m: Dictionary) -> Color:
+	return Look.ARCADE.team[m.id] if m.id < squad and m.id < 4 else Mech.TEAM[m.team]
+
+
+func mark(node: Node3D, m: Dictionary, by := -1) -> void:
+	var tc: Color = Look.ARCADE.team[by] if by >= 0 and by < 4 else mark_color(m)
+	var c := Mech.flat(Color(tc.darkened(MARK.dim), MARK.alpha))
 	var tri := PrismMesh.new()
 	tri.size = MARK.arrow
 	var ring := Mech.add(node, Mech.ring(MARK.ring[0], MARK.ring[1]), c)
@@ -529,7 +533,7 @@ func mark(node: Node3D, m: Dictionary) -> void:
 	place_marks([ring, arrow], m)
 	ring.reset_physics_interpolation()
 	arrow.reset_physics_interpolation()
-	var rim := Look.shader(Look.RIM_SHADER, Look.RIM.merged({"color": Mech.TEAM[m.team]}))
+	var rim := Look.shader(Look.RIM_SHADER, Look.RIM.merged({"color": tc}))
 	if DisplayServer.get_name() != "headless":
 		for p in node.find_children("*", "MeshInstance3D", true, false):
 			if p.material_override == null:
@@ -570,7 +574,7 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 	for i in mechs.size():
 		var sm0 = state.mechs[i]
 		if sm0.has("guard") and mechs[i].get_meta("guard", -1) != sm0.guard:
-			remake(i, sm0)
+			remake(i, sm0, state.siege.garrison.buyer)
 		mechs[i].visible = not sm0.get("absent", false)
 		mechs[i].sync(state.mechs[i], tick, dt)
 		if shocks.size() <= i:
@@ -583,11 +587,8 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		var marks_of: Array = mechs[i].get_meta("marks")
 		var seen := not Sim.hidden(state, sm)
 		place_marks(marks_of, sm)
-		if mechs[i].has_meta("halo"):
-			mechs[i].get_meta("halo").position = Vector3(sm.x, MARK.y, sm.y)
-			mechs[i].get_meta("halo").visible = not sm.ko
 		marks_of[0].visible = seen and not replaying
-		marks_of[1].visible = seen and not sm.ko and not replaying
+		marks_of[1].visible = seen and not sm.ko and not replaying and not sm.has("guard")
 		marks_of[2].set_shader_parameter("strength", Look.RIM.strength if seen else 0.0)
 		var act = state.mechs[i].act
 		if act != null and act.k == "dash" and act.get("ph") == "go" and not sm.ko:

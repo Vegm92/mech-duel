@@ -6,12 +6,17 @@ signal picked(path: PackedStringArray)
 signal closed
 
 const RING := {"outer": 200.0, "inner": 84.0, "dead": 60.0, "gap": 0.03, "grow": 12.0, "open": 0.12, "stick": 0.35, "segs": 14, "from": 0.82}
-const FILL := Color(0.09, 0.1, 0.13, 0.96)
-const FILL_HOT := Color(0.13, 0.2, 0.28, 0.98)
-const FILL_OFF := Color(0.06, 0.06, 0.08, 0.92)
-const SCRIM := Color(0, 0, 0, 0.45)
-const TEXT := Color(0.91, 0.95, 1.0)
-const DIM := Color(0.5, 0.56, 0.64)
+const A := Look.ARCADE
+const FILL := Color8(34, 30, 46, 245)
+const FILL_HOT := Color8(255, 201, 60, 250)
+const FILL_OFF := Color8(23, 20, 31, 235)
+const SCRIM := Color(0, 0, 0, 0.55)
+const TEXT := Color.WHITE
+const DIM := Color8(142, 135, 168)
+const SOFT := Color8(217, 212, 234)
+const INK := Color8(11, 10, 18)
+const LINE := Color8(52, 48, 74)
+const HAZARD := Color8(255, 201, 60)
 const TYPE := {"label": 16, "min": 11, "cost": 15, "name": 19, "note": 14, "pad": 14.0}
 
 var own_input := true
@@ -25,6 +30,10 @@ var age := 0.0
 var pad_id := -1
 var font: Font
 var bold: Font
+var title: Font
+var chips := []
+var heading := "radialShop"
+var caption := "radialNote"
 
 
 func _init() -> void:
@@ -33,6 +42,7 @@ func _init() -> void:
 	visible = false
 	font = Look.font(Look.FONT.text)
 	bold = Look.font(Look.FONT.bold)
+	title = Look.font(Look.FONT.heavy, true, Look.FONT.impact)
 
 
 ## Entries: {id, label_key, cost (-1 = no price), enabled, sub: [entries], note}. A pick emits `picked(path)`; backing out of the top ring emits `closed`.
@@ -177,6 +187,7 @@ func _draw() -> void:
 	var n := items.size()
 	var step := TAU / n
 	draw_circle(c, (RING.outer + RING.grow + 36.0) * grow, Color(SCRIM, SCRIM.a * k))
+	header(k)
 	for i in n:
 		var e: Dictionary = items[i]
 		var on: bool = e.get("enabled", true)
@@ -190,42 +201,67 @@ func _draw() -> void:
 			shape.append(c + dir(lerpf(a0, a1, float(j) / RING.segs)) * r1)
 		for j in range(RING.segs, -1, -1):
 			shape.append(c + dir(lerpf(a0, a1, float(j) / RING.segs)) * r0)
-		var fill := FILL_HOT if hot else (FILL if on else FILL_OFF)
+		var fill := FILL_HOT if hot and on else (FILL if on else FILL_OFF)
 		draw_colored_polygon(shape, Color(fill, fill.a * k))
-		var rim: Color = Look.PAL.cyan if on else DIM
 		shape.append(shape[0])
-		draw_polyline(shape, Color(rim.lightened(0.35) if hot else rim, (1.0 if hot else 0.55) * k), 3.0 if hot else 1.5, true)
+		draw_polyline(shape, Color(Color.WHITE if hot else LINE, (1.0 if hot else 0.8) * k), 3.0 if hot else 1.5, true)
 		var mid := c + dir(i * step) * (r0 + r1) / 2.0
 		var room := minf(2.0 * (r0 + r1) / 2.0 * sin(step / 2.0) - TYPE.pad, r1 - r0 + 40.0)
-		var label := tr(e.label_key)
+		var label := tr(e.label_key).to_upper()
 		var px := fit(label, room, TYPE.label)
-		var tc := TEXT if on else DIM
+		var tc := INK if hot and on else (TEXT if on else DIM)
 		var cost: int = e.get("cost", -1)
 		var y := mid.y + (px / 2.0 - 8.0 if cost >= 0 else px / 2.0 - 2.0)
-		draw_string(bold, Vector2(mid.x - room / 2.0, y), label, HORIZONTAL_ALIGNMENT_CENTER, room, px, Color(tc, k))
+		draw_string(title, Vector2(mid.x - room / 2.0, y), label, HORIZONTAL_ALIGNMENT_CENTER, room, px, Color(tc, k))
 		if cost >= 0:
-			draw_string(font, Vector2(mid.x - room / 2.0, y + TYPE.cost + 2), str(cost), HORIZONTAL_ALIGNMENT_CENTER, room, TYPE.cost, Color(Look.PAL.hazard if on else Look.PAL.warn, k))
+			var cc := INK if hot and on else (HAZARD if on else Color(A.danger, 0.9))
+			draw_string(title, Vector2(mid.x - room / 2.0, y + TYPE.cost + 2), str(cost), HORIZONTAL_ALIGNMENT_CENTER, room, TYPE.cost, Color(cc, k))
 		if not e.get("sub", []).is_empty():
 			var tip := c + dir(i * step) * (r1 - 8.0)
 			var side := dir(i * step + PI / 2.0) * 6.0
-			draw_colored_polygon(PackedVector2Array([tip, tip - dir(i * step) * 8.0 + side, tip - dir(i * step) * 8.0 - side]), Color(rim, 0.9 * k))
+			draw_colored_polygon(PackedVector2Array([tip, tip - dir(i * step) * 8.0 + side, tip - dir(i * step) * 8.0 - side]), Color(INK if hot else HAZARD, 0.95 * k))
 	var hub: float = (RING.inner - 8.0) * grow
-	draw_circle(c, hub, Color(FILL, k))
-	draw_arc(c, hub, 0.0, TAU, 48, Color(Look.PAL.cyan, 0.6 * k), 1.5, true)
+	draw_circle(c, hub, Color(FILL_OFF, k))
+	draw_arc(c, hub, 0.0, TAU, 48, Color(LINE, k), 3.0, true)
 	if hover >= 0:
 		var e: Dictionary = items[hover]
 		var on: bool = e.get("enabled", true)
 		var w := hub * 1.8
-		var title := tr(e.label_key)
-		draw_string(bold, c + Vector2(-w / 2.0, -10), title, HORIZONTAL_ALIGNMENT_CENTER, w, fit(title, w, TYPE.name), Color(TEXT if on else DIM, k))
+		var name := tr(e.label_key).to_upper()
+		draw_string(title, c + Vector2(-w / 2.0, -10), name, HORIZONTAL_ALIGNMENT_CENTER, w, fit(name, w, TYPE.name), Color(HAZARD if on else DIM, k))
 		var cost: int = e.get("cost", -1)
 		if cost >= 0:
-			draw_string(bold, c + Vector2(-w / 2.0, 14), str(cost), HORIZONTAL_ALIGNMENT_CENTER, w, TYPE.cost + 3, Color(Look.PAL.hazard if on else Look.PAL.warn, k))
+			draw_string(title, c + Vector2(-w / 2.0, 14), str(cost), HORIZONTAL_ALIGNMENT_CENTER, w, TYPE.cost + 3, Color(TEXT if on else A.danger, k))
 		var note: String = e.get("note", "")
 		if note != "":
-			draw_string(font, c + Vector2(-w / 2.0, 36), note, HORIZONTAL_ALIGNMENT_CENTER, w, fit(note, w, TYPE.note), Color(Look.PAL.heal, k))
+			draw_string(font, c + Vector2(-w / 2.0, 36), note, HORIZONTAL_ALIGNMENT_CENTER, w, fit(note, w, TYPE.note), Color(SOFT, k))
 	elif trail.size() > 0:
-		draw_string(font, c + Vector2(-hub, 6), tr(parent_label()), HORIZONTAL_ALIGNMENT_CENTER, hub * 2.0, TYPE.note, Color(DIM, k))
+		draw_string(font, c + Vector2(-hub, 6), tr(parent_label()).to_upper(), HORIZONTAL_ALIGNMENT_CENTER, hub * 2.0, TYPE.note, Color(DIM, k))
+
+
+func header(k: float) -> void:
+	var x := 24.0
+	for ch in chips:
+		var s: String = ch[0]
+		var w := bold.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 28.0
+		draw_rect(Rect2(x, 20, w, 28), Color(HAZARD if ch[1] else FILL_OFF, k))
+		draw_string(bold, Vector2(x, 40), s, HORIZONTAL_ALIGNMENT_CENTER, w, 13, Color(INK if ch[1] else TEXT, k))
+		x += w + 6.0
+	var steps := PackedStringArray([tr(heading).to_upper()])
+	for d in trail.size():
+		for e in stack[d]:
+			if e.id == trail[d]:
+				steps.append(tr(e.label_key).to_upper())
+				break
+	var line := ""
+	for i in steps.size():
+		line += ("  ›  " if i > 0 else "") + steps[i]
+	draw_string(title, Vector2(0, 150), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 22, Color(HAZARD, k))
+	draw_string(font, Vector2(0, 24), tr(caption), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 24.0, 13, Color(DIM, k))
+	var hint := tr("radialHint")
+	var hw := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 28.0
+	draw_rect(Rect2(size.x / 2.0 - hw / 2.0, size.y - 42.0, hw, 28.0), Color(FILL_OFF, 0.9 * k))
+	draw_string(font, Vector2(0, size.y - 23), hint, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(SOFT, k))
 
 
 func parent_label() -> String:
@@ -237,7 +273,7 @@ func parent_label() -> String:
 
 
 func fit(s: String, room: float, px: int) -> int:
-	while px > TYPE.min and bold.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > room:
+	while px > TYPE.min and title.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x > room:
 		px -= 1
 	return px
 

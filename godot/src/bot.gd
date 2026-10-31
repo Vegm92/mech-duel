@@ -32,6 +32,26 @@ static func clear_line(x0: float, y0: float, x1: float, y1: float, pillars: Arra
 	return true
 
 
+static func open_line(state, x0: float, y0: float, x1: float, y1: float, team := -1) -> bool:
+	var g: Dictionary = Sim.geo(state)
+	var rings: Array = g.get("rings", [])
+	var boxes: Array = g.get("boxes", [])
+	if rings.is_empty() and boxes.is_empty():
+		return true
+	var n := int(ceil(Sim.hypot(x1 - x0, y1 - y0) / 2.0))
+	for i in range(1, n):
+		var x: float = lerpf(x0, x1, i / float(n))
+		var y: float = lerpf(y0, y1, i / float(n))
+		var d := Sim.hypot(x, y)
+		for r in rings:
+			if d > r.r0 and d < r.r1 and not Sim.in_gap(r, x, y, 0.0):
+				return false
+		for bx in boxes:
+			if bx.get("hp", 1) > 0 and (team < 0 or bx.get("only", team) == team) and x > bx.x0 and x < bx.x1 and y > bx.y0 and y < bx.y1:
+				return false
+	return true
+
+
 static func health(m) -> float:
 	var s := 0.0
 	for p in m.armor:
@@ -283,10 +303,11 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 		brain.guardRoll = Sim.rng(brain) < BOT.guard
 		brain.dodgeRoll = Sim.rng(brain) < brain.get("dodge", BOT.dodge)
 	var veiled := Sim.hidden(state, o)
-	var sight: bool = not veiled and clear_line(m.x, m.y, o.x, o.y, Sim.geo(state).pillars)
+	var sight: bool = not veiled and clear_line(m.x, m.y, o.x, o.y, Sim.geo(state).pillars) and open_line(state, m.x, m.y, o.x, o.y, m.team)
 	var open: bool = (o.dashes == 0 and o.cd.dash > 40) or o.stagger > 0 or o.overheat > 0
 	var aggressive: bool = open or o.armor.head < m.armor.head * 0.6
-	var band = BOT.close if aggressive or g == null else g.band
+	var flier: bool = o.get("fly", false)
+	var band = BOT.close if (aggressive and not flier) or g == null else g.band
 	var lo: float = band[0]
 	var hi: float = band[1]
 	var target = goal(state, m, o)
@@ -347,7 +368,7 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 
 	var swing = null
 	for hand in melees:
-		if m.cd[hand] == 0 and d < Sim.weapon(m, hand).range * 0.75 + Sim.MECH_R:
+		if not flier and m.cd[hand] == 0 and d < Sim.weapon(m, hand).range * 0.75 + Sim.MECH_R:
 			swing = hand
 			break
 	if swing != null and o.pull == null:
@@ -359,7 +380,7 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 		return inp
 
 	if m.dashes > 0 and target == null:
-		if aggressive and d > 4 and d < 8.5 and sight:
+		if aggressive and not flier and d > 4 and d < 8.5 and sight:
 			inp.dash = true
 			inp.mx = ux
 			inp.my = uy

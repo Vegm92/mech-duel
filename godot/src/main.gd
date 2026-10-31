@@ -27,6 +27,7 @@ const CAMS := [[], [0.6, 0.3, 5.0, true], [PI / 2, 0.12, 5.0, true], [PI + 0.6, 
 const DEAD := 0.2
 const REACH := 16.0
 const LOOKBACK := 6
+const WHEEL := {"plaza": ["radialShop", "radialNote"], "square": ["radialSquare", "radialSquareNote"], "gate": ["radialGate", "radialGateNote"]}
 const PAD := {"dash": JOY_BUTTON_LEFT_SHOULDER, "shield": JOY_BUTTON_RIGHT_SHOULDER, "hook": JOY_BUTTON_LEFT_STICK, "ult": JOY_BUTTON_RIGHT_STICK}
 const TRIGGER := {"left": JOY_AXIS_TRIGGER_LEFT, "right": JOY_AXIS_TRIGGER_RIGHT}
 const SANDBOX := {"gap": 0.8, "pad": 0.8, "min": 2.4, "max": 10.0, "refill": 0.5, "cam": 1.1, "guard": 2.5, "dash": 80}
@@ -100,16 +101,23 @@ var replay_at := -1
 var siege := false
 var team_n := 2
 var wave_arg := 1
-var director_on := false
+var director_on := true
 var spawn_arg := ""
 var modules_arg := false
+var down_arg := false
+var turret_arg := false
+var door_arg := false
 var top_arg := false
 var guard_arg := 0
 var farm_arg := false
-var shop_arg := false
+var shop_arg := ""
+var shop_kind := ""
 var core_arg_pct := -1.0
 var shot_on := ""
 var allies := []
+var format_arg := "1v1"
+var pause_arg := false
+var extras := []
 var siege_view: Node3D
 var siege_bots: Node3D
 var shop: Control
@@ -140,7 +148,7 @@ func _ready() -> void:
 			hands_arg = a.substr(8).split(",")
 		elif a.begins_with("--head="):
 			head_arg = a.substr(7)
-		elif a.begins_with("--core="):
+		elif a.begins_with("--core=") and not a.substr(7).is_valid_float():
 			core_arg = a.substr(7)
 		elif a.begins_with("--arms="):
 			arms_arg = a.substr(7)
@@ -176,8 +184,8 @@ func _ready() -> void:
 			auto_ult = true
 		elif a == "--siege":
 			siege = true
-		elif a == "--shop":
-			shop_arg = true
+		elif a == "--shop" or a.begins_with("--shop="):
+			shop_arg = a.substr(7) if a.contains("=") else "plaza"
 		elif a == "--farm":
 			farm_arg = true
 		elif a.begins_with("--guard="):
@@ -190,6 +198,12 @@ func _ready() -> void:
 			shot_on = a.substr(10)
 		elif a == "--modules":
 			modules_arg = true
+		elif a == "--down":
+			down_arg = true
+		elif a == "--turret":
+			turret_arg = true
+		elif a == "--door":
+			door_arg = true
 		elif a.begins_with("--spawn="):
 			spawn_arg = a.substr(8)
 		elif a.begins_with("--director="):
@@ -198,6 +212,10 @@ func _ready() -> void:
 			wave_arg = maxi(1, a.substr(7).to_int())
 		elif a.begins_with("--team="):
 			team_n = clampi(a.substr(7).to_int(), 1, 4)
+		elif a == "--pause":
+			pause_arg = true
+		elif a.begins_with("--format="):
+			format_arg = a.substr(9)
 		elif a.begins_with("--lang="):
 			TranslationServer.set_locale(a.substr(7))
 		elif a == "--pad":
@@ -254,7 +272,7 @@ func _ready() -> void:
 		garage.visible = false
 		new_match()
 		if claim_arg:
-			claim.open(progress.pool(["larm", "legs"], rival_lo, true), rival_key, progress.tier(rival_key), progress)
+			claim.open(progress.pool(["larm", "legs"], rival_lo, true), rival_key, progress.tier(rival_key), progress, loadout)
 
 
 func shop_action() -> void:
@@ -401,19 +419,38 @@ func new_match() -> void:
 			state.siege.owned[0] = own
 		state.siege.wave.n = wave_arg - 1
 		for t in guard_arg:
-			state.siege.fund += Siege.GARRISON.cost[t]
+			state.siege.wallets[0] += Siege.GARRISON.cost[t]
 			Siege.buy(state, state.siege, "garrison", state.mechs[0])
 		if guard_arg > 0 and cam_mode > 0:
 			target = state.siege.guard
 		if core_arg_pct >= 0.0:
 			state.siege.core.hp = state.siege.core.max * core_arg_pct / 100.0
 			Siege.rings(state, state.siege)
+		if down_arg:
+			state.mechs[0].armor.head = 0
 		if modules_arg:
 			for b in [[0, "wall"], [1, "mine"], [2, "laser"], [3, "post"]]:
 				Siege.build(state, state.siege.pads[b[0]], b[1])
 		if Siege.BOTS.has(spawn_arg):
 			Siege.look(state, spawn_arg)
+		if turret_arg:
+			var pd: Dictionary = state.siege.pads[1]
+			Siege.build(state, pd, "turret")
+			state.mechs[0].x = pd.x + 3.0
+			state.mechs[0].y = pd.y - 2.0
+			Siege.look(state, "heavy")
+			for e in state.siege.enemies:
+				state.mechs[e.m].x = pd.x + e.side
+				state.mechs[e.m].y = pd.y - 9.0
+	elif Sim.FORMATS.has(format_arg) and format_arg != "1v1":
+		var los := [progress.with_levels(loadout.duplicate()), rival]
+		extras = []
+		for i in range(2, Sim.FORMATS[format_arg].size()):
+			los.append(Sim.SETS.values()[(s + i) % Sim.SETS.size()].duplicate())
+			extras.append(Bot.create_brain(s + 20 + i))
+		state = Sim.create_state(los, Sim.FORMATS[format_arg])
 	else:
+		extras = []
 		state = Sim.create_state([progress.with_levels(loadout.duplicate()), rival])
 	if sandbox:
 		pin()
@@ -591,12 +628,23 @@ func _input(event: InputEvent) -> void:
 			tapped[k] = true
 
 
+func show_reach() -> void:
+	var sg: Dictionary = state.siege
+	var m: Dictionary = state.mechs[0]
+	var kind := Siege.where(sg, m) if not sg.wave.live and not m.ko else ""
+	siege_view.reach(Siege.pad_at(sg, m, Siege.MODULE.pad) if kind == "square" else null, Siege.gate_at(sg, m) if kind == "gate" else null)
+
+
 func open_shop() -> void:
 	if not siege or shop.visible or paused or state.phase == "over" or state.mechs[0].ko:
 		return
-	if Sim.hypot(state.mechs[0].x, state.mechs[0].y) > Siege.S.PLAZA:
+	var kind := Siege.where(state.siege, state.mechs[0])
+	if kind == "" or (kind != "plaza" and state.siege.wave.live):
 		return
-	shop.open(hud.shop_menu(0))
+	shop_kind = kind
+	shop.heading = WHEEL[kind][0]
+	shop.caption = WHEEL[kind][1]
+	shop.open(hud.shop_menu(0, kind))
 
 
 func _notification(what: int) -> void:
@@ -651,22 +699,41 @@ func _physics_process(delta: float) -> void:
 		else:
 			Killcam.record(rec, state, [me, foe])
 		if not siege:
-			Sim.step(state, [me, foe])
-		if not siege and Killcam.wants(state, rec):
+			var ins := [me, foe]
+			for i in extras.size():
+				ins.append(Bot.bot_input(state, extras[i], i + 2))
+			Sim.step(state, ins)
+		if not siege and extras.is_empty() and Killcam.wants(state, rec):
 			start_replay()
-	if siege and shop_arg and state.tick == 60:
-		state.siege.fund += 2000
-		state.siege.wallets[0] += 600
+	if siege and door_arg and state.tick >= 60:
+		var door: Dictionary = Siege.S.doors(0)[1]
+		var me: Dictionary = state.mechs[0]
+		me.x = door.yp.x
+		me.y = door.yp.y
+		me.tx = door.yp.x
+		me.ty = door.yp.y
+	if siege and shop_arg != "" and state.tick == 60:
+		state.siege.wallets[0] += 2600
+		var me: Dictionary = state.mechs[0]
+		var at: Dictionary = {"square": state.siege.pads[1], "gate": state.siege.gates[0]}.get(shop_arg, me)
+		me.x = at.x
+		me.y = at.y
+		me.tx = at.x
+		me.ty = at.y
+		if shop_arg == "gate":
+			state.siege.gates[0].hp = state.siege.gates[0].max * 0.4
 		open_shop()
 	if siege and shop.visible:
-		if state.mechs[0].ko or Sim.hypot(state.mechs[0].x, state.mechs[0].y) > Siege.S.PLAZA:
+		var sg: Dictionary = state.siege
+		if state.mechs[0].ko or Siege.where(sg, state.mechs[0]) != shop_kind or (shop_kind != "plaza" and sg.wave.live):
 			shop.close()
 		elif state.tick % 10 == 0:
-			shop.refresh(hud.shop_menu(0))
+			shop.refresh(hud.shop_menu(0, shop_kind))
 	if not frozen and not held:
 		view.sync(state, aim, delta)
 		if siege:
 			siege_view.update(state.siege)
+			show_reach()
 			siege_bots.sync(state.siege, delta)
 	track()
 	crowd_sound.update(view.fresh_fx, 0.0 if siege else view.hype, state.phase == "fight" and not paused and not siege, not paused)
@@ -681,9 +748,10 @@ func _physics_process(delta: float) -> void:
 		kick = view.kick
 		kick_t = 0.0
 	view.kick = Vector3.ZERO
-	stop = maxi(stop, view.stop)
+	if not siege:
+		stop = maxi(stop, view.stop)
+		slow = maxf(slow, view.slow)
 	view.stop = 0
-	slow = maxf(slow, view.slow)
 	view.slow = 0.0
 	view.process_mode = Node.PROCESS_MODE_DISABLED if stop > 0 else Node.PROCESS_MODE_INHERIT
 	if replay.is_empty() and cam_mode == 0:
@@ -692,6 +760,9 @@ func _physics_process(delta: float) -> void:
 		close_camera()
 	hud.visible = cam_mode == 0 or not replay.is_empty()
 	hud.replay = Killcam.progress(replay)
+	hud.who = Vector2i(replay.killer, replay.victim) if not replay.is_empty() else Vector2i(-1, -1)
+	if pause_arg and shot_at >= 0 and state.tick >= shot_at:
+		paused = true
 	hud.paused = paused
 	hud.pad = on_pad
 	if shot_at >= 0 and state.tick >= shot_at and not shooting:
@@ -709,7 +780,7 @@ func track() -> void:
 				var drops := progress.spoils(f.n)
 				if not drops.is_empty():
 					Input.set_default_cursor_shape(Input.CURSOR_ARROW)
-					claim.open(drops, Progress.SIEGE_SPOILS[f.n], f.n / 10, progress)
+					claim.open(drops, Progress.SIEGE_SPOILS[f.n], f.n / 10, progress, loadout, f.n)
 		if state.phase == "over" and not settled:
 			settled = true
 			if not progress.unlock_all and progress.held(maxi(0, state.siege.wave.n - 1)):
@@ -735,7 +806,7 @@ func settle() -> void:
 		progress.save_file()
 		return
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
-	claim.open(drops, rival_key, progress.tier(rival_key), progress)
+	claim.open(drops, rival_key, progress.tier(rival_key), progress, loadout)
 
 
 func claimed(slot: String, key: String) -> void:

@@ -20,6 +20,9 @@ const ACTS := ["walk", "idle", "attack", "windup", "roll", "plant", "hit", "die"
 const LANE_WALL := 1.0
 const YARD_IN := 27.5
 const ARCH := 8.0
+const OPENINGS := [{"d": 41.0, "half": 3.0}, {"d": 54.0, "half": 2.0}]
+const OPENING_LANE := 3.0
+const OPENING_YARD := 8.5
 const QUADS := [{"name": "NE", "sx": 1, "sy": -1}, {"name": "SE", "sx": 1, "sy": 1}, {"name": "SW", "sx": -1, "sy": 1}, {"name": "NW", "sx": -1, "sy": -1}]
 const CAMP_TIERS := {"small": {"scrap": 10}, "medium": {"scrap": 25}, "big": {"scrap": 45}, "elite": {"scrap": 120, "token": 1}}
 const CAMPS := [
@@ -56,6 +59,15 @@ static func yard_at(q: int, a: float, b: float) -> Dictionary:
 	return {"x": Q.sx * a, "y": Q.sy * b}
 
 
+static func doors(q: int) -> Array:
+	var Q: Dictionary = QUADS[q]
+	var out := []
+	for o in OPENINGS:
+		out.append({"q": q, "lane": 1 if Q.sx > 0 else 3, "d": o.d, "lp": yard_at(q, o.d, OPENING_LANE), "yp": yard_at(q, o.d, OPENING_YARD)})
+		out.append({"q": q, "lane": 2 if Q.sy > 0 else 0, "d": o.d, "lp": yard_at(q, OPENING_LANE, o.d), "yp": yard_at(q, OPENING_YARD, o.d)})
+	return out
+
+
 static func yards() -> Array:
 	var out := []
 	for q in QUADS.size():
@@ -80,7 +92,7 @@ static func tiers() -> Dictionary:
 
 
 static func garrison() -> Dictionary:
-	return {"tier": 0, "hp": 0.0, "max": 0.0, "x": GARRISON_DOCK.x, "y": GARRISON_DOCK.y, "face": GARRISON_DOCK.face, "act": "idle", "respawn_in": 0}
+	return {"tier": 0, "hp": 0.0, "max": 0.0, "x": GARRISON_DOCK.x, "y": GARRISON_DOCK.y, "face": GARRISON_DOCK.face, "act": "idle", "respawn_in": 0, "buyer": -1}
 
 
 static func ring_hp(rings_left: int) -> Array:
@@ -120,6 +132,6 @@ static func stub(rings_left := 4) -> Dictionary:
 		"tick": 0, "wave": {"n": 1, "next_in": 480, "lanes_open": [true, false, false, false]},
 		"core": {"x": 0.0, "y": 0.0, "hp": hp, "max": CORE.hp, "rings": rings, "repairing": false},
 		"gates": gates, "pads": pads(), "enemies": enemies, "yards": yards(),
-		"fund": 0, "wallets": [120], "tokens": [0], "garrison": garrison(),
+		"wallets": [120], "tokens": [0], "garrison": garrison(),
 		"tiers": [tiers()], "recall": [], "shop_open": [false],
 	}
