@@ -499,7 +499,7 @@ func reset(state: Dictionary) -> void:
 	follow(state, 0.0)
 
 
-func remake(i: int, m: Dictionary) -> void:
+func remake(i: int, m: Dictionary, by: int) -> void:
 	var old: Node3D = mechs[i]
 	for g in old.get_meta("ghosts", []):
 		g.queue_free()
@@ -511,11 +511,8 @@ func remake(i: int, m: Dictionary) -> void:
 	add_child(node)
 	node.build(m.loadout, m.team)
 	node.smoke = Fx.wreck(node)
-	mark(node, m)
+	mark(node, m, by)
 	node.set_meta("guard", m.guard)
-	var halo := Mech.add(node, Mech.ring(1.25, 1.45), Mech.flat(Color(Look.PAL.cyan, 0.85), true))
-	halo.top_level = true
-	node.set_meta("halo", halo)
 	mechs[i] = node
 
 
@@ -524,8 +521,8 @@ func mark_color(m: Dictionary) -> Color:
 	return Look.ARCADE.team[m.id] if m.id < squad and m.id < 4 else Mech.TEAM[m.team]
 
 
-func mark(node: Node3D, m: Dictionary) -> void:
-	var tc := mark_color(m)
+func mark(node: Node3D, m: Dictionary, by := -1) -> void:
+	var tc: Color = Look.ARCADE.team[by] if by >= 0 and by < 4 else mark_color(m)
 	var c := Mech.flat(Color(tc.darkened(MARK.dim), MARK.alpha))
 	var tri := PrismMesh.new()
 	tri.size = MARK.arrow
@@ -577,7 +574,7 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 	for i in mechs.size():
 		var sm0 = state.mechs[i]
 		if sm0.has("guard") and mechs[i].get_meta("guard", -1) != sm0.guard:
-			remake(i, sm0)
+			remake(i, sm0, state.siege.garrison.buyer)
 		mechs[i].visible = not sm0.get("absent", false)
 		mechs[i].sync(state.mechs[i], tick, dt)
 		if shocks.size() <= i:
@@ -590,11 +587,8 @@ func sync(state: Dictionary, aim: Vector3, dt: float) -> void:
 		var marks_of: Array = mechs[i].get_meta("marks")
 		var seen := not Sim.hidden(state, sm)
 		place_marks(marks_of, sm)
-		if mechs[i].has_meta("halo"):
-			mechs[i].get_meta("halo").position = Vector3(sm.x, MARK.y, sm.y)
-			mechs[i].get_meta("halo").visible = not sm.ko
 		marks_of[0].visible = seen and not replaying
-		marks_of[1].visible = seen and not sm.ko and not replaying
+		marks_of[1].visible = seen and not sm.ko and not replaying and not sm.has("guard")
 		marks_of[2].set_shader_parameter("strength", Look.RIM.strength if seen else 0.0)
 		var act = state.mechs[i].act
 		if act != null and act.k == "dash" and act.get("ph") == "go" and not sm.ko:

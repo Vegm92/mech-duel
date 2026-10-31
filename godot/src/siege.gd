@@ -64,12 +64,13 @@ const LAST := {"lanes": 4, "pool": [], "must": ["titanPush", "shieldWall", "shie
 const ENDLESS := {"lanes": 4, "pool": ["raiders", "ambush", "firebase", "airWing", "lineBreakers", "ram", "sniperNest", "shieldWall", "barrage", "titanPush"], "mk": 3}
 const GARRISON := {
 	"cost": [150, 400, 900, 2000, 4500], "leash": 14.0, "retreat": 0.3, "respawn": 20 * Sim.TICKS, "ult": 4,
+	"patrol": 11.5, "ahead": 0.4, "aggro": 16.0,
 	"tiers": [
 		{"head": "rookie", "core": "furnace", "arms": "wire", "legs": "greaves", "booster": "flicker", "left": "rivet", "right": "bash", "lv": 1},
 		{"head": "rookie", "core": "furnace", "arms": "brace", "legs": "treads", "booster": "flicker", "left": "rivet", "right": "bash", "lv": 2},
-		{"head": "rookie", "core": "furnace", "arms": "brace", "legs": "treads", "booster": "thruster", "left": "rivet", "right": "gatling", "lv": 2},
-		{"head": "rookie", "core": "reactor", "arms": "brace", "legs": "treads", "booster": "thruster", "left": "rivet", "right": "gatling", "lv": 3},
-		{"head": "demon", "core": "aegis", "arms": "anvil", "legs": "stompers", "booster": "rocket", "left": "gatling", "right": "missiles", "lv": 3},
+		{"head": "rookie", "core": "furnace", "arms": "brace", "legs": "treads", "booster": "thruster", "left": "gatling", "right": "bash", "lv": 2},
+		{"head": "rookie", "core": "reactor", "arms": "brace", "legs": "treads", "booster": "thruster", "left": "gatling", "right": "saw", "lv": 3},
+		{"head": "demon", "core": "aegis", "arms": "anvil", "legs": "stompers", "booster": "rocket", "left": "gatling", "right": "hammer", "lv": 3},
 	],
 }
 const MILESTONES := [10, 20, 30]
@@ -699,19 +700,7 @@ static func target(state, sg: Dictionary, e: Dictionary, b: Dictionary, k: Dicti
 
 
 static func open_line(state, x0: float, y0: float, x1: float, y1: float) -> bool:
-	var g: Dictionary = state.geo
-	var n := int(ceil(Sim.hypot(x1 - x0, y1 - y0) / 2.0))
-	for i in range(1, n):
-		var x: float = lerpf(x0, x1, i / float(n))
-		var y: float = lerpf(y0, y1, i / float(n))
-		var d := Sim.hypot(x, y)
-		for r in g.rings:
-			if d > r.r0 and d < r.r1 and not Sim.in_gap(r, x, y, 0.0):
-				return false
-		for bx in g.boxes:
-			if bx.get("hp", 1) > 0 and x > bx.x0 and x < bx.x1 and y > bx.y0 and y < bx.y1:
-				return false
-	return true
+	return Bot.open_line(state, x0, y0, x1, y1)
 
 
 static func along(p: Dictionary, lane: int) -> float:
@@ -1706,6 +1695,11 @@ static func guard_settle(state, sg: Dictionary) -> void:
 	mirror_guard(sg, g)
 
 
+static func patrol_spot(g: Dictionary) -> Dictionary:
+	var a := atan2(g.y, g.x) + GARRISON.ahead
+	return {"x": cos(a) * GARRISON.patrol, "y": sin(a) * GARRISON.patrol}
+
+
 static func guard_input(state, sg: Dictionary) -> Dictionary:
 	var id: int = sg.guard
 	var g = state.mechs[id]
@@ -1715,17 +1709,22 @@ static func guard_input(state, sg: Dictionary) -> Dictionary:
 	var dock: Dictionary = S.GARRISON_DOCK
 	var o = Bot.pick(state, brain, g)
 	var hurt: bool = g.armor.head < g.max.head * GARRISON.retreat
-	var far: bool = o.ko or o.team != 1 or Sim.hypot(o.x, o.y) > GARRISON.leash + S.RING_OUT or not open_line(state, g.x, g.y, o.x, o.y)
-	if hurt or far or Sim.hypot(g.x, g.y) > GARRISON.leash:
-		var dx: float = dock.x - g.x
-		var dy: float = dock.y - g.y
+	var seen: bool = not o.ko and o.team == 1 and Sim.hypot(o.x - g.x, o.y - g.y) < GARRISON.aggro and Bot.open_line(state, g.x, g.y, o.x, o.y, g.team)
+	var r := Sim.hypot(g.x, g.y)
+	if hurt or not seen:
+		var to: Dictionary = dock if hurt else patrol_spot(g)
+		var dx: float = to.x - g.x
+		var dy: float = to.y - g.y
 		var d := Sim.hypot(dx, dy)
 		inp.mx = dx / d if d > 1.0 else 0.0
 		inp.my = dy / d if d > 1.0 else 0.0
 		inp.dash = false
-		if hurt or o.team != 1:
-			for k in ["left", "right", "hook", "ult"]:
-				inp[k] = false
+		for k in ["left", "right", "hook", "ult"]:
+			inp[k] = false
+	elif r > GARRISON.leash:
+		inp.mx = -g.x / r
+		inp.my = -g.y / r
+		inp.dash = false
 	if sg.garrison.tier < GARRISON.ult:
 		inp.ult = false
 	return inp

@@ -6,7 +6,7 @@ const Siege = preload("res://src/siege.gd")
 const S = preload("res://src/siege_state.gd")
 const Progress = preload("res://src/progress.gd")
 
-const GOLDEN := 4044432856
+const GOLDEN := 3156890276
 
 var failed := 0
 var filter := ""
@@ -80,6 +80,10 @@ func _init() -> void:
 	run("garrison_costs_the_fund_and_stands_at_its_dock", test_garrison_costs_the_fund_and_stands_at_its_dock)
 	run("each_garrison_tier_swaps_parts_up", test_each_garrison_tier_swaps_parts_up)
 	run("garrison_holds_its_leash_and_shoots_what_comes_in", test_garrison_holds_its_leash_and_shoots_what_comes_in)
+	run("garrison_patrols_the_plaza_when_no_bot_is_near", test_garrison_patrols_the_plaza_when_no_bot_is_near)
+	run("garrison_shoots_a_flyer_instead_of_swinging", test_garrison_shoots_a_flyer_instead_of_swinging)
+	run("garrison_stops_its_patrol_to_fight_an_enemy_it_sees", test_garrison_stops_its_patrol_to_fight_an_enemy_it_sees)
+	run("garrison_does_not_shoot_into_the_base_wall", test_garrison_does_not_shoot_into_the_base_wall)
 	run("garrison_rebuilds_for_free_after_its_timer", test_garrison_rebuilds_for_free_after_its_timer)
 	run("a_full_garrison_alone_still_loses_wave_15", test_a_full_garrison_alone_still_loses_wave_15)
 	run("a_full_garrison_alone_still_loses_wave_25", test_a_full_garrison_alone_still_loses_wave_25)
@@ -974,7 +978,8 @@ func test_each_garrison_tier_swaps_parts_up() -> int:
 		Siege.buy(s, s.siege, "garrison", s.mechs[0])
 		seen.append(guard_of(s).loadout.duplicate(true))
 	var more := Siege.buy(s, s.siege, "garrison", s.mechs[0])
-	return ensure(seen[0].right == "bash" and seen[2].right == "gatling", "a second gun at tier 3") or ensure(seen[3].core == "reactor" and seen[4].core == "aegis", "R skill cores at tiers 4 and 5") or ensure(seen[0].get("lv", {}).get("head", 1) == 1 and seen[4].lv.head == 3, "parts level up") or ensure(not more, "tier 5 is the top")
+	var both := seen.all(func(lo): return Sim.is_gun(Sim.WEAPONS[lo.left]) and not Sim.is_gun(Sim.WEAPONS[lo.right]))
+	return ensure(both, "every tier has a gun on the left and a melee weapon on the right") or ensure(seen[2].left == "gatling", "a faster gun at tier 3") or ensure(seen[3].core == "reactor" and seen[4].core == "aegis", "R skill cores at tiers 4 and 5") or ensure(seen[0].get("lv", {}).get("head", 1) == 1 and seen[4].lv.head == 3, "parts level up") or ensure(not more, "tier 5 is the top")
 
 
 func test_garrison_holds_its_leash_and_shoots_what_comes_in() -> int:
@@ -996,6 +1001,86 @@ func test_garrison_holds_its_leash_and_shoots_what_comes_in() -> int:
 		nb.y = 4.0
 		return near.act == "die")
 	return ensure(most <= Siege.GARRISON.leash + 1.0, "stayed within %.1f m" % most) or ensure(t > 0, "it killed the scout in the plaza")
+
+
+func test_garrison_patrols_the_plaza_when_no_bot_is_near() -> int:
+	var s := lab()
+	s.siege.wallets[0] = 1000
+	Siege.buy(s, s.siege, "garrison", s.mechs[0])
+	var spots := {}
+	var most := 0.0
+	var least := 99.0
+	for i in 60 * 20:
+		Siege.step(s, [idle()])
+		var g := guard_of(s)
+		var r := Sim.hypot(g.x, g.y)
+		most = maxf(most, r)
+		if i > 60 * 3:
+			least = minf(least, r)
+		spots[int(floor((atan2(g.y, g.x) + PI) / (PI / 2.0))) % 4] = true
+	return ensure(spots.size() == 4, "went round %d of 4 quarters" % spots.size()) or ensure(least > S.RING_IN / 2.0 and most < S.RING_IN, "kept between the core and the walls (%.1f to %.1f m)" % [least, most])
+
+
+func test_garrison_shoots_a_flyer_instead_of_swinging() -> int:
+	var s := lab()
+	s.siege.wallets[0] = 1000
+	Siege.buy(s, s.siege, "garrison", s.mechs[0])
+	var fly := Siege.spawn(s, "flyer", 0, 0.0)
+	var fb: Dictionary = s.mechs[fly.m]
+	var swings := 0
+	var shots := 0
+	for i in 60 * 4:
+		var g := guard_of(s)
+		fb.x = g.x + 1.5 if i < 120 else S.GARRISON_DOCK.x + 4.0
+		fb.y = g.y if i < 120 else S.GARRISON_DOCK.y
+		Siege.step(s, [idle()])
+		var a = guard_of(s).act
+		if a != null and a.ph == "wind" and a.k == "right":
+			swings += 1
+		if a != null and a.ph == "wind" and a.k == "left":
+			shots += 1
+	return ensure(swings == 0, "swung the melee hand %d times at a flyer" % swings) or ensure(shots > 0, "it shot the flyer")
+
+
+func test_garrison_stops_its_patrol_to_fight_an_enemy_it_sees() -> int:
+	var s := lab()
+	s.siege.wallets[0] = 1000
+	Siege.buy(s, s.siege, "garrison", s.mechs[0])
+	var foe := Siege.spawn(s, "turret", 0, 0.0)
+	var fb: Dictionary = s.mechs[foe.m]
+	var most := 0.0
+	var shots := 0
+	for i in 60 * 10:
+		fb.x = 0.0
+		fb.y = 20.0
+		fb.armor.head = fb.max.head
+		guard_of(s).armor.head = guard_of(s).max.head
+		Siege.step(s, [idle()])
+		var g := guard_of(s)
+		most = maxf(most, Sim.hypot(g.x - fb.x, g.y - fb.y))
+		if g.act != null and g.act.ph == "wind" and g.act.k == "left":
+			shots += 1
+	return ensure(most < Siege.GARRISON.aggro, "walked off to %.1f m from the enemy it could see" % most) or ensure(shots > 0, "it shot the enemy")
+
+
+func test_garrison_does_not_shoot_into_the_base_wall() -> int:
+	var s := lab()
+	s.siege.wallets[0] = 1000
+	Siege.buy(s, s.siege, "garrison", s.mechs[0])
+	var foe := Siege.spawn(s, "turret", 0, 0.0)
+	var fb: Dictionary = s.mechs[foe.m]
+	var shots := 0
+	for i in 60 * 4:
+		var g := guard_of(s)
+		g.x = 8.0
+		g.y = 8.0
+		fb.x = 15.0
+		fb.y = 15.0
+		Siege.step(s, [idle()])
+		var a = guard_of(s).act
+		if a != null and a.ph == "wind" and a.k == "left":
+			shots += 1
+	return ensure(not Siege.open_line(s, 8.0, 8.0, 15.0, 15.0), "the wall stands between them") or ensure(shots == 0, "fired %d times into the wall" % shots)
 
 
 func test_garrison_rebuilds_for_free_after_its_timer() -> int:

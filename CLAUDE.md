@@ -269,8 +269,15 @@ $P = "$R\godot"
   **Garrison** (Victor 2026-10-28): one AI guardian, a real mech at index `siege.guard` (right
   after the players, `absent` until bought), tiers in `GARRISON` (parts + level, bought with the
   buyer's wallet, shop key 8), `guard_input` = `bot.gd` leashed 14 m to the core, back to `GARRISON_DOCK`
-  when hurt, R only from tier 4; it rebuilds free after 20 s × tier. `view.remake` rebuilds its
-  model when the tier changes and adds a cyan halo. Tests check a tier-5 Garrison alone still
+  when hurt, R only from tier 4; it rebuilds free after 20 s × tier. Every tier holds a gun (left) and a
+  melee weapon (right). Until it sees a lane bot (within `GARRISON.aggro` m, open line for its own
+  team's shots) it walks a circle between the core and the walls without firing (`patrol_spot`:
+  `GARRISON.patrol` m, aiming `ahead` rad in front of itself); once it sees one it stops patrolling and
+  fights with the full `bot.gd` brain, stepping back in past the leash (Victor 2026-10-30). `bot.gd`
+  never swings melee at a `fly` bot (melee always misses them) and keeps its gun range instead. Bot
+  `sight` also runs `Bot.open_line` (base rings, lane walls, gates, barricades, by `only` team), so no
+  bot fires into a wall it cannot shoot through; `Siege.open_line` is that check with every box solid. `view.remake` rebuilds its model when the tier changes; its floor ring and
+  rim take the buyer's color, with no ▼ over its head. Tests check a tier-5 Garrison alone still
   loses at waves 15 and 25.
   **In-run upgrades** (Victor 2026-10-28, after playing to wave 6): `siege.tiers[i][slot]` 0..5 for
   the 7 slots, bought from the wallet in the plaza (`TIER.base` × tier²); `outfit` rebuilds
