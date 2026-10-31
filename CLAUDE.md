@@ -367,14 +367,13 @@ $P = "$R\godot"
   `--menu`, `--mode=solo|coop|versus`, `--seats[=set:team,...]` (e.g. `--seats=sniper:0,tank:0,:1`), `--credits`, `--humans=<1..4>` (extra local humans on pads 1..3, idle). Evidence:
   `production/qa/evidence/duel-*-2026-10-31.png`.
 - **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
-  and garage restyle on top of it). `hud.gd`: side panel for 1-2 mechs (`side_panel`, Victor 2026-10-30: bottom-left, 176×208, no text: heat and R gauges
-  around a robot diagram where every part is a health bar (`part_block`: green > 75%, yellow, orange, red,
-  black hatch = destroyed), six icon slots from `slot` / `icon_lines`: gun or blade by weapon kind, shield, E
-  skill, dash pips, R surge fill; a cooldown is a fill that rises (`cd_peak`), a jammed arm a red bottom bar; the
-  rival gets a mini health-bar diagram next to its name tag, `rival_bot`), with 3-4 mechs, or two humans in a 1v1,
-  one slim strip per mech (`strip`, 262×44 in the 1280×720 canvas; `strip_rects` puts them in the four screen
-  corners along the top and bottom edges, Victor 2026-10-31: "the hud is too big"): mini health-bar robot, name tag,
-  heat and R meters, the six `slot`s. A human's slots print its own device's keys (`cap(seat, key)`: keyboard names,
+  and garage restyle on top of it). `hud.gd`: one slim strip per mech, always, whatever the format or the number of players (`strip`, 262×44
+  in the 1280×720 canvas; `strip_rects` puts them in the four screen corners along the top and bottom edges,
+  Victor 2026-10-31: "the hud is too big", then "always use the slim HUD, no matter how many players"): mini
+  health-bar robot where every part is a bar (`part_block`: green > 75%, yellow, orange, red, black hatch =
+  destroyed), name tag, heat and R meters, the six `slot`s from `slot` / `icon_lines` (gun or blade by weapon kind,
+  shield, E skill, dash pips, R surge fill; a cooldown is a fill that rises (`cd_peak`), a jammed arm a red bottom
+  bar). The big `side_panel` (176×208) is now Core Siege only. A human's slots print its own device's keys (`cap(seat, key)`: keyboard names,
   or pad names when `main.aims[seat].on_pad`), a bot's show icons. K.O.'d ones faded. `top_bar` (skewed team tags + hex
   clock; score chips with more than 2 mechs), `callout` (Exo 2 between hazard stripes, -3°), `slam` (round end), `match_over`
   (round list from `rounds`, tracked in `_process`), `pause_screen` (slabs drawn over empty Buttons so focus
