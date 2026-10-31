@@ -96,6 +96,20 @@ func test_strips() -> int:
 	await process_frame
 	bad += ensure(m.state.mechs.size() == 4 and m.hud.humans == 4, "four humans in an FFA")
 	m.queue_free()
+	var solo = await start_humans("1v1", 1)
+	for i in 3:
+		solo._physics_process(1.0 / Sim.TICKS)
+		await process_frame
+	TranslationServer.set_locale("en")
+	var size: Vector2 = solo.hud.canvas.size
+	var rects: Array = solo.hud.strip_rects(size, solo.state.mechs.size())
+	bad += ensure(solo.state.mechs.size() == 2 and rects.size() == 2, "a 1v1 has two slim strips")
+	for r in rects:
+		bad += ensure(r.end.y <= band or r.position.y >= size.y - band, "the 1v1 strip hugs the top or bottom edge at %s" % [size])
+		bad += ensure(r.get_area() <= 0.25 * old_area, "the 1v1 strip takes %d px, at most a quarter of the old %d" % [r.get_area(), 0.25 * old_area])
+		bad += ensure(r.size.x * r.size.y < solo.hud.SIDE.x * solo.hud.SIDE.y / 3.0, "the 1v1 strip is far smaller than the old side panel")
+	bad += ensure(solo.hud.cap(0, "dash") == "SPACE" and solo.hud.cap(1, "dash") == "", "the 1v1 human shows keys and the bot shows none")
+	solo.queue_free()
 	return bad
 
 

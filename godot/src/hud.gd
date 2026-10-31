@@ -357,9 +357,6 @@ func strip_rects(size: Vector2, n: int) -> Array:
 
 func skill_bars(size: Vector2) -> void:
 	var ms: Array = state.mechs
-	if ms.size() <= 2 and humans < 2:
-		side_panel(ms[0], Vector2(16, size.y - 16 - SIDE.y))
-		return
 	var rects := strip_rects(size, ms.size())
 	for i in rects.size():
 		strip(ms[i], rects[i], i)
@@ -418,8 +415,6 @@ func top_bar(size: Vector2) -> void:
 			for i in n:
 				var px := r.end.x - 24 - 11 - (n - 1 - i) * 16.0 if side == 0 else r.position.x + 24 + i * 16.0
 				canvas.draw_rect(Rect2(px, 38, 11, 20), Color(A.ground, 1.0 if state.score[ms[side].team] > i else 0.25))
-		if humans < 2:
-			rival_bot(ms[1], Vector2(cx + 356.0, 18.0))
 	else:
 		for side in 2:
 			var teams := [0, 2] if side == 0 else [1, 3]
@@ -597,24 +592,6 @@ func icon(kind: String, c: Vector2, k: float, col: Color) -> void:
 		for p in line:
 			pts.append(c + (p - Vector2(14, 14)) * k)
 		canvas.draw_polyline(pts, ac(col), maxf(1.5, 2.8 * k), true)
-
-
-func rival_bot(m: Dictionary, at: Vector2) -> void:
-	fade = 0.4 if m.ko else 1.0
-	canvas.draw_set_transform(at)
-	poly(PackedVector2Array([Vector2(0, 0), Vector2(84, 0), Vector2(84, 60), Vector2(76, 68), Vector2(0, 68)]), Color(A.panel, 0.94))
-	poly(rect_poly(Rect2(0, 0, 84, 3)), A.team[m.team])
-	var o := Vector2(12, 8)
-	poly(rect_poly(Rect2(o + Vector2(19, 12), Vector2(22, 16))), A.core)
-	for b in MINI:
-		var r: Rect2 = b[1]
-		r.position += o
-		part_block(m, b[0], r, 0.0)
-	var bar := Rect2(12, 61, 60, 4)
-	poly(rect_poly(bar), A.track)
-	poly(rect_poly(Rect2(bar.position, Vector2(bar.size.x * clampf(m.surge / float(Sim.SURGE.max), 0.0, 1.0), bar.size.y))), A.surge)
-	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
-	fade = 1.0
 
 
 func callout(s: String, c: Color, cx: float, y: float, px: int, alpha := 1.0) -> float:
