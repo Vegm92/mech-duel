@@ -19,7 +19,7 @@ func _initialize() -> void:
 	await run("pause_shows_three_slabs_and_five_sliders_only_while_paused", test_pause)
 	await run("a_round_win_is_remembered_for_the_match_over_list", test_rounds)
 	await run("an_ffa_match_runs_and_draws_four_bars", test_ffa)
-	await run("player_strips_hug_the_top_and_bottom_edges_and_stay_small", test_strips)
+	await run("player_strips_sit_in_the_top_band_under_the_name_chips_and_stay_small", test_strips)
 	await run("each_seat_shows_its_own_device_labels_and_bots_show_none", test_labels)
 	await run("each_wheel_sells_only_its_own_things_and_dims_what_the_fund_cannot_pay", test_wheels)
 	await run("a_four_player_siege_shows_allies_and_keeps_its_arrows_clear_of_the_hud", test_siege)
@@ -71,24 +71,26 @@ func start_humans(fmt: String, n: int):
 func test_strips() -> int:
 	var hud = load("res://src/hud.gd").new()
 	var old_area := 580.0 * 0.7 * 180.0 * 0.7
-	var band := 72.0
 	var bad := 0
+	var cases := {"1v1": [0, 1], "ffa": [0, 1, 2, 3], "2v2": [0, 0, 1, 1]}
 	for size in [Vector2(1280, 720), Vector2(1920, 1080)]:
 		var cx: float = size.x / 2.0
-		var clock := Rect2(cx - 210.0, 0, 420, 90)
-		for n in [2, 3, 4]:
-			var rects: Array = hud.strip_rects(size, n)
+		var clock := Rect2(cx - 56.0, 18, 112, 60)
+		for fmt in cases:
+			var teams: Array = cases[fmt]
+			var rects: Array = hud.strip_rects(size, teams)
 			var area := 0.0
-			bad += ensure(rects.size() == n, "%d strips for %d mechs" % [rects.size(), n])
+			bad += ensure(rects.size() == teams.size(), "%d strips for %s" % [rects.size(), fmt])
 			for i in rects.size():
 				var r: Rect2 = rects[i]
 				area += r.get_area()
-				bad += ensure(r.end.y <= band or r.position.y >= size.y - band, "strip %d of %d hugs the top or bottom edge at %s" % [i, n, size])
-				bad += ensure(Rect2(Vector2.ZERO, size).encloses(r), "strip %d stays on screen at %s" % [i, size])
-				bad += ensure(not r.intersects(clock), "strip %d keeps clear of the clock and score at %s" % [i, size])
+				bad += ensure(r.position.y >= 70.0 and r.end.y <= 118.0, "%s strip %d sits in the top band under the name chips at %s" % [fmt, i, size])
+				bad += ensure(Rect2(Vector2.ZERO, size).encloses(r), "%s strip %d stays on screen at %s" % [fmt, i, size])
+				bad += ensure(not r.intersects(clock), "%s strip %d keeps clear of the clock at %s" % [fmt, i, size])
+				bad += ensure((r.end.x <= cx) == (teams[i] % 2 == 0), "%s strip %d is on its team's side of the clock" % [fmt, i])
 				for j in i:
-					bad += ensure(not r.intersects(rects[j]), "strips %d and %d do not overlap" % [i, j])
-			bad += ensure(area <= 0.25 * old_area * n, "%d strips take %d px, at most a quarter of the old %d" % [n, area, 0.25 * old_area * n])
+					bad += ensure(not r.intersects(rects[j]), "%s strips %d and %d do not overlap" % [fmt, i, j])
+			bad += ensure(area <= 0.25 * old_area * teams.size(), "%s strips take %d px, at most a quarter of the old %d" % [fmt, area, 0.25 * old_area * teams.size()])
 	hud.free()
 	var m = await start_humans("ffa", 4)
 	for i in 4:
@@ -102,12 +104,12 @@ func test_strips() -> int:
 		await process_frame
 	TranslationServer.set_locale("en")
 	var size: Vector2 = solo.hud.canvas.size
-	var rects: Array = solo.hud.strip_rects(size, solo.state.mechs.size())
+	var rects: Array = solo.hud.strip_rects(size, solo.state.mechs.map(func(x): return x.team))
 	bad += ensure(solo.state.mechs.size() == 2 and rects.size() == 2, "a 1v1 has two slim strips")
 	for r in rects:
-		bad += ensure(r.end.y <= band or r.position.y >= size.y - band, "the 1v1 strip hugs the top or bottom edge at %s" % [size])
+		bad += ensure(r.position.y >= 70.0 and r.end.y <= 118.0, "the 1v1 strip sits under the name banner, none at the bottom")
 		bad += ensure(r.get_area() <= 0.25 * old_area, "the 1v1 strip takes %d px, at most a quarter of the old %d" % [r.get_area(), 0.25 * old_area])
-		bad += ensure(r.size.x * r.size.y < solo.hud.SIDE.x * solo.hud.SIDE.y / 3.0, "the 1v1 strip is far smaller than the old side panel")
+		bad += ensure(r.get_area() < solo.hud.SIDE.x * solo.hud.SIDE.y / 3.0, "the 1v1 strip is far smaller than the old side panel")
 	bad += ensure(solo.hud.cap(0, "dash") == "SPACE" and solo.hud.cap(1, "dash") == "", "the 1v1 human shows keys and the bot shows none")
 	solo.queue_free()
 	return bad

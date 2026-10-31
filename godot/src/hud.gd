@@ -42,6 +42,8 @@ const TIER_ROWS := ["left", "right", "head", "arms", "legs", "booster", "core"]
 const A := Look.ARCADE
 const STRIP := Vector2(262, 44)
 const STRIP_GAP := 8.0
+const STRIP_TOP := 74.0
+const STRIP_CLOCK := 60.0
 const STRIP_BOT := 0.66
 const SIDE := Vector2(176, 208)
 const DIAGRAM := [["head", Rect2(40, 0, 36, 24)], ["larm", Rect2(6, 28, 22, 56)], ["rarm", Rect2(88, 28, 22, 56)], ["legs", Rect2(33, 72, 22, 56)], ["legs", Rect2(61, 72, 22, 56)]]
@@ -349,17 +351,24 @@ func cap(i: int, key: String) -> String:
 	return tr(KEYS[key][1 if seat_pad(i) else 0])
 
 
-func strip_rects(size: Vector2, n: int) -> Array:
-	var g := STRIP_GAP
-	var spots := [Vector2(g, size.y - g - STRIP.y), Vector2(size.x - g - STRIP.x, size.y - g - STRIP.y), Vector2(g, g), Vector2(size.x - g - STRIP.x, g)]
-	return spots.slice(0, n).map(func(p): return Rect2(p, STRIP))
+func strip_rects(size: Vector2, teams: Array) -> Array:
+	var cx := size.x / 2.0
+	var seen := [0, 0]
+	var out := []
+	for t in teams:
+		var side: int = t % 2
+		var k: int = seen[side]
+		seen[side] += 1
+		var x := cx - STRIP_CLOCK - STRIP.x - k * (STRIP.x + STRIP_GAP) if side == 0 else cx + STRIP_CLOCK + k * (STRIP.x + STRIP_GAP)
+		out.append(Rect2(x, STRIP_TOP, STRIP.x, STRIP.y))
+	return out
 
 
 func skill_bars(size: Vector2) -> void:
 	var ms: Array = state.mechs
-	var rects := strip_rects(size, ms.size())
+	var rects := strip_rects(size, ms.map(func(m): return m.team))
 	for i in rects.size():
-		strip(ms[i], rects[i], i)
+		strip(ms[i], rects[i], i, ms.size() > 2)
 
 
 func meter(r: Rect2, f: float, c: Color) -> void:
@@ -367,7 +376,7 @@ func meter(r: Rect2, f: float, c: Color) -> void:
 	poly(rect_poly(Rect2(r.position, Vector2(r.size.x * clampf(f, 0.0, 1.0), r.size.y))), c)
 
 
-func strip(m: Dictionary, r: Rect2, seat: int) -> void:
+func strip(m: Dictionary, r: Rect2, seat: int, named: bool) -> void:
 	var t: Color = A.team[m.team]
 	var w := r.size.x
 	var h := r.size.y
@@ -380,13 +389,18 @@ func strip(m: Dictionary, r: Rect2, seat: int) -> void:
 	for b in MINI:
 		var br: Rect2 = b[1]
 		part_block(m, b[0], Rect2(o + br.position * STRIP_BOT, br.size * STRIP_BOT), 0.0)
-	var nm := mech_name(m.id).to_upper()
-	poly(slant(Rect2(50, 5, 76, 13), -14), t)
-	txt(nm, Vector2(50, 15.5), fit(nm, heavy, 11, 62.0), A.ground, HORIZONTAL_ALIGNMENT_CENTER, 76.0, heavy)
-	icon("heat", Vector2(136, 11.5), 0.3, A.heat_text)
-	meter(Rect2(142, 9, 44, 5), m.heat / float(Sim.HEAT.max), A.heat)
-	icon("ult", Vector2(197, 11.5), 0.3, A.surge_text)
-	meter(Rect2(204, 9, 44, 5), m.surge / float(Sim.SURGE.max), A.surge)
+	var hx := 50.0
+	var mw := 76.0
+	if named:
+		var nm := mech_name(m.id).to_upper()
+		poly(slant(Rect2(50, 5, 76, 13), -14), t)
+		txt(nm, Vector2(50, 15.5), fit(nm, heavy, 11, 62.0), A.ground, HORIZONTAL_ALIGNMENT_CENTER, 76.0, heavy)
+		hx = 136.0
+		mw = 44.0
+	icon("heat", Vector2(hx, 11.5), 0.3, A.heat_text)
+	meter(Rect2(hx + 6.0, 9, mw, 5), m.heat / float(Sim.HEAT.max), A.heat)
+	icon("ult", Vector2(hx + mw + 17.0, 11.5), 0.3, A.surge_text)
+	meter(Rect2(hx + mw + 24.0, 9, mw, 5), m.surge / float(Sim.SURGE.max), A.surge)
 	for i in SLOT_KEYS.size():
 		slot(m, SLOT_KEYS[i], Rect2(50.0 + i * 34.0, 20, 32, 22), cap(seat, SLOT_KEYS[i]))
 	if m.ko:
