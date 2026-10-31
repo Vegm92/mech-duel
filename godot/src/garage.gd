@@ -1,7 +1,6 @@
 extends CanvasLayer
 
 signal fight(lo: Dictionary)
-signal siege(lo: Dictionary)
 signal ui(kind: String)
 
 const Sim = preload("res://src/sim.gd")
@@ -9,7 +8,6 @@ const PartView = preload("res://src/part_view.gd")
 const I18n = preload("res://src/i18n.gd")
 const Progress = preload("res://src/progress.gd")
 const Look = preload("res://src/look.gd")
-const Edition = preload("res://src/edition.gd")
 
 const SIZE := Vector2(1280, 720)
 const PAD := 20.0
@@ -63,7 +61,6 @@ static var GOOD := A_GOOD
 static var BAD := A_DANGER
 
 var loadout: Dictionary = Sim.DEFAULT_LOADOUT.duplicate()
-var format := "1v1"
 var credits: Control
 var progress := Progress.new()
 var tab := 0
@@ -278,29 +275,6 @@ func build_right() -> void:
 	about_desc = para(ab, "", Rect2(14, 36, RW - 28, 66), 12, A_INK, 4)
 	about_skill = para(ab, "", Rect2(14, 106, RW - 28, 48), 12, SKILL, 3)
 	text(root, tr("garageHint"), Vector2(RX, 678), 12, A_DIM, RW)
-	var sw := 150.0
-	if Edition.siege:
-		var sb := Button.new()
-		sb.position = Vector2(RX + RW - 190 - 22 - sw, 20)
-		sb.size = Vector2(sw, 40)
-		sb.focus_mode = Control.FOCUS_NONE
-		sb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		skew(sb, A_RAISED)
-		sb.pressed.connect(go_siege)
-		root.add_child(sb)
-		big(sb, tr("siegeBtn"), Vector2.ZERO, 19, Color.WHITE, sw, 40, true)
-	for j in Sim.FORMATS.size():
-		var key: String = Sim.FORMATS.keys()[j]
-		var fb := Button.new()
-		fb.position = Vector2(RX + RW - 190 - 22 - (sw if Edition.siege else 0.0) - 3 * 62.0 - 8.0 + j * 62.0, 20)
-		fb.size = Vector2(58, 40)
-		fb.focus_mode = Control.FOCUS_NONE
-		fb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		fb.pressed.connect(set_format.bind(key))
-		root.add_child(fb)
-		var on: bool = key == format
-		skew(fb, A_HAZARD if on else A_RAISED)
-		big(fb, tr("fmt_" + key), Vector2.ZERO, 17, A_GROUND if on else Color.WHITE, 58, 40, true)
 	var cb := Button.new()
 	cb.position = Vector2(RX + RW - 124, 338)
 	cb.size = Vector2(110, 24)
@@ -318,7 +292,7 @@ func build_right() -> void:
 	skew(f, A_HAZARD, true)
 	f.pressed.connect(go)
 	root.add_child(f)
-	big(f, tr("go"), Vector2.ZERO, 30, A_GROUND, f.size.x, 52, true)
+	big(f, tr("garageDone"), Vector2.ZERO, 30, A_GROUND, f.size.x, 52, true)
 
 
 func refresh() -> void:
@@ -431,14 +405,6 @@ func select_tab(i: int) -> void:
 	build_tab()
 
 
-func set_format(key: String) -> void:
-	if not Sim.FORMATS.has(key) or key == format:
-		return
-	format = key
-	ui.emit("tab")
-	build()
-
-
 func open_credits() -> void:
 	ui.emit("tab")
 	close_credits()
@@ -471,11 +437,6 @@ func close_credits() -> void:
 func go() -> void:
 	ui.emit("start")
 	fight.emit(loadout.duplicate())
-
-
-func go_siege() -> void:
-	ui.emit("start")
-	siege.emit(loadout.duplicate())
 
 
 func point() -> void:

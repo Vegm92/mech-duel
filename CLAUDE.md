@@ -340,10 +340,14 @@ $P = "$R\godot"
   wave defense, but make sure we have a standalone for the duels"). `edition.gd` `Edition.siege` is on unless
   the export feature tag `steam` is set (second preset "Mech Duel (Steam)" in `export_presets.cfg`, which also
   leaves `src/siege*.gd`, `radial.gd` and `core_siege.glb` out); `--no-siege` turns it off in a normal run.
-  Off: no CORE SIEGE button, `--siege` ignored, and `main.gd` / `hud.gd` never `load` the siege scripts (they
-  are plain vars filled in only when siege is on). **Format picker:** 1V1 / FFA / 2V2 buttons in the garage
-  header (`garage.format`, from `Sim.FORMATS`), saved as `[garage] format` in `user://loadout.cfg`; `--format=`
-  still overrides. **Seats:** FIGHT opens `seats.gd` (join screen); `main.locals` lists the humans in join order
+  Off: no CORE SIEGE entry in the menu, `--siege` ignored, and `main.gd` / `hud.gd` never `load` the siege scripts (they
+  are plain vars filled in only when siege is on). **Flow:** the game opens on `menu.gd` (SOLO, CO-OP,
+  VERSUS, GARAGE, CORE SIEGE only when `Edition.siege`; no ONLINE until netcode is wired). GARAGE edits "MY BUILD"
+  and DONE goes back to the menu; SOLO / CO-OP / VERSUS open the seat screen (`main.open_seats(mode)`); after a
+  match, Enter and "Quit" go back to the menu. **Format picker:** 1V1 / FFA / 2V2 chips on the seat screen
+  (`Sim.FORMATS`; Tab or LB / RB), saved as `[garage] format` in `user://loadout.cfg`; `--format=` still
+  overrides. Mode rules (`seats.gd`): SOLO one human, any format; CO-OP 2v2 only, up to two humans all on team A
+  against bots; VERSUS needs two humans, any format, humans split between teams. **Seats:** `seats.gd` (join screen); `main.locals` lists the humans in join order
   (`"kb"` = keyboard + mouse, an int = that gamepad's device id), human `i` drives mech `i`, every other mech
   is a bot. Keyboard seat also takes any gamepad no seat owns (so the old one-player pad play still works).
   A pad joins with A, leaves with B, Start / Enter fights, Space toggles the keyboard, Esc goes back; FIGHT
@@ -352,14 +356,15 @@ $P = "$R\godot"
   12 `Sim.SETS`; a pad remembers its last pick for the session) and, in 2v2 only, a team (up / down; two
   humans per team at most). `seats.confirmed(list, picks)` gives `main.seat_picks`; `match_teams()` builds the
   per-match teams array (humans first, bots fill each team to two) and `build_for(i, ...)` the loadouts, so
-  `sim.gd` is untouched. No picks (autopilot, look checks) keeps the old rules: P2 = the ladder rival. `player_input(seat)` is the one place a seat becomes
+  `sim.gd` is untouched. Every card shows a turning 3D model (`PartView.show_mech`) of the build, bots included
+  (`main.next_seed` is rolled when the screen opens so the bot builds shown are the ones that fight). No picks (autopilot, look checks) keeps the old rules: P2 = the ladder rival. `player_input(seat)` is the one place a seat becomes
   an input dictionary, and `Sim.step` gets one per mech per tick (the seam netcode plugs into). Each seat has
   its own aim state in `main.aims` (`aim_point(seat)`, right stick = tilt x `REACH`, no assist; owned pads latch
   taps in `main.taps`); other seats' reticles are `view.extra_aims`. The camera frames every local human
   (`frame_points`, `frame_box`), still never rotating; Salvage only runs for one human in 1v1. Credits: the
   CREDITS button in the garage (`Garage.CREDITS`, strings in `i18n.gd`) lists every asset in
   `godot/assets/sounds/LICENSE.txt`; add a line there and in `CREDITS` for any new third-party asset. Look flags:
-  `--seats[=set:team,...]` (e.g. `--seats=sniper:0,tank:0,:1`), `--credits`, `--humans=<1..4>` (extra local humans on pads 1..3, idle). Evidence:
+  `--menu`, `--mode=solo|coop|versus`, `--seats[=set:team,...]` (e.g. `--seats=sniper:0,tank:0,:1`), `--credits`, `--humans=<1..4>` (extra local humans on pads 1..3, idle). Evidence:
   `production/qa/evidence/duel-*-2026-10-31.png`.
 - **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
   and garage restyle on top of it). `hud.gd`: side panel for 1-2 mechs (`side_panel`, Victor 2026-10-30: bottom-left, 176×208, no text: heat and R gauges

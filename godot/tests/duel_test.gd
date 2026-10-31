@@ -3,11 +3,12 @@ extends SceneTree
 const Sim = preload("res://src/sim.gd")
 const Garage = preload("res://src/garage.gd")
 const Seats = preload("res://src/seats.gd")
+const Menu = preload("res://src/menu.gd")
 const Edition = preload("res://src/edition.gd")
 const I18n = preload("res://src/i18n.gd")
 
 const SAVE := "user://loadout.cfg"
-const KEYS := ["fmtLabel", "fmt_1v1", "fmt_ffa", "fmt_2v2", "whoPlayer", "seatsTitle", "seatKb", "seatPad", "seatBot", "seatFree", "seatsHint", "seatsNeed", "creditsBtn", "creditsTitle", "creditsSound", "creditsBack", "creditsKenney", "creditsQuendel", "creditsNocturnal", "seatMine", "seatBuild", "seatTeamA", "seatTeamB"]
+const KEYS := ["fmtLabel", "fmt_1v1", "fmt_ffa", "fmt_2v2", "whoPlayer", "seatsTitle", "seatKb", "seatPad", "seatBot", "seatFree", "seatsHint", "seatsNeed", "creditsBtn", "creditsTitle", "creditsSound", "creditsBack", "creditsKenney", "creditsQuendel", "creditsNocturnal", "seatMine", "seatBuild", "seatTeamA", "seatTeamB", "gameTitle", "menuPick", "menu_solo", "menu_coop", "menu_versus", "menu_garage", "menu_quit", "menuSub_solo", "menuSub_coop", "menuSub_versus", "menuSub_garage", "menuSub_siege", "seatsJoin", "seatsNeed2", "garageDone"]
 
 var failed := 0
 var filter := ""
@@ -19,7 +20,7 @@ func _initialize() -> void:
 	if at >= 0 and at + 1 < args.size():
 		filter = args[at + 1]
 	I18n.setup()
-	await run("the_format_picker_sets_the_format_and_the_match_follows_it", test_picker)
+	await run("the_format_is_picked_on_the_seat_screen_and_the_match_follows_it", test_picker)
 	await run("the_format_is_saved_with_the_loadout", test_saved_format)
 	await run("seats_join_leave_and_start", test_seats)
 	await run("a_seat_picks_a_build_with_keys_pad_and_stick_and_remembers_it", test_build_pick)
@@ -28,7 +29,8 @@ func _initialize() -> void:
 	await run("two_local_humans_read_their_own_pads_and_aim_with_no_assist", test_two_humans)
 	await run("the_camera_frames_every_local_human_and_never_rotates", test_camera)
 	await run("a_full_duel_runs_with_siege_off", test_siege_off)
-	await run("the_siege_button_is_there_only_when_siege_is_on", test_siege_button)
+	await run("the_menu_offers_the_modes_and_siege_only_when_on", test_menu)
+	await run("solo_coop_and_versus_set_the_seats_and_models", test_modes)
 	await run("credits_list_every_licensed_asset_in_both_languages", test_credits)
 	await run("the_steam_preset_turns_siege_off_and_no_uid_is_orphaned", test_files)
 	print("FAILED" if failed else "ALL PASSED")
@@ -93,26 +95,34 @@ func texts(n: Node) -> Array:
 
 
 func test_picker() -> int:
-	var g = Garage.new()
-	root.add_child(g)
-	g.open(Sim.DEFAULT_LOADOUT)
-	await process_frame
-	var bad := ensure(g.format == "1v1", "the garage starts on 1v1")
-	var labels := texts(g.root)
-	bad += ensure(labels.has("1V1") and labels.has("FFA") and labels.has("2V2"), "the three formats are on screen")
-	g.set_format("2v2")
-	bad += ensure(g.format == "2v2" and g.loadout == Sim.DEFAULT_LOADOUT, "picking 2v2 changes the format and keeps the bot")
-	g.set_format("nonsense")
-	bad += ensure(g.format == "2v2", "an unknown format is ignored")
-	g.queue_free()
+	var m = await duel("1v1")
+	m.autopilot = true
+	var bad := 0
 	for fmt in ["ffa", "2v2", "1v1"]:
-		var m = await duel(fmt)
-		m.garage.set_format(fmt)
-		m.garage.go()
+		m.open_seats("solo")
+		m.seats.set_format(fmt)
+		bad += ensure(m.seats.fmt == fmt and m.seats.count == Sim.FORMATS[fmt].size(), "the seat screen picks %s" % fmt)
+		m.seats.go()
 		await physics_frame
-		bad += ensure(m.state.mechs.map(func(x): return x.team) == Sim.FORMATS[fmt], "FIGHT in %s builds the teams %s" % [fmt, Sim.FORMATS[fmt]])
-		m.queue_free()
-		await process_frame
+		bad += ensure(m.format_arg == fmt, "the match takes the picked format")
+		var teams: Array = m.state.mechs.map(func(x): return x.team)
+		var want: Array = [0, 0, 1, 1] if fmt == "2v2" else Sim.FORMATS[fmt]
+		bad += ensure(teams == want, "FIGHT in %s builds the teams %s, got %s" % [fmt, want, teams])
+	m.queue_free()
+	var s = Seats.new()
+	root.add_child(s)
+	s.open(["kb"], "1v1")
+	await process_frame
+	var labels := texts(s.root)
+	bad += ensure(labels.has("1V1") and labels.has("FFA") and labels.has("2V2"), "the three formats are on screen")
+	s._input(key(KEY_TAB))
+	bad += ensure(s.fmt == "ffa", "Tab goes to the next format")
+	s._input(joy(JOY_BUTTON_LEFT_SHOULDER, 0))
+	bad += ensure(s.fmt == "1v1", "LB goes back one")
+	s.set_format("nonsense")
+	bad += ensure(s.fmt == "1v1", "an unknown format is ignored")
+	s.queue_free()
+	await process_frame
 	return int(bad > 0)
 
 
@@ -248,19 +258,87 @@ func test_siege_off() -> int:
 	return int(bad > 0)
 
 
-func test_siege_button() -> int:
-	var on = Garage.new()
-	root.add_child(on)
-	on.open(Sim.DEFAULT_LOADOUT)
-	var bad := ensure(texts(on.root).has(on.tr("siegeBtn")), "with siege on the garage has the CORE SIEGE button")
-	on.queue_free()
+func test_menu() -> int:
+	var menu = Menu.new()
+	root.add_child(menu)
+	var got := []
+	menu.picked.connect(func(m): got.append(m))
+	menu.open()
+	await process_frame
+	var labels := texts(menu.root)
+	var bad := 0
+	for k in ["menu_solo", "menu_coop", "menu_versus", "menu_garage", "siegeBtn"]:
+		bad += ensure(labels.has(menu.tr(k)), "with siege on the menu has " + k)
+	bad += ensure(not labels.any(func(t): return t.to_upper().contains("ONLINE")), "there is no ONLINE button")
+	menu.buttons[2].pressed.emit()
+	bad += ensure(got == ["versus"] and not menu.visible, "a click picks the mode and hides the menu")
 	Edition.siege = false
-	var off = Garage.new()
-	root.add_child(off)
-	off.open(Sim.DEFAULT_LOADOUT)
-	bad += ensure(not texts(off.root).has(off.tr("siegeBtn")) and texts(off.root).has("2V2"), "with siege off it is gone and the picker stays")
-	off.queue_free()
+	menu.open()
+	await process_frame
+	labels = texts(menu.root)
+	bad += ensure(not labels.has(menu.tr("siegeBtn")) and labels.has(menu.tr("menu_solo")) and menu.buttons.size() == 5, "with siege off the siege entry is gone")
 	Edition.siege = true
+	menu.queue_free()
+	var m = await duel("1v1")
+	m.autopilot = true
+	m.to_menu()
+	m.menu.buttons[3].pressed.emit()
+	bad += ensure(m.garage.visible and not m.menu.visible, "GARAGE opens the garage")
+	m.garage.go()
+	await physics_frame
+	m.to_menu()
+	m.menu.buttons[0].pressed.emit()
+	bad += ensure(m.seats.visible and m.seats.mode == "solo" and not m.menu.visible, "SOLO opens the seat screen")
+	m.seats._input(key(KEY_ESCAPE))
+	bad += ensure(m.menu.visible and not m.seats.visible, "Esc on the seat screen goes back to the menu")
+	m.queue_free()
+	await process_frame
+	return int(bad > 0)
+
+
+func test_modes() -> int:
+	var m = await duel("1v1")
+	m.autopilot = true
+	var bad := 0
+	m.open_seats("solo")
+	var s = m.seats
+	bad += ensure(s.list == ["kb"] and s.cap() == 1, "solo seats one human")
+	s.join(3)
+	bad += ensure(s.list == ["kb"], "and nobody else can join")
+	bad += ensure(s.bots.size() == 4 and s.views[1].visible and s.views[0].visible and not s.views[2].visible, "models for the human and the bot, none for a closed slot")
+	var before: String = s.shown[0]
+	s.cycle("kb", 1)
+	bad += ensure(s.shown[0] != before, "changing the build updates the model")
+	s.set_format("ffa")
+	bad += ensure(s.views[3].visible and s.shown[3] != "", "in ffa all four cards have a model")
+	m.open_seats("coop")
+	bad += ensure(s.fmt == "2v2" and s.formats() == ["2v2"], "co-op is 2v2 only")
+	s.set_format("ffa")
+	bad += ensure(s.fmt == "2v2", "co-op refuses other formats")
+	s.join(3)
+	s.join(4)
+	bad += ensure(s.list == ["kb", 3] and s.picks["kb"].team == 0 and s.picks[3].team == 0, "co-op seats two humans, both on team A")
+	s.set_team(3, 1)
+	bad += ensure(s.picks[3].team == 0, "and they cannot switch")
+	s.go()
+	await physics_frame
+	bad += ensure(m.state.mechs.map(func(x): return x.team) == [0, 0, 1, 1] and m.locals == ["kb", 3], "co-op: both humans on one team against two bots")
+	m.open_seats("versus")
+	var sent := []
+	s.confirmed.connect(func(l, p): sent.append(l))
+	s.go()
+	bad += ensure(sent.is_empty() and s.warn == "seatsNeed2" and s.visible, "versus will not start with one human")
+	s.join(3)
+	bad += ensure(s.picks["kb"].team != s.picks[3].team, "versus splits the humans between teams")
+	s.set_format("ffa")
+	s.join(4)
+	s.join(5)
+	s.set_format("1v1")
+	bad += ensure(s.list == ["kb", 3], "going back to 1v1 keeps the first two humans")
+	s.go()
+	await physics_frame
+	bad += ensure(sent == [["kb", 3]] and m.state.mechs.size() == 2 and m.locals == ["kb", 3], "versus 1v1 with two humans starts")
+	m.queue_free()
 	await process_frame
 	return int(bad > 0)
 
