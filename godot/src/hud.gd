@@ -40,9 +40,9 @@ const READOUT := {
 const WALLET := ["kit", "coolant", "surge", "reinforce", "revive"]
 const TIER_ROWS := ["left", "right", "head", "arms", "legs", "booster", "core"]
 const A := Look.ARCADE
-const BAR := Vector2(580, 180)
-const GROUPS := [["larm", "barLarm", ["left"]], ["head", "barHead", ["hook"]], ["core", "barCore", ["shield", "ult"]], ["rarm", "barRarm", ["right"]], ["legs", "barLegs", ["dash"]]]
-const BOT := [["head", Rect2(18, 2, 17, 14)], ["core", Rect2(13, 20, 26, 34)], ["larm", Rect2(1, 22, 10, 36)], ["rarm", Rect2(42, 22, 10, 36)], ["legs", Rect2(14, 58, 11, 38)], ["legs", Rect2(28, 58, 11, 38)]]
+const STRIP := Vector2(262, 44)
+const STRIP_GAP := 8.0
+const STRIP_BOT := 0.66
 const SIDE := Vector2(176, 208)
 const DIAGRAM := [["head", Rect2(40, 0, 36, 24)], ["larm", Rect2(6, 28, 22, 56)], ["rarm", Rect2(88, 28, 22, 56)], ["legs", Rect2(33, 72, 22, 56)], ["legs", Rect2(61, 72, 22, 56)]]
 const MINI := [["head", Rect2(23, 0, 14, 10)], ["larm", Rect2(9, 12, 8, 24)], ["rarm", Rect2(43, 12, 8, 24)], ["legs", Rect2(20, 30, 9, 22)], ["legs", Rect2(31, 30, 9, 22)]]
@@ -336,154 +336,69 @@ func mech_name(i: int) -> String:
 	return tr("nameMech%d" % mini(i, 3))
 
 
+func seat_pad(i: int) -> bool:
+	var p := get_parent()
+	if p != null and "aims" in p and i < p.aims.size():
+		return p.aims[i].on_pad
+	return pad and i == 0
+
+
+func cap(i: int, key: String) -> String:
+	if i >= humans:
+		return ""
+	return tr(KEYS[key][1 if seat_pad(i) else 0])
+
+
+func strip_rects(size: Vector2, n: int) -> Array:
+	var g := STRIP_GAP
+	var spots := [Vector2(g, size.y - g - STRIP.y), Vector2(size.x - g - STRIP.x, size.y - g - STRIP.y), Vector2(g, g), Vector2(size.x - g - STRIP.x, g)]
+	return spots.slice(0, n).map(func(p): return Rect2(p, STRIP))
+
+
 func skill_bars(size: Vector2) -> void:
 	var ms: Array = state.mechs
-	if ms.size() <= 2:
+	if ms.size() <= 2 and humans < 2:
 		side_panel(ms[0], Vector2(16, size.y - 16 - SIDE.y))
 		return
-	var k := 0.7
-	var w := BAR.x * k
-	var h := BAR.y * k
-	var spots := [Vector2(16, size.y - 16 - h), Vector2(size.x - 16 - w, size.y - 16 - h), Vector2(16, 16), Vector2(size.x - 16 - w, 16)]
-	for i in ms.size():
-		skill_bar(ms[i], spots[i], k, i == 0)
+	var rects := strip_rects(size, ms.size())
+	for i in rects.size():
+		strip(ms[i], rects[i], i)
 
 
-func skill_bar(m: Dictionary, at: Vector2, k: float, mine: bool) -> void:
+func meter(r: Rect2, f: float, c: Color) -> void:
+	poly(rect_poly(r), A.track)
+	poly(rect_poly(Rect2(r.position, Vector2(r.size.x * clampf(f, 0.0, 1.0), r.size.y))), c)
+
+
+func strip(m: Dictionary, r: Rect2, seat: int) -> void:
 	var t: Color = A.team[m.team]
+	var w := r.size.x
+	var h := r.size.y
 	fade = 0.4 if m.ko else 1.0
-	canvas.draw_set_transform(at, 0.0, Vector2(k, k))
-	poly(cut(Rect2(Vector2.ZERO, BAR), 18), Color(A.panel, 0.94))
-	poly(PackedVector2Array([Vector2(18, 0), Vector2(BAR.x, 0), Vector2(BAR.x, 4), Vector2(14, 4)]), t)
+	canvas.draw_set_transform(r.position)
+	poly(PackedVector2Array([Vector2(8, 0), Vector2(w, 0), Vector2(w, h - 8), Vector2(w - 8, h), Vector2(0, h), Vector2(0, 8)]), Color(A.panel, 0.94))
+	poly(rect_poly(Rect2(8, 0, w - 8, 2)), t)
+	var o := Vector2(7, 7)
+	poly(rect_poly(Rect2(o + Vector2(19, 12) * STRIP_BOT, Vector2(22, 16) * STRIP_BOT)), A.core)
+	for b in MINI:
+		var br: Rect2 = b[1]
+		part_block(m, b[0], Rect2(o + br.position * STRIP_BOT, br.size * STRIP_BOT), 0.0)
 	var nm := mech_name(m.id).to_upper()
-	var pw := heavy.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 28.0
-	poly(slant(Rect2(16, 14, pw, 24), -12), t)
-	txt(nm, Vector2(16, 32), 16, A.ground, HORIZONTAL_ALIGNMENT_CENTER, pw, heavy)
-	txt(tr("whoYou") if m.id == 0 else tr("whoPlayer" if m.id < humans else "whoBot").format({"n": m.id + 1}), Vector2(16 + pw + 10, 31), 11, A.dim)
-	robot(m)
-	var x := 83.0
-	for g in GROUPS:
-		x += group(m, g, x, mine) + 14.0
+	poly(slant(Rect2(50, 5, 76, 13), -14), t)
+	txt(nm, Vector2(50, 15.5), fit(nm, heavy, 11, 62.0), A.ground, HORIZONTAL_ALIGNMENT_CENTER, 76.0, heavy)
+	icon("heat", Vector2(136, 11.5), 0.3, A.heat_text)
+	meter(Rect2(142, 9, 44, 5), m.heat / float(Sim.HEAT.max), A.heat)
+	icon("ult", Vector2(197, 11.5), 0.3, A.surge_text)
+	meter(Rect2(204, 9, 44, 5), m.surge / float(Sim.SURGE.max), A.surge)
+	for i in SLOT_KEYS.size():
+		slot(m, SLOT_KEYS[i], Rect2(50.0 + i * 34.0, 20, 32, 22), cap(seat, SLOT_KEYS[i]))
 	if m.ko:
 		fade = 1.0
-		canvas.draw_set_transform(at + Vector2(BAR.x * 0.72, BAR.y * 0.42) * k, deg_to_rad(-4), Vector2(k, k))
-		canvas.draw_rect(Rect2(-50, -20, 100, 40), A.danger)
-		txt(tr("ko"), Vector2(-50, 8), 22, A.ground, HORIZONTAL_ALIGNMENT_CENTER, 100.0, heavy)
+		canvas.draw_set_transform(r.position + Vector2(w * 0.5, h * 0.5), deg_to_rad(-4))
+		canvas.draw_rect(Rect2(-26, -8, 52, 16), A.danger)
+		txt(tr("ko"), Vector2(-26, 5), 13, A.ground, HORIZONTAL_ALIGNMENT_CENTER, 52.0, heavy)
 	canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
 	fade = 1.0
-
-
-func robot(m: Dictionary) -> void:
-	for b in BOT:
-		var part: String = b[0]
-		var r: Rect2 = b[1]
-		r.position += Vector2(16, 52)
-		var shape := cut(r, 3)
-		if part == "core":
-			poly(shape, A.core)
-		elif m.armor[part] <= 0 and part != "head":
-			stripes(shape, r, A.danger, A.jam_dark, 8.0, -r.size.y)
-		else:
-			poly(shape, A.line if m.armor[part] <= 0 else tone(m.armor[part] / float(m.max[part])))
-
-
-func group(m: Dictionary, g: Array, x: float, mine: bool) -> float:
-	var part: String = g[0]
-	var keys: Array = g[2]
-	var w := 84.0 if part == "legs" else 64.0 * keys.size() + 8.0 * (keys.size() - 1)
-	var status: String
-	var sc := Color.WHITE
-	if part == "core":
-		status = tr("heatN").format({"n": roundi(m.heat)})
-		sc = A.heat_text
-	elif m.armor[part] <= 0 and part != "head":
-		status = tr("jam")
-		sc = A.jam_text
-	else:
-		status = str(ceili(100.0 * maxf(0.0, m.armor[part]) / m.max[part]))
-		sc = tone(maxf(0.0, m.armor[part]) / float(m.max[part]))
-	txt(tr(g[1]), Vector2(x, 60), 11, A.dim)
-	txt(status, Vector2(x, 62), 15, sc, HORIZONTAL_ALIGNMENT_RIGHT, w, heavy)
-	for i in keys.size():
-		key_cap(m, keys[i], Vector2(x + i * 72.0, 70), mine)
-	return w
-
-
-func key_cap(m: Dictionary, key: String, at: Vector2, mine: bool) -> void:
-	var r := Rect2(at, Vector2(84 if key == "dash" else 64, 64))
-	var kn := tr(KEYS[key][1 if pad and mine else 0])
-	var cd: float = m.cd.get(key, 0.0)
-	var jam: bool = Sim.ARM_OF.has(key) and Sim.jammed(m, Sim.ARM_OF[key])
-	var bg: Color = A.team[m.team]
-	var ink: Color = A.ground
-	var big := kn
-	var small := ""
-	var small_c := Color(0, 0, 0, 0)
-	var name := ""
-	var lit := false
-	var fill := 0.0
-	var pips := 0
-	match key:
-		"left", "right":
-			name = tr("p_" + m.loadout[key])
-		"shield":
-			name = tr("slotShield")
-			lit = Sim.shield_up(m)
-		"hook":
-			var sk := Sim.e_skill(m)
-			if sk == "":
-				poly(cut(r, 10), Color(A.raised, 0.4))
-				return
-			name = tr("e_" + sk)
-			lit = Sim.e_active(m)
-		"dash":
-			name = tr("p_" + m.loadout.booster)
-			pips = Sim.charges(m.loadout)
-			cd = 0.0 if m.dashes > 0 else 1.0
-			big = ""
-			small = kn
-		"ult":
-			name = tr("u_" + Sim.ult_of(m.loadout))
-			cd = 0.0
-			var ready: bool = m.surge >= Sim.SURGE.max
-			bg = A.surge if ready else A.raised
-			ink = A.ground if ready else Color.WHITE
-			if not ready:
-				fill = m.surge / float(Sim.SURGE.max)
-				small = str(int(m.surge))
-				small_c = A.surge_text
-	if cd > 0.0 and key != "ult":
-		bg = A.line
-		ink = A.jam_text if jam else Color.WHITE
-		if key != "dash":
-			big = "%.1f" % (cd / Sim.TICKS)
-			small = kn
-	if jam:
-		small = (small + " " if small != "" else "") + "×2"
-		small_c = A.jam_text if cd > 0.0 else A.ground
-	elif small_c.a == 0.0:
-		small_c = ink
-	var shape := cut(r, 10)
-	poly(shape, bg)
-	if fill > 0.0:
-		var f := Rect2(r.position.x, r.end.y - r.size.y * fill, r.size.x, r.size.y * fill)
-		for p in Geometry2D.intersect_polygons(rect_poly(f), shape):
-			poly(p, Color(A.surge, 0.45))
-	if jam:
-		for p in Geometry2D.intersect_polygons(rect_poly(Rect2(r.position.x, r.end.y - 4, r.size.x, 4)), shape):
-			poly(p, A.danger)
-	if lit:
-		canvas.draw_polyline(shape + PackedVector2Array([shape[0]]), ac(Color.WHITE), 2.0, true)
-	if key == "dash":
-		txt(small, Vector2(r.position.x, r.position.y + 29), 12, ink, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
-		for i in pips:
-			var px := r.position.x + r.size.x / 2.0 + (i - (pips - 1) / 2.0) * 15.0 - 5.0
-			canvas.draw_rect(Rect2(px, r.position.y + 36, 10, 10), ac(Color(A.ground, 1.0 if i < m.dashes else 0.3)))
-	else:
-		if small != "":
-			txt(small, r.position + Vector2(6, 14), 10, small_c)
-		txt(big, Vector2(r.position.x, r.position.y + 40), fit(big, heavy, 24, r.size.x - 8.0), ink, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, heavy)
-	txt(name, Vector2(r.position.x - 8, r.end.y + 15), fit(name, label_f, 11, r.size.x + 14.0), A.soft, HORIZONTAL_ALIGNMENT_CENTER, r.size.x + 16.0)
 
 
 func top_bar(size: Vector2) -> void:
@@ -503,7 +418,8 @@ func top_bar(size: Vector2) -> void:
 			for i in n:
 				var px := r.end.x - 24 - 11 - (n - 1 - i) * 16.0 if side == 0 else r.position.x + 24 + i * 16.0
 				canvas.draw_rect(Rect2(px, 38, 11, 20), Color(A.ground, 1.0 if state.score[ms[side].team] > i else 0.25))
-		rival_bot(ms[1], Vector2(cx + 356.0, 18.0))
+		if humans < 2:
+			rival_bot(ms[1], Vector2(cx + 356.0, 18.0))
 	else:
 		for side in 2:
 			var teams := [0, 2] if side == 0 else [1, 3]
@@ -582,7 +498,7 @@ func side_panel(m: Dictionary, at: Vector2) -> void:
 	fade = 1.0
 
 
-func slot(m: Dictionary, key: String, r: Rect2) -> void:
+func slot(m: Dictionary, key: String, r: Rect2, label := "") -> void:
 	var cd: float = m.cd.get(key, 0.0)
 	var id := "%d%s" % [m.id, key]
 	if cd > cd_peak.get(id, 0.0):
@@ -623,7 +539,7 @@ func slot(m: Dictionary, key: String, r: Rect2) -> void:
 				bg = A.surge
 			else:
 				fill = m.surge / float(Sim.SURGE.max)
-			ink = A.ground
+			ink = A.ground if ready or label == "" else A.soft
 	if cd > 0.0 and key != "ult":
 		bg = A.line if key == "left" or key == "right" else A.track
 		ink = Color.WHITE if key == "left" or key == "right" else A.soft
@@ -640,9 +556,15 @@ func slot(m: Dictionary, key: String, r: Rect2) -> void:
 			stripes(p, jr, A.danger, A.jam_dark, 4.0, 6.0)
 	if lit:
 		canvas.draw_polyline(shape + PackedVector2Array([shape[0]]), ac(Color.WHITE), 1.5, true)
-	icon(kind, Vector2(r.get_center().x, r.position.y + (12.5 if key == "dash" else 15.5)), 0.6, ink)
+	var px := r.position.x + 3.0
+	if label != "":
+		var base := 11.0 if key == "dash" else r.size.y / 2.0 + 4.0
+		txt(label, Vector2(r.position.x, r.position.y + base), fit(label, heavy, 11, r.size.x - 4.0), ink, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, heavy)
+		px = r.get_center().x - (pips * 7.0 - 2.0) / 2.0
+	else:
+		icon(kind, Vector2(r.get_center().x, r.position.y + (12.5 if key == "dash" else 15.5)), 0.6, ink)
 	for i in pips:
-		canvas.draw_rect(Rect2(r.position.x + 3.0 + i * 7.0, r.position.y + 23, 5, 5), ac(A.hazard if i < m.dashes else A.panel))
+		canvas.draw_rect(Rect2(px + i * 7.0, r.end.y - 9.0, 5, 5), ac(A.hazard if i < m.dashes else A.panel))
 
 
 func ring(c: Vector2, rad: float) -> PackedVector2Array:

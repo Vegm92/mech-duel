@@ -19,6 +19,8 @@ func _initialize() -> void:
 	await run("pause_shows_three_slabs_and_five_sliders_only_while_paused", test_pause)
 	await run("a_round_win_is_remembered_for_the_match_over_list", test_rounds)
 	await run("an_ffa_match_runs_and_draws_four_bars", test_ffa)
+	await run("player_strips_hug_the_top_and_bottom_edges_and_stay_small", test_strips)
+	await run("each_seat_shows_its_own_device_labels_and_bots_show_none", test_labels)
 	await run("each_wheel_sells_only_its_own_things_and_dims_what_the_fund_cannot_pay", test_wheels)
 	await run("a_four_player_siege_shows_allies_and_keeps_its_arrows_clear_of_the_hud", test_siege)
 	print("FAILED" if failed else "ALL PASSED")
@@ -52,6 +54,77 @@ func start(seed: int, fmt := "1v1"):
 	root.add_child(m)
 	await process_frame
 	return m
+
+
+func start_humans(fmt: String, n: int):
+	var m = load("res://main.tscn").instantiate()
+	m.autopilot = true
+	m.seed_arg = 3
+	m.format_arg = fmt
+	m.humans_arg = n
+	root.add_child(m)
+	await process_frame
+	await process_frame
+	return m
+
+
+func test_strips() -> int:
+	var hud = load("res://src/hud.gd").new()
+	var old_area := 580.0 * 0.7 * 180.0 * 0.7
+	var band := 72.0
+	var bad := 0
+	for size in [Vector2(1280, 720), Vector2(1920, 1080)]:
+		var cx: float = size.x / 2.0
+		var clock := Rect2(cx - 210.0, 0, 420, 90)
+		for n in [2, 3, 4]:
+			var rects: Array = hud.strip_rects(size, n)
+			var area := 0.0
+			bad += ensure(rects.size() == n, "%d strips for %d mechs" % [rects.size(), n])
+			for i in rects.size():
+				var r: Rect2 = rects[i]
+				area += r.get_area()
+				bad += ensure(r.end.y <= band or r.position.y >= size.y - band, "strip %d of %d hugs the top or bottom edge at %s" % [i, n, size])
+				bad += ensure(Rect2(Vector2.ZERO, size).encloses(r), "strip %d stays on screen at %s" % [i, size])
+				bad += ensure(not r.intersects(clock), "strip %d keeps clear of the clock and score at %s" % [i, size])
+				for j in i:
+					bad += ensure(not r.intersects(rects[j]), "strips %d and %d do not overlap" % [i, j])
+			bad += ensure(area <= 0.25 * old_area * n, "%d strips take %d px, at most a quarter of the old %d" % [n, area, 0.25 * old_area * n])
+	hud.free()
+	var m = await start_humans("ffa", 4)
+	for i in 4:
+		m._physics_process(1.0 / Sim.TICKS)
+	await process_frame
+	bad += ensure(m.state.mechs.size() == 4 and m.hud.humans == 4, "four humans in an FFA")
+	m.queue_free()
+	return bad
+
+
+func test_labels() -> int:
+	var m = await start_humans("ffa", 3)
+	TranslationServer.set_locale("en")
+	var hud = m.hud
+	hud.humans = 3
+	var bad := ensure(m.locals == ["kb", 1, 2], "seats are the keyboard and two pads, got %s" % [m.locals])
+	var keyboard := {"left": "LMB", "right": "RMB", "shield": "Q", "hook": "E", "dash": "SPACE", "ult": "R"}
+	var gamepad := {"left": "LT", "right": "RT", "shield": "RB", "hook": "L3", "dash": "LB", "ult": "R3"}
+	for k in keyboard:
+		bad += ensure(hud.cap(0, k) == keyboard[k], "keyboard seat %s reads %s, got %s" % [k, keyboard[k], hud.cap(0, k)])
+		for seat in [1, 2]:
+			bad += ensure(hud.cap(seat, k) == gamepad[k], "pad seat %d %s reads %s, got %s" % [seat, k, gamepad[k], hud.cap(seat, k)])
+		bad += ensure(hud.cap(3, k) == "", "the bot has no label for %s" % k)
+	m.aims[0].on_pad = true
+	bad += ensure(hud.cap(0, "left") == "LT", "the keyboard seat shows pad names once its owner picks up a pad")
+	m.aims[0].on_pad = false
+	TranslationServer.set_locale("es")
+	bad += ensure(hud.cap(0, "left") == "CLIC I" and hud.cap(1, "left") == "LT", "labels follow the language, pad names stay")
+	TranslationServer.set_locale("en")
+	m.queue_free()
+	var duo = await start_humans("1v1", 2)
+	for i in 3:
+		await process_frame
+	bad += ensure(duo.hud.humans == 2 and duo.hud.cap(1, "dash") == "LB", "a two-human 1v1 labels both seats")
+	duo.queue_free()
+	return bad
 
 
 func start_siege(n: int):
