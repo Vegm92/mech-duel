@@ -29,6 +29,7 @@ $G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-ru
 $G --headless --path godot -s res://tests/progress_test.gd     # Salvage: owned parts, claims, levels, rival ladder, save file
 $G --headless --path godot -s res://tests/hud_test.gd          # Arcade HUD: strings, palette, pause, round list, FFA
 $G --headless --path godot -s res://tests/siege_rules_test.gd  # Core Siege: own golden hash, waves, gates, core rings, repair, respawn
+$G --headless --path godot -s res://tests/duel_test.gd         # duel edition: format picker, seats, camera, siege off, credits, Steam preset
 $G --path godot -- --siege --team=2 --wave=6                    # Core Siege (co-op wave defense), from wave 6
 $G --path godot -- --replay=0 --seed=1                          # watch a kill cam right away (bots fight to the first K.O.)
 ```
@@ -48,6 +49,8 @@ $P = "$R\godot"
 & $G --headless --path $P -s res://tests/hype_test.gd           # crowd tests
 & $G --headless --path $P -s res://tests/killcam_test.gd        # kill cam tests
 & $G --headless --path $P -s res://tests/progress_test.gd       # Salvage tests
+& $G --headless --path $P -s res://tests/duel_test.gd           # duel edition tests
+& $G --path $P -- --no-siege                                    # play the Steam edition (siege off)
 & $G --path $P -- --unlock-all                                  # dev mode: every part open, nothing saved
 & $G --path $P -- --replay=0 --seed=1                           # watch a kill cam right away
 & $G --path $P --resolution 1920x1080 -s "$R\tools\perf_probe.gd" -- --autopilot --seed=3   # speed: one PERF line after ~40 s
@@ -333,6 +336,26 @@ $P = "$R\godot"
   core stops all of it. Plasma and petals are `Look.neon` (light-only), so the scene lights never wash them out.
   Evidence: `production/qa/evidence/core-petals-{full,one-ring-down,critical,repairing,lost}-2026-10-30.png`
   (`--siege --autopilot --seed=3 --lang=en --at=<tick> --core=<pct>`; repairing needs `--team=2`, an ally repairs it).
+- **Duel edition** (Victor 2026-10-31: "pick duel mode up to 4 players, local or online. Don't delete the
+  wave defense, but make sure we have a standalone for the duels"). `edition.gd` `Edition.siege` is on unless
+  the export feature tag `steam` is set (second preset "Mech Duel (Steam)" in `export_presets.cfg`, which also
+  leaves `src/siege*.gd`, `radial.gd` and `core_siege.glb` out); `--no-siege` turns it off in a normal run.
+  Off: no CORE SIEGE button, `--siege` ignored, and `main.gd` / `hud.gd` never `load` the siege scripts (they
+  are plain vars filled in only when siege is on). **Format picker:** 1V1 / FFA / 2V2 buttons in the garage
+  header (`garage.format`, from `Sim.FORMATS`), saved as `[garage] format` in `user://loadout.cfg`; `--format=`
+  still overrides. **Seats:** FIGHT opens `seats.gd` (join screen); `main.locals` lists the humans in join order
+  (`"kb"` = keyboard + mouse, an int = that gamepad's device id), human `i` drives mech `i`, every other mech
+  is a bot. Keyboard seat also takes any gamepad no seat owns (so the old one-player pad play still works).
+  A pad joins with A, leaves with B, Start / Enter fights, Space toggles the keyboard, Esc goes back; FIGHT
+  from a pad pre-seats that pad instead of the keyboard. `player_input(seat)` is the one place a seat becomes
+  an input dictionary, and `Sim.step` gets one per mech per tick (the seam netcode plugs into). Each seat has
+  its own aim state in `main.aims` (`aim_point(seat)`, right stick = tilt x `REACH`, no assist; owned pads latch
+  taps in `main.taps`); other seats' reticles are `view.extra_aims`. The camera frames every local human
+  (`frame_points`, `frame_box`), still never rotating; Salvage only runs for one human in 1v1. Credits: the
+  CREDITS button in the garage (`Garage.CREDITS`, strings in `i18n.gd`) lists every asset in
+  `godot/assets/sounds/LICENSE.txt`; add a line there and in `CREDITS` for any new third-party asset. Look flags:
+  `--seats`, `--credits`, `--humans=<1..4>` (extra local humans on pads 1..3, idle). Evidence:
+  `production/qa/evidence/duel-*-2026-10-31.png`.
 - **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
   and garage restyle on top of it). `hud.gd`: side panel for 1-2 mechs (`side_panel`, Victor 2026-10-30: bottom-left, 176×208, no text: heat and R gauges
   around a robot diagram where every part is a health bar (`part_block`: green > 75%, yellow, orange, red,
