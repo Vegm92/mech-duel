@@ -28,6 +28,7 @@ func _initialize() -> void:
 	await run("in_2v2_humans_pick_teams_and_bots_fill_to_two_against_two", test_teams)
 	await run("two_local_humans_read_their_own_pads_and_aim_with_no_assist", test_two_humans)
 	await run("the_camera_frames_every_local_human_and_never_rotates", test_camera)
+	await run("the_camera_frames_the_living_foe_not_a_dead_mech_1", test_camera_follows_the_living)
 	await run("a_full_duel_runs_with_siege_off", test_siege_off)
 	await run("the_menu_offers_the_modes_and_siege_only_when_on", test_menu)
 	await run("solo_coop_and_versus_set_the_seats_and_models", test_modes)
@@ -224,6 +225,29 @@ func test_camera() -> int:
 	bad += ensure(solo.frame_points().size() == 2, "a lone human still keeps the rival in frame")
 	solo.queue_free()
 	await process_frame
+	return int(bad > 0)
+
+
+func test_camera_follows_the_living() -> int:
+	var bad := 0
+	for fmt in ["ffa", "2v2"]:
+		var m = await duel(fmt, ["kb"])
+		var teams := [0, 1, 0, 1] if fmt == "2v2" else [0, 1, 2, 3]
+		var xs := [20.0, 24.0, 28.0, 90.0]
+		for i in 4:
+			m.state.mechs[i].team = teams[i]
+			m.state.mechs[i].x = xs[i]
+			m.state.mechs[i].y = 30.0
+		m.state.mechs[1].ko = true
+		if fmt == "ffa":
+			m.state.mechs[2].ko = true
+		var pts: Array = m.frame_points()
+		bad += ensure(pts.has(Vector3(90, 0, 30)), fmt + ": the last living foe is framed")
+		bad += ensure(not pts.has(Vector3(24, 0, 30)), fmt + ": the dead mech 1 is not framed")
+		m.state.mechs[3].ko = true
+		bad += ensure(m.frame_points() == [Vector3(20, 0, 30)], fmt + ": no foe alive frames only the human")
+		m.queue_free()
+		await process_frame
 	return int(bad > 0)
 
 
