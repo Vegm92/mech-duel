@@ -23,7 +23,7 @@ G=/c/Users/victo/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
 $G --path godot                                                # play
 $G --headless --path godot -s res://tests/sim_rules_test.gd     # sim tests (golden hash, determinism, FFA)
 $G --headless --path godot -s res://tests/garage_parts_test.gd  # parts build alone; garage clicks; match -> garage flow; gamepad in match + garage
-$G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon has a sound, banks load, synth + music bake, volume settings, radio stations (N)
+$G --headless --path godot -s res://tests/sound_test.gd        # every fx/weapon has a sound, banks load, synth bake, volume settings, no music duck, radio (random start, songs, N / Shift+N, card)
 $G --headless --path godot -s res://tests/hype_test.gd         # crowd hype and crowd sounds
 $G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-run lands on the same K.O., one smooth move, pillars, match flow, skip
 $G --headless --path godot -s res://tests/progress_test.gd     # Salvage: owned parts, claims, levels, rival ladder, save file
@@ -531,10 +531,10 @@ $P = "$R\godot"
   event spot (camera = listener), events without a spot and menus use the flat pool. Also: per-mech
   hover/tread hums + footsteps (`LOOPS`, `STEPS`), overheat / cooled / low-head alarms, shield up
   and shield block (watched from `m.act`, not fx), K.O. slow-mo via
-  `AudioServer.playback_speed_scale`. Music = the JS procedural loop baked into 3 stems of one
-  `AudioStreamSynchronized` (calm in garage/pause, + bass in countdown, + drums in a fight).
-  Buses (`Sfx.buses()`, code-built): Master (compressor + limiter) ← SFX, Env, Crowd, Music (ducked
-  by SFX through a side-chain compressor). Pause menu sliders + M mute + N music, saved in
+  `AudioServer.playback_speed_scale`. Music = the radio (`src/radio.gd`): random station at launch,
+  songs one at a time in shuffled order, N = next song, Shift+N = next station, now-playing card bottom-left beside the mech panel (fades after 10 s).
+  Buses (`Sfx.buses()`, code-built): Master (compressor + limiter) ← SFX, Env, Crowd, Music (no
+  duck: game sounds never lower the music). Pause menu sliders + M mute + N radio, saved in
   `user://settings.cfg`. A new weapon or fx kind needs a `RECIPES` row, or `sound_test` fails.
   Not checked by ear (Claude can't hear). Evidence: `godot-sound-pause-sliders-{english,spanish}-2026-10-27.png`.
 - Guns are `godot/assets/models/guns.glb` (one object per gun id, +X = barrel), made in Blender

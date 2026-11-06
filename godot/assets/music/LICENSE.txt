@@ -1,20 +1,56 @@
-Radio music (src/radio.gd). Licenses checked on each source page, 2026-10-31.
+Radio music (src/radio.gd). Licenses checked on each track's own page, 2026-10-31.
+Only CC0 and CC BY. Every line under "Credits" must appear on the credits screen and/or store page.
 
-ACID FM
-- acid_trance.mp3: "Acid Trance" by Shane Ivers, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
-  Required credit: Music: Acid Trance by Shane Ivers - https://www.silvermansound.com
-  Source: https://www.silvermansound.com/free-music/acid-trance
-  Not allowed: selling or sharing the song on its own, Content ID registration.
-- dirty_acid.mp3: "Diryt Acid" by Bogart VGM, CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/).
-  Required credit (credit + link asked by the author): Music: Dirty Acid by Bogart VGM - https://www.facebook.com/BogartVGM/
-  Source: https://opengameart.org/node/109002
+Never register any of these tracks with Content ID (YouTube, Facebook, Twitch, ...), never sell or
+share them as standalone audio, never sublicense them. (Shane Ivers' terms say so explicitly; it is
+safest for all of them.)
 
-TECHNO 7
-- techno_1.mp3 .. techno_7.mp3: "Techno", "Techno_2" .. "Techno_7" by Pro Sensory, CC0.
-  Source: https://opengameart.org/content/electronic
+CREDITS (required, CC BY)
 
-DEEP DUB
-- algate.wav, algate_no_kick.wav, algate_bass.wav, algate_low.wav: "Algate" dub techno loop pack, CC0.
-  Source: https://opengameart.org/content/algate
+Kevin MacLeod, CC BY 4.0 (one line per track, wording from incompetech.com):
+  "Ethernight Club" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Raving Energy" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Special Spotlight" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Laserpack" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Presenterator" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Deep and Dirty" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "EDM Detection Mode" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Brain Dance" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Misuse" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "The Lift" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Cut Trance" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Beauty Flow" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Intuit" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Limit 70" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Hypnothis" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Babylon" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Equatorial Complex" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Severe Tire Damage" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
+  "Half Mystery" Kevin MacLeod (incompetech.com) Licensed under Creative Commons: By Attribution 4.0 License http://creativecommons.org/licenses/by/4.0/
 
-Credits screen / store page must carry the two required credit lines above.
+Shane Ivers, CC BY 4.0 (https://www.silvermansound.com):
+  Music: Acid Trance by Shane Ivers - https://www.silvermansound.com
+  Music: DriftMaster by Shane Ivers - https://www.silvermansound.com
+  Music: Nightchaser by Shane Ivers - https://www.silvermansound.com
+  Music: Pulsar by Shane Ivers - https://www.silvermansound.com
+  Music: Posteriosis by Shane Ivers - https://www.silvermansound.com
+  Music: Spacedman by Shane Ivers - https://www.silvermansound.com
+  Music: Synapse by Shane Ivers - https://www.silvermansound.com
+
+Others:
+  Music: Dirty Acid by Bogart VGM - https://www.facebook.com/BogartVGM/ (CC BY 3.0, https://opengameart.org/node/109002)
+  Music: Private Party by Fato Shadow (CC BY 4.0, https://opengameart.org/content/private-party-edm-disco)
+  Music: Cybermatic Pulse by Alexandr Zhelanov - https://soundcloud.com/alexandr-zhelanov (CC BY 4.0, https://opengameart.org/content/cybermatic-pulse)
+  Music: Industria, Fly by Alexandr Zhelanov - https://soundcloud.com/alexandr-zhelanov (CC BY 3.0, https://opengameart.org/content/techno-space)
+  Music: Deep Care by Of Far Different Nature (CC BY 4.0, https://opengameart.org/content/escape-album-14-tracks-deep-massive)
+
+CC0 (no credit required; credited on the credits screen as a thank-you)
+  Techno, Techno 2-7 by Pro Sensory - https://opengameart.org/content/electronic
+  Algate (dub techno loop pack) by cinameng - https://opengameart.org/content/algate
+  Slampe by Fupi - https://opengameart.org/content/slampe-synthwave-house
+  Things Got a Bit Ravey in Wuffly Land Tonight by Spring (sound design VinsCool) - https://opengameart.org/content/things-got-a-bit-ravey-in-wuffly-land-tonight
+  Hypnotic Chill by cynicmusic (cynicmusic.com) - https://opengameart.org/content/hypnotic-chill-extended-4-minute-mix
+
+FILES
+  house_*.mp3/ogg, techno_*.mp3/ogg, acid_*.mp3, deep_*.mp3, dirty_acid.mp3, acid_trance.mp3, algate*.wav.
+  The title and artist of each file are in STATIONS in src/radio.gd.
