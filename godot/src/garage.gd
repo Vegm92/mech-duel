@@ -241,7 +241,6 @@ func build_right() -> void:
 	stage.position = Vector2(4, 4)
 	stage.size = Vector2(RW - 80, 244)
 	tt.add_child(stage)
-	stage.turn(true)
 	shown = {}
 	var sx := RW - 70.0
 	text(tt, tr("weaponsLabel"), Vector2(sx - 8, 8), 11, A_DIM, 76, true, HORIZONTAL_ALIGNMENT_CENTER)
@@ -305,7 +304,7 @@ func refresh() -> void:
 		s[1].text = current(s[0])
 	if next != shown:
 		shown = next.duplicate()
-		stage.show_mech(next)
+		stage.play(next)
 	for hand in hands:
 		var row: Array = hands[hand]
 		paint(row[0], tab == 5 + Sim.HANDS.find(hand), A_RAISED)

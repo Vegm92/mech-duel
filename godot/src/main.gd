@@ -528,8 +528,8 @@ func to_garage() -> void:
 	if hover_arg != "":
 		garage.set_hover({"set": hover_arg} if garage.SLOTS[garage.tab] == "set" else {"slot": garage.SLOTS[garage.tab], "key": hover_arg})
 	if shot_path != "":
-		for i in 8:
-			await get_tree().process_frame
+		for i in maxi(8, shot_at):
+			await get_tree().physics_frame
 		take_shot()
 
 

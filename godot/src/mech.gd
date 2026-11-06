@@ -29,6 +29,8 @@ const TIP := {"drill": 1.4, "bunker": 1.25, "fist": 0.72}
 const WHIP := {"links": 16, "len": 3.95, "coil": 2.2, "back": 2.4, "crack": 2.5}
 const TRAIL_LIFE := 0.16
 const SKIN := {"body": [0.35, 0.4], "trim": [0.75, 0.35], "joint": [0.6, 0.55], "edge": [0.45, 0.3], "accent": 0.9, "aim": Color(1.0, 0.75, 0.35, 0.7)}
+const REST := {"rate": 2.4, "bob": 0.03, "lean": 0.05, "arm": 0.12, "sway": 0.05, "ease": 3.0}
+const KICK := 0.25
 const AURA := {"overdrive": Color8(205, 125, 255), "berserk": Color8(255, 64, 48), "deflect": Color8(90, 255, 230), "mirror": Color8(235, 245, 255), "shield": Color8(110, 220, 255), "alpha": 0.7, "spin": 3.0, "pulse": 14.0, "slats": 5}
 
 var team := 0
@@ -60,6 +62,7 @@ var smoke: CPUParticles3D
 var saw: Node3D
 var walk := 0.0
 var clock := 0.0
+var rest := 0.0
 var src = null
 var dead := false
 
@@ -403,6 +406,10 @@ func sync(m: Dictionary, tick: int, dt: float) -> void:
 		w[0].rotate_object_local(w[1], w[2] * dt)
 	if legs_kind == "hover":
 		hips.position.y = 0.06 * sin(clock * 3.0)
+	rest = move_toward(rest, 1.0 if sp < 0.4 and m.act == null and not m.ko else 0.0, dt * REST.ease)
+	var breath := sin(clock * REST.rate)
+	torso.position.y = rest * REST.bob * (breath - 1.0) * 0.5
+	torso.rotation.z = -rest * REST.lean
 	var dashing: bool = m.act != null and m.act.k == "dash" and m.act.ph == "go"
 	boost_mat.emission_energy_multiplier = 7.0 if dashing else (3.0 if m.afterburn > 0 else 1.0)
 	if not m.ko:
@@ -440,6 +447,7 @@ func sync(m: Dictionary, tick: int, dt: float) -> void:
 		var turn0: float = turned.get(hand, 0.0)
 		turned[hand] = turn
 		pose(hand, key, cur, droop)
+		hands[hand].rotation.z += rest * (REST.arm + REST.sway * breath)
 		if key == "whip":
 			lash(held[hand], cur)
 		torso.rotation.y += turn
@@ -489,7 +497,7 @@ static func reach(m: Dictionary, hand: String) -> float:
 func pose(hand: String, key: String, r: float, droop: float) -> void:
 	var p: Node3D = hands[hand]
 	if Sim.WEAPONS[key].kind != "melee":
-		p.rotation = Vector3(0, 0, droop)
+		p.rotation = Vector3(0, 0, droop + KICK * maxf(r, 0.0))
 		return
 	var q := pose_of(hand, key, r, droop)
 	p.rotation = q[0]
