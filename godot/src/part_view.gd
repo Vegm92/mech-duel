@@ -2,6 +2,9 @@ extends TextureRect
 
 const Mech = preload("res://src/mech.gd")
 const Look = preload("res://src/look.gd")
+const Sim = preload("res://src/sim.gd")
+const SHOW := [["idle", 45], ["left", 50], ["idle", 30], ["right", 50], ["idle", 30], ["walk", 90], ["dash", 36], ["idle", 40], ["shield", 60], ["idle", 30], ["ult", 120], ["idle", 60]]
+const TAP := 4
 
 const YAW := 0.6
 const PITCH := 0.32
@@ -16,6 +19,10 @@ var port := SubViewport.new()
 var stand := Node3D.new()
 var cam := Camera3D.new()
 var turning := false
+var sim = null
+var body: Mech
+var home := Vector3.ZERO
+var beat := 0
 
 
 func _init() -> void:
@@ -56,13 +63,26 @@ func show_mech(lo: Dictionary, t := 0) -> void:
 	Mech.add(m, Mech.cyl(1.05, 1.1, 0.08), Look.ARENA.dark, Vector3(0, -0.04, 0))
 	Mech.add(m, Mech.ring(1.08, 1.16), Look.ARENA.pad, Vector3(0, 0.005, 0))
 	put(m, YAW, FRAME)
+	body = m
+
+
+## Like a fighting game's character select: the mech stays on its stand and loops the moves in `SHOW`, run by the real game rules.
+func play(lo: Dictionary) -> void:
+	show_mech(lo)
+	sim = Sim.create_state([lo])
+	sim.mechs.resize(1)
+	sim.phase = "fight"
+	beat = 0
+	redraw()
 
 
 func put(m: Node3D, yaw: float, frame = null) -> void:
 	for c in stand.get_children():
 		c.free()
+	sim = null
 	var box: AABB = frame if frame != null else bounds(m)
 	m.position = -box.get_center()
+	home = m.position
 	stand.add_child(m)
 	var dir := Vector3(cos(yaw) * cos(PITCH), sin(PITCH), sin(yaw) * cos(PITCH))
 	var dist := box.size.length() / 2.0 / sin(deg_to_rad(FOV) / 2.0) * FILL
@@ -78,7 +98,7 @@ func turn(on: bool) -> void:
 
 
 func redraw() -> void:
-	port.render_target_update_mode = SubViewport.UPDATE_ALWAYS if turning else SubViewport.UPDATE_ONCE
+	port.render_target_update_mode = SubViewport.UPDATE_ALWAYS if turning or sim != null else SubViewport.UPDATE_ONCE
 
 
 func _process(dt: float) -> void:
@@ -88,6 +108,41 @@ func _process(dt: float) -> void:
 		redraw()
 	if turning:
 		stand.rotation.y += dt * TURN
+
+
+func _physics_process(_dt: float) -> void:
+	if sim == null or not is_visible_in_tree():
+		return
+	var m: Dictionary = sim.mechs[0]
+	var x: float = m.x
+	var y: float = m.y
+	m.heat = 0.0
+	m.surge = Sim.SURGE.max
+	m.dashes = Sim.charges(m.loadout)
+	sim.clock = Sim.MATCH.time
+	Sim.step(sim, [cue(x, y)])
+	m.x = x
+	m.y = y
+	body.sync(m, sim.tick, Sim.DT)
+	body.position = home + Vector3(0, body.position.y, 0)
+
+
+func cue(x: float, y: float) -> Dictionary:
+	var inp := Sim.IDLE.duplicate()
+	inp.ax = x + 10.0
+	inp.ay = y
+	var t := beat
+	beat += 1
+	for s in SHOW:
+		if t < s[1]:
+			if s[0] in ["left", "right", "dash", "ult"]:
+				inp[s[0]] = t < TAP
+			inp.shield = s[0] == "shield"
+			inp.mx = 1.0 if s[0] in ["walk", "dash"] else 0.0
+			return inp
+		t -= s[1]
+	beat = 0
+	return inp
 
 
 static func bounds(n: Node, x := Transform3D.IDENTITY, box = null):

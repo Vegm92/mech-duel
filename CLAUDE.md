@@ -137,13 +137,16 @@ $P = "$R\godot"
   customize our bot"). Same layout and rules: PARTS / WEAPONS / SETS main tabs, 8 sub tabs
   (`SLOTS`, Tab / Shift+Tab), a card per part with its 3D part alone (spins while hovered),
   series or type, the R skill / dash move / trail line and stat bars (`card_stats`, same
-  formulas as JS); set cards show the whole build. Right side: the turntable tries on the
-  hovered part, L/R weapon slots and the R skill slot jump to their tab, MECH INFO (`sheet`)
+  formulas as JS); set cards show the whole build. Right side: the stage tries on the
+  hovered part and, instead of spinning, plays the mech's moves in place (Victor 2026-11-06: "like a
+  fighting game's character select"): `PartView.play` runs the real sim on one pinned mech and loops
+  `SHOW` (idle, left hand, right hand, walk, dash, shield, R), restarting on every change. L/R weapon slots and the R skill slot jump to their tab, MECH INFO (`sheet`)
   shows ▲/▼ for the hovered change, the info box has the description and skill. Built from
   plain Controls in a fixed 1280×720 frame, centered; long names shrink to fit (`fit`). FIGHT /
   Enter emits `fight(loadout)`; main.gd starts the match with it. L toggles the language.
   `--garage[=<tab 0..7>]` opens it, `--hover=<id>` fakes a hover for screenshots (the real
-  mouse over the window wins). Evidence: `production/qa/evidence/godot-garage-*-2026-10-26.png`
+  mouse over the window wins), `--at=<n>` waits n physics frames before the `--shot` (catch a
+  move). Evidence: `godot-garage-showcase-2026-11-06.png`, `production/qa/evidence/godot-garage-*-2026-10-26.png`
   (every tab in both languages: `godot-garage-all-tabs-{english,spanish}-2026-10-26.png`).
   **Garage with a pad:** cards take focus only while you use the pad (`use_pad`, from `_input`:
   any pad press turns it on, moving the mouse turns it off and drops the cursor), so for mouse
@@ -386,6 +389,9 @@ $P = "$R\godot"
   **Braced arm pose (Victor 2026-10-26: "readiness to tank the recoil", elbow bent, not stretched
   out):** `build` tilts the upper arm `ARM_UP` (0.2 rad) forward and puts the forearm level at
   `ELBOW`, fist at `FIST` (mech.gd consts, in the shoulder pivot's space).
+  **Idle pose** (Victor 2026-11-06): standing still with no action, the torso breathes and leans
+  in and the arms rise into a guard (`REST`, eased in and out); guns kick up on each shot (`KICK`).
+  Shows in the garage and in matches.
   `Mech.add_part(parent, part, mats, file)` loads a mesh by object name from `<file>.glb` and swaps
   materials by name (body/trim/joint/gem/boost/core) for the team ones. The old chassis
   (`art/chassis.blend`, `chassis.glb`) is no longer loaded.
