@@ -6,6 +6,7 @@ const Look = preload("res://src/look.gd")
 const KEYS := ["nameMech0", "nameMech1", "nameMech2", "nameMech3", "whoYou", "whoBot", "barLarm", "barHead", "barCore", "barRarm", "barLegs", "jam", "heatN", "kLmb", "kRmb", "kcTag", "kcSkipOr", "backGarage", "keyEnter", "soundTitle", "radialShop", "radialNote", "radialHint", "siegeWave", "siegeBest", "siegeTiers", "siegeRecall", "siegeCrate", "siegeShop", "siegeBuildHint", "radialSquare", "radialSquareNote", "radialGate", "radialGateNote", "shop_turret", "shop_gate", "shop_rebuild", "siegeKeys", "siegeLost", "siegeHeld", "capQ", "capE", "capR", "capSpace", "capLt", "capRt", "capLb", "capRb", "capL3", "capR3", "slotShield", "round", "go", "ko", "timeUp", "victory", "defeat", "mPaused", "mResume", "mRestart", "mGarage", "closing", "ventsOn", "healReady", "overheat"]
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 var filter := ""
 
 
@@ -23,6 +24,7 @@ func _initialize() -> void:
 	await run("each_seat_shows_its_own_device_labels_and_bots_show_none", test_labels)
 	await run("each_wheel_sells_only_its_own_things_and_dims_what_the_fund_cannot_pay", test_wheels)
 	await run("a_four_player_siege_shows_allies_and_keeps_its_arrows_clear_of_the_hud", test_siege)
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 

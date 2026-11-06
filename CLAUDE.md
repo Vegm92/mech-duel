@@ -35,6 +35,12 @@ $G --path godot -- --siege --team=2 --wave=6                    # Core Siege (co
 $G --path godot -- --replay=0 --seed=1                          # watch a kill cam right away (bots fight to the first K.O.)
 ```
 
+A test file fails on any `SCRIPT ERROR`, even when its own checks pass: `godot/tests/error_watch.gd` (an
+engine `Logger`) counts them. A new test file needs the same two lines as the others:
+`var watch = preload("res://tests/error_watch.gd").new()` next to `var failed`, and
+`failed += watch.report()` before the final print. In a fresh checkout run `$G --headless --path godot --import`
+once first, or missing imports show up as script errors.
+
 Same in PowerShell (Victor runs commands there; works from any folder):
 
 ```powershell

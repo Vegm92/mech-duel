@@ -9,6 +9,7 @@ const Progress = preload("res://src/progress.gd")
 const GOLDEN := 3156890276
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 var filter := ""
 
 
@@ -108,6 +109,7 @@ func _init() -> void:
 	run("boss_waves_keep_their_must_list_and_mk_and_scrap_is_untouched", test_boss_waves_keep_their_must_list_and_mk_and_scrap_is_untouched)
 	run("waves_one_to_three_plan_the_same_with_the_director_on_and_off", test_waves_one_to_three_plan_the_same_with_the_director_on_and_off)
 	run("two_easy_waves_raise_the_tier_and_two_hard_waves_give_one_pity_wave", test_two_easy_waves_raise_the_tier_and_two_hard_waves_give_one_pity_wave)
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 

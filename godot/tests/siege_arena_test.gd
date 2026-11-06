@@ -6,6 +6,7 @@ const SiegeView = preload("res://src/siege_view.gd")
 const SiegeState = preload("res://src/siege_state.gd")
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 var done := false
 
 
@@ -174,6 +175,7 @@ func _process(_dt: float) -> bool:
 	s.tick = SiegeView.WARN.blink
 	v.update(s)
 	check(v.gates[1].light.emission_energy_multiplier == 0.0, "the warning light blinks")
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 	return false

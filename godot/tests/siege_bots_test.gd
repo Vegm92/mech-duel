@@ -11,11 +11,13 @@ const MATS := ["body", "trim", "joint", "glow"]
 const DT := 1.0 / 60.0
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 
 
 func _process(_dt: float) -> bool:
 	models()
 	view()
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 	return true

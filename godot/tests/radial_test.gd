@@ -3,6 +3,7 @@ extends SceneTree
 const Radial = preload("res://src/radial.gd")
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 var picks := []
 var closes := 0
 
@@ -10,6 +11,7 @@ var closes := 0
 func _process(_dt: float) -> bool:
 	angles()
 	menu()
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 	return true
