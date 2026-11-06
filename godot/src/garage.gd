@@ -295,6 +295,8 @@ func build_right() -> void:
 
 
 func refresh() -> void:
+	if stage == null:
+		return
 	var next := next_lo()
 	for c in cards:
 		var on := selected(c[2])
