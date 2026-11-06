@@ -29,9 +29,17 @@ $G --headless --path godot -s res://tests/killcam_test.gd      # kill cam: re-ru
 $G --headless --path godot -s res://tests/progress_test.gd     # Salvage: owned parts, claims, levels, rival ladder, save file
 $G --headless --path godot -s res://tests/hud_test.gd          # Arcade HUD: strings, palette, pause, round list, FFA
 $G --headless --path godot -s res://tests/siege_rules_test.gd  # Core Siege: own golden hash, waves, gates, core rings, repair, respawn
+$G --headless --path godot -s res://tests/net_test.gd          # netcode: lockstep over a fake network, loss, bot on disconnect, desync, ENet loopback
+$G --headless --path godot -s res://tests/duel_test.gd         # duel edition: format picker, seats, camera, siege off, credits, Steam preset
 $G --path godot -- --siege --team=2 --wave=6                    # Core Siege (co-op wave defense), from wave 6
 $G --path godot -- --replay=0 --seed=1                          # watch a kill cam right away (bots fight to the first K.O.)
 ```
+
+A test file fails on any `SCRIPT ERROR`, even when its own checks pass: `godot/tests/error_watch.gd` (an
+engine `Logger`) counts them. A new test file needs the same two lines as the others:
+`var watch = preload("res://tests/error_watch.gd").new()` next to `var failed`, and
+`failed += watch.report()` before the final print. In a fresh checkout run `$G --headless --path godot --import`
+once first, or missing imports show up as script errors.
 
 Same in PowerShell (Victor runs commands there; works from any folder):
 
@@ -48,6 +56,8 @@ $P = "$R\godot"
 & $G --headless --path $P -s res://tests/hype_test.gd           # crowd tests
 & $G --headless --path $P -s res://tests/killcam_test.gd        # kill cam tests
 & $G --headless --path $P -s res://tests/progress_test.gd       # Salvage tests
+& $G --headless --path $P -s res://tests/duel_test.gd           # duel edition tests
+& $G --path $P -- --no-siege                                    # play the Steam edition (siege off)
 & $G --path $P -- --unlock-all                                  # dev mode: every part open, nothing saved
 & $G --path $P -- --replay=0 --seed=1                           # watch a kill cam right away
 & $G --path $P --resolution 1920x1080 -s "$R\tools\perf_probe.gd" -- --autopilot --seed=3   # speed: one PERF line after ~40 s
@@ -137,13 +147,16 @@ $P = "$R\godot"
   customize our bot"). Same layout and rules: PARTS / WEAPONS / SETS main tabs, 8 sub tabs
   (`SLOTS`, Tab / Shift+Tab), a card per part with its 3D part alone (spins while hovered),
   series or type, the R skill / dash move / trail line and stat bars (`card_stats`, same
-  formulas as JS); set cards show the whole build. Right side: the turntable tries on the
-  hovered part, L/R weapon slots and the R skill slot jump to their tab, MECH INFO (`sheet`)
+  formulas as JS); set cards show the whole build. Right side: the stage tries on the
+  hovered part and, instead of spinning, plays the mech's moves in place (Victor 2026-11-06: "like a
+  fighting game's character select"): `PartView.play` runs the real sim on one pinned mech and loops
+  `SHOW` (idle, left hand, right hand, walk, dash, shield, R), restarting on every change. L/R weapon slots and the R skill slot jump to their tab, MECH INFO (`sheet`)
   shows ▲/▼ for the hovered change, the info box has the description and skill. Built from
   plain Controls in a fixed 1280×720 frame, centered; long names shrink to fit (`fit`). FIGHT /
   Enter emits `fight(loadout)`; main.gd starts the match with it. L toggles the language.
   `--garage[=<tab 0..7>]` opens it, `--hover=<id>` fakes a hover for screenshots (the real
-  mouse over the window wins). Evidence: `production/qa/evidence/godot-garage-*-2026-10-26.png`
+  mouse over the window wins), `--at=<n>` waits n physics frames before the `--shot` (catch a
+  move). Evidence: `godot-garage-showcase-2026-11-06.png`, `production/qa/evidence/godot-garage-*-2026-10-26.png`
   (every tab in both languages: `godot-garage-all-tabs-{english,spanish}-2026-10-26.png`).
   **Garage with a pad:** cards take focus only while you use the pad (`use_pad`, from `_input`:
   any pad press turns it on, moving the mouse turns it off and drops the cursor), so for mouse
@@ -333,13 +346,47 @@ $P = "$R\godot"
   core stops all of it. Plasma and petals are `Look.neon` (light-only), so the scene lights never wash them out.
   Evidence: `production/qa/evidence/core-petals-{full,one-ring-down,critical,repairing,lost}-2026-10-30.png`
   (`--siege --autopilot --seed=3 --lang=en --at=<tick> --core=<pct>`; repairing needs `--team=2`, an ally repairs it).
+- **Duel edition** (Victor 2026-10-31: "pick duel mode up to 4 players, local or online. Don't delete the
+  wave defense, but make sure we have a standalone for the duels"). `edition.gd` `Edition.siege` is on unless
+  the export feature tag `steam` is set (second preset "Mech Duel (Steam)" in `export_presets.cfg`, which also
+  leaves `src/siege*.gd`, `radial.gd` and `core_siege.glb` out); `--no-siege` turns it off in a normal run.
+  Off: no CORE SIEGE entry in the menu, `--siege` ignored, and `main.gd` / `hud.gd` never `load` the siege scripts (they
+  are plain vars filled in only when siege is on). **Flow:** the game opens on `menu.gd` (SOLO, CO-OP,
+  VERSUS, GARAGE, CORE SIEGE only when `Edition.siege`; no ONLINE until netcode is wired). GARAGE edits "MY BUILD"
+  and DONE goes back to the menu; SOLO / CO-OP / VERSUS open the seat screen (`main.open_seats(mode)`); after a
+  match, Enter and "Quit" go back to the menu. **Format picker:** 1V1 / FFA / 2V2 chips on the seat screen
+  (`Sim.FORMATS`; Tab or LB / RB), saved as `[garage] format` in `user://loadout.cfg`; `--format=` still
+  overrides. Mode rules (`seats.gd`): SOLO one human, any format; CO-OP 2v2 only, up to two humans all on team A
+  against bots; VERSUS needs two humans, any format, humans split between teams. **Seats:** `seats.gd` (join screen); `main.locals` lists the humans in join order
+  (`"kb"` = keyboard + mouse, an int = that gamepad's device id), human `i` drives mech `i`, every other mech
+  is a bot. Keyboard seat also takes any gamepad no seat owns (so the old one-player pad play still works).
+  A pad joins with A, leaves with B, Start / Enter fights, Space toggles the keyboard, Esc goes back; FIGHT
+  from a pad pre-seats that pad instead of the keyboard. Each seat card picks a build
+  (left / right: A / D or arrows, d-pad or left stick on a pad; "MY BUILD" = the garage loadout, then the
+  12 `Sim.SETS`; a pad remembers its last pick for the session) and, in 2v2 only, a team (up / down; two
+  humans per team at most). `seats.confirmed(list, picks)` gives `main.seat_picks`; `match_teams()` builds the
+  per-match teams array (humans first, bots fill each team to two) and `build_for(i, ...)` the loadouts, so
+  `sim.gd` is untouched. Every card shows a turning 3D model (`PartView.show_mech`) of the build, bots included
+  (`main.next_seed` is rolled when the screen opens so the bot builds shown are the ones that fight). No picks (autopilot, look checks) keeps the old rules: P2 = the ladder rival. `player_input(seat)` is the one place a seat becomes
+  an input dictionary, and `Sim.step` gets one per mech per tick (the seam netcode plugs into). Each seat has
+  its own aim state in `main.aims` (`aim_point(seat)`, right stick = tilt x `REACH`, no assist; owned pads latch
+  taps in `main.taps`); other seats' reticles are `view.extra_aims`. The camera frames every local human
+  (`frame_points`, `frame_box`), still never rotating; Salvage only runs for one human in 1v1. Credits: the
+  CREDITS button in the garage (`Garage.CREDITS`, strings in `i18n.gd`) lists every asset in
+  `godot/assets/sounds/LICENSE.txt`; add a line there and in `CREDITS` for any new third-party asset. Look flags:
+  `--menu`, `--mode=solo|coop|versus`, `--seats[=set:team,...]` (e.g. `--seats=sniper:0,tank:0,:1`), `--credits`, `--humans=<1..4>` (extra local humans on pads 1..3, idle). Evidence:
+  `production/qa/evidence/duel-*-2026-10-31.png`.
 - **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege
-  and garage restyle on top of it). `hud.gd`: side panel for 1-2 mechs (`side_panel`, Victor 2026-10-30: bottom-left, 176×208, no text: heat and R gauges
-  around a robot diagram where every part is a health bar (`part_block`: green > 75%, yellow, orange, red,
-  black hatch = destroyed), six icon slots from `slot` / `icon_lines`: gun or blade by weapon kind, shield, E
-  skill, dash pips, R surge fill; a cooldown is a fill that rises (`cd_peak`), a jammed arm a red bottom bar; the
-  rival gets a mini health-bar diagram next to its name tag, `rival_bot`), with more mechs a grouped 70% bar per
-  corner (`skill_bar`: `robot` + `group` + `key_cap`, K.O.'d ones faded), `top_bar` (skewed team tags + hex
+  and garage restyle on top of it). `hud.gd`: one slim strip per mech, always, whatever the format or the number of players (`strip`, 262×44
+  in the 1280×720 canvas; `strip_rects` puts them in one row in the top band, y 74, right under the name banners or
+  score chips, a team's strips on its side of the clock: even teams left, odd right, so a 2v2 groups by team and
+  nothing sits at the bottom; Victor 2026-10-31: "the hud is too big", "always use the slim HUD, no matter how many
+  players", "they should be next to the name"): mini
+  health-bar robot where every part is a bar (`part_block`: green > 75%, yellow, orange, red, black hatch =
+  destroyed), name tag (only with 3-4 mechs: the 1v1 banner already has it), heat and R meters, the six `slot`s from `slot` / `icon_lines` (gun or blade by weapon kind,
+  shield, E skill, dash pips, R surge fill; a cooldown is a fill that rises (`cd_peak`), a jammed arm a red bottom
+  bar). The big `side_panel` (176×208) is now Core Siege only. A human's slots print its own device's keys (`cap(seat, key)`: keyboard names,
+  or pad names when `main.aims[seat].on_pad`), a bot's show icons. K.O.'d ones faded. `top_bar` (skewed team tags + hex
   clock; score chips with more than 2 mechs), `callout` (Exo 2 between hazard stripes, -3°), `slam` (round end), `match_over`
   (round list from `rounds`, tracked in `_process`), `pause_screen` (slabs drawn over empty Buttons so focus
   and the pad still work), `replay_bars`. Core Siege uses the same arcade look (2026-10-30 night job): `siege_top` (wave plate + core bar with ring ticks),
@@ -386,6 +433,9 @@ $P = "$R\godot"
   **Braced arm pose (Victor 2026-10-26: "readiness to tank the recoil", elbow bent, not stretched
   out):** `build` tilts the upper arm `ARM_UP` (0.2 rad) forward and puts the forearm level at
   `ELBOW`, fist at `FIST` (mech.gd consts, in the shoulder pivot's space).
+  **Idle pose** (Victor 2026-11-06): standing still with no action, the torso breathes and leans
+  in and the arms rise into a guard (`REST`, eased in and out); guns kick up on each shot (`KICK`).
+  Shows in the garage and in matches.
   `Mech.add_part(parent, part, mats, file)` loads a mesh by object name from `<file>.glb` and swaps
   materials by name (body/trim/joint/gem/boost/core) for the team ones. The old chassis
   (`art/chassis.blend`, `chassis.glb`) is no longer loaded.
@@ -585,6 +635,13 @@ $P = "$R\godot"
   `.blend`; every "export the X collection" step in this file is `blender -b art/<x>.blend
   --python tools/blender_export.py -- --build --save`). Sandbox stills need `--seed` (the rival,
   and so the K.O. tick, follows the seed). Run one Godot window at a time: two at once can hang.
+
+- **Netcode core** (Victor 2026-10-31, Steam release; spec `NETCODE_DESIGN.md`): `godot/src/net/`, not wired into
+  the menus yet. Delay-based lockstep over `Sim.step`: the host sequences every seat's 9-byte input into frames, every
+  peer runs the sim on the same frames (6 ticks input delay), hashes agree every 30 ticks (`NetSession.state_hash`),
+  a dropped seat becomes a bot on the same tick for all. `net_session.gd` (`pump(sampler)` per physics frame),
+  transports behind `net_transport.gd`: `net_enet.gd` (built-in ENet), `net_fake.gd` (tests: delay, jitter, loss),
+  a Steam one later. The design doc lists what `sim.gd` still needs for cross-platform play (own sin/cos/atan2).
 
 ## Hard rules
 

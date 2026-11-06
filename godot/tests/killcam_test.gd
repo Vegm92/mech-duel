@@ -7,6 +7,7 @@ const Killcam = preload("res://src/killcam.gd")
 const DUELS := [["speedster", "sniper", 21], ["artillery", "brawler", 22], ["duelist", "tank", 23]]
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 var filter := ""
 
 
@@ -20,6 +21,7 @@ func _initialize() -> void:
 	await run("pillar_blocks_a_low_camera_not_a_high_one", test_pillar_blocks_a_low_camera_not_a_high_one)
 	await run("a_ko_in_a_match_plays_the_replay_then_the_next_round", test_a_ko_in_a_match_plays_the_replay_then_the_next_round)
 	await run("enter_skips_the_replay", test_enter_skips_the_replay)
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 

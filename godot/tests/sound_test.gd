@@ -6,6 +6,7 @@ const Radio = preload("res://src/radio.gd")
 const BRANCHED := ["muzzle", "slash", "hit", "boom", "count", "beam"]
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 
 
 func _initialize() -> void:
@@ -110,6 +111,7 @@ func _initialize() -> void:
 	radio.queue_free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Sfx.save_path))
 	sfx.queue_free()
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
