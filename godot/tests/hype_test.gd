@@ -5,6 +5,7 @@ const Hype = preload("res://src/hype.gd")
 const CrowdSound = preload("res://src/crowd_sound.gd")
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 
 
 func _init() -> void:
@@ -37,6 +38,7 @@ func _init() -> void:
 	cs.update([], 100.0, false, false)
 	check(cs.bed_target == 0.0, "the crowd bed goes quiet when paused or in the garage")
 	cs.free()
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 

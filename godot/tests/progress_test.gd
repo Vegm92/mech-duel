@@ -7,6 +7,7 @@ const TMP := "user://progress_test.cfg"
 const SPAWN := {"x": 0, "y": 0, "aim": 0.0}
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 
 
 func _initialize() -> void:
@@ -22,6 +23,7 @@ func _initialize() -> void:
 	run("a_variant_needs_mk2_and_survives_a_reload", test_a_variant_needs_mk2_and_survives_a_reload)
 	run("the_chosen_variant_reaches_the_loadout", test_the_chosen_variant_reaches_the_loadout)
 	run("a_save_with_junk_variants_keeps_only_the_valid_ones", test_a_save_with_junk_variants_keeps_only_the_valid_ones)
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 

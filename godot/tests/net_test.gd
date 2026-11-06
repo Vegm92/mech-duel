@@ -11,6 +11,7 @@ const SEED := 0x2545f491
 const PORT := 47311
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 var filter := ""
 
 
@@ -33,6 +34,7 @@ func _init() -> void:
 	run("clients_end_when_the_host_is_lost", test_clients_end_when_the_host_is_lost)
 	run("a_forced_desync_is_detected", test_a_forced_desync_is_detected)
 	run("enet_loopback_smoke", test_enet_loopback_smoke)
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 

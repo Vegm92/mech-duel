@@ -6,6 +6,7 @@ const Bot = preload("res://src/bot.gd")
 const GOLDEN := 2885851157
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 var filter := ""
 
 
@@ -41,6 +42,7 @@ func _init() -> void:
 	run("level_one_and_no_mod_add_no_key", test_level_one_and_no_mod_add_no_key)
 	run("rivet_variants_trade_speed_for_damage", test_rivet_variants_trade_speed_for_damage)
 	run("horn_variants_change_the_lunge", test_horn_variants_change_the_lunge)
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 

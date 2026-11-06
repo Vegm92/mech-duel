@@ -11,6 +11,7 @@ const Claim = preload("res://src/claim.gd")
 const FLOW := "user://progress_flow_test.cfg"
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 
 
 func _initialize() -> void:
@@ -28,6 +29,7 @@ func _initialize() -> void:
 	await run("claim_panel_lists_changed_stats_and_the_new_skill", test_claim_panel_lists_changed_stats_and_the_new_skill)
 	await run("claim_from_a_siege_milestone_shows_the_wave_header", test_claim_from_a_siege_milestone_shows_the_wave_header)
 	await run("garage_tags_the_equipped_card_after_a_click", test_garage_tags_the_equipped_card_after_a_click)
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 

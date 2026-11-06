@@ -5,6 +5,7 @@ const Sfx = preload("res://src/sfx.gd")
 const BRANCHED := ["muzzle", "slash", "hit", "boom", "count", "beam"]
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 
 
 func _initialize() -> void:
@@ -71,6 +72,7 @@ func _initialize() -> void:
 	sfx.menu()
 	check(sfx.engines.is_empty() and sfx.level == 0, "the garage stops engines and calms the music")
 	sfx.queue_free()
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 

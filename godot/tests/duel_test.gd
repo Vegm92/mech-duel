@@ -11,6 +11,7 @@ const SAVE := "user://loadout.cfg"
 const KEYS := ["fmtLabel", "fmt_1v1", "fmt_ffa", "fmt_2v2", "whoPlayer", "seatsTitle", "seatKb", "seatPad", "seatBot", "seatFree", "seatsHint", "seatsNeed", "creditsBtn", "creditsTitle", "creditsSound", "creditsBack", "creditsKenney", "creditsQuendel", "creditsNocturnal", "seatMine", "seatBuild", "seatTeamA", "seatTeamB", "gameTitle", "menuPick", "menu_solo", "menu_coop", "menu_versus", "menu_garage", "menu_quit", "menuSub_solo", "menuSub_coop", "menuSub_versus", "menuSub_garage", "menuSub_siege", "seatsJoin", "seatsNeed2", "garageDone"]
 
 var failed := 0
+var watch = preload("res://tests/error_watch.gd").new()
 var filter := ""
 
 
@@ -34,6 +35,7 @@ func _initialize() -> void:
 	await run("solo_coop_and_versus_set_the_seats_and_models", test_modes)
 	await run("credits_list_every_licensed_asset_in_both_languages", test_credits)
 	await run("the_steam_preset_turns_siege_off_and_no_uid_is_orphaned", test_files)
+	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")
 	quit(1 if failed else 0)
 
