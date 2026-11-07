@@ -20,8 +20,8 @@ The sound twin of "punch, not glow".
    that never share a sound with an attack.
 5. **Slow-mo slows the sound.** `AudioServer.playback_speed_scale` follows `Engine.time_scale`
    (0.3× time → `MIX.slow` pitch), so the K.O. slow-mo sounds slow too.
-6. **Music sits under everything.** The Music bus has a compressor side-chained to SFX: big hits
-   push the music down by themselves.
+6. **Music keeps its level.** No duck on the Music bus: game sounds never turn the radio down
+   (Victor 2026-10-31, he disliked the pumping). Set it with `RADIO.db` and the music slider.
 
 ## Parts (Godot's own tools first)
 
@@ -35,12 +35,15 @@ The sound twin of "punch, not glow".
 | Loops | Per mech: hover/tread hum (pitch and level follow speed), footsteps for walking legs. |
 | Alarms | Overheat hiss + 3 beeps, "ready" click when it clears, low-head beep (you only). |
 | Crowd | `src/crowd_sound.gd` (hype-driven), on the Crowd bus. |
-| Music | Procedural loop from the JS version, baked into 3 stems (calm / drive / fight) in an `AudioStreamSynchronized`. Garage and pause = calm, countdown = + drive, fight = + drums. |
+| Music | The radio, `src/radio.gd` (Victor 2026-10-31; the old procedural JS loop is gone). Starts on a random station. N = next song (after the station's last song, the next station), Shift+N = next station; no off step (music slider to 0 turns it off). Each station is a list of songs (title, artist, files in `assets/music/`) played one at a time in shuffled order on the Music bus at `RADIO.db`. The 15 s Algate loop repeats per version (`[file, n]` entries) into one 28-part gapless song. A switch plays a hiss (`ui_tune`). |
+| Now playing | Card in the bottom-left corner, beside the mech panel (`RADIO.margin`): station, title, artist, progress bar and time, hint "N next song · Shift+N next station". Pops up on each new song or N press and fades after `RADIO.show` (10) s with no new one. |
 | Menus | Garage and pause menu: hover, tab, equip, set, select, FIGHT. |
-| Settings | Pause menu sliders (master, music, effects, arena, crowd), M mute, N music. Saved in `user://settings.cfg`. |
+| Settings | Pause menu sliders (master, music, effects, arena, crowd), M mute, N next song, Shift+N next station (not saved: the station is random each launch). Saved in `user://settings.cfg`. |
 
 Samples: Kenney "Sci-fi Sounds" + "Impact Sounds" (CC0) and the crowd clips, same files as the JS
-version (`assets/sounds/LICENSE.txt`).
+version (`assets/sounds/LICENSE.txt`). Radio music: 43 CC0 and CC BY tracks (about 3 hours, 4 stations: HOUSE FM, TECHNO 909,
+ACID FM, DEEP CHILL); sources and every required credit line in `assets/music/LICENSE.txt` (the
+credits screen / store page must carry them).
 
 ## Checks
 

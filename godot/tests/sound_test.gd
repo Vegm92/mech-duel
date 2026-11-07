@@ -2,6 +2,7 @@ extends SceneTree
 
 const Sim = preload("res://src/sim.gd")
 const Sfx = preload("res://src/sfx.gd")
+const Radio = preload("res://src/radio.gd")
 const BRANCHED := ["muzzle", "slash", "hit", "boom", "count", "beam"]
 
 var failed := 0
@@ -37,9 +38,7 @@ func _initialize() -> void:
 			if l.has("bank") and not Sfx.BANKS.has(l.bank):
 				silent.append(key + ":" + l.bank)
 	check(silent.is_empty(), "every synth layer makes sound and every bank exists (bad: %s)" % [silent])
-	var stems := Sfx.song_stems()
-	var loop := int(16 * Sfx.MUSIC.bars.size() * 60.0 / Sfx.MUSIC.bpm / 4.0 * Sfx.MIX.rate)
-	check(stems.size() == 3 and stems.all(func(s): return s.size() == loop and peak(s) > 0.02 and peak(s) <= 1.0), "music: 3 looping stems, audible, no clipping")
+	check(AudioServer.get_bus_effect_count(AudioServer.get_bus_index("Music")) == 0, "game sounds never turn the music down (no duck on the Music bus)")
 	var state := Sim.create_state()
 	check(Sfx.side(state, {"id": 1}) < Sfx.side(state, {"id": 0}), "a rival's sounds are quieter than yours")
 	Sfx.save_path = "user://settings_test.cfg"
@@ -70,7 +69,47 @@ func _initialize() -> void:
 	check(sfx.next_voice != before, "a shield blocking a hit makes a sound")
 	sfx.ui("hover")
 	sfx.menu()
-	check(sfx.engines.is_empty() and sfx.level == 0, "the garage stops engines and calms the music")
+	check(sfx.engines.is_empty(), "the garage stops engines")
+	var bad_tracks := []
+	for st in Radio.STATIONS:
+		for s in st.songs:
+			for f in s.files:
+				if not load(Radio.DIR + (f if f is String else f[0])) is AudioStream:
+					bad_tracks.append(f)
+	check(bad_tracks.is_empty(), "every radio song loads (bad: %s)" % [bad_tracks])
+	var radio := Radio.new()
+	radio.sfx = sfx
+	root.add_child(radio)
+	check(radio.song in Radio.STATIONS[radio.station].songs and radio.player.playing, "the radio starts on its own with a song from its station")
+	radio.tune(1)
+	var first: Dictionary = radio.song
+	radio.next_song()
+	check(radio.song != first and radio.song in Radio.STATIONS[1].songs, "when a song ends the next one is a different song from the same station")
+	radio.tune(1)
+	var heard := [radio.song.title]
+	for k in Radio.STATIONS[1].songs.size() - 1:
+		radio.next()
+		heard.append(radio.song.title if radio.station == 1 else "")
+	radio.next()
+	var unique := {}
+	for t in heard:
+		unique[t] = true
+	check(unique.size() == Radio.STATIONS[1].songs.size() and not unique.has("") and radio.station == 2, "N plays every song of a station once, then moves to the next station (got %s)" % [heard])
+	var seen := []
+	for k in Radio.STATIONS.size():
+		radio.next_station()
+		seen.append(radio.station)
+	check(seen == [3, 0, 1, 2], "Shift+N steps through the stations and wraps around (got %s)" % [seen])
+	var dub: Array = radio.stream(Radio.STATIONS[3].songs[0])
+	check(dub[0] is AudioStreamPlaylist and dub[0].stream_count == 28 and absf(dub[1] - 28 * 15.12) < 1.0, "the dub loop repeats into one 28-part song of about 7 minutes")
+	radio.tune(3)
+	await process_frame
+	check(radio.card.modulate.a == 1.0 and radio.title.text == radio.song.title and radio.artist.text == radio.song.by and radio.hint.text != "", "the now-playing card shows the song, the artist and how to change it")
+	radio.shown = radio.now() - Radio.RADIO.show - Radio.RADIO.fade
+	await process_frame
+	check(radio.card.modulate.a == 0.0, "the card fades away after %d s without a switch" % Radio.RADIO.show)
+	radio.queue_free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Sfx.save_path))
 	sfx.queue_free()
 	failed += watch.report()
 	print("FAILED" if failed else "ALL PASSED")

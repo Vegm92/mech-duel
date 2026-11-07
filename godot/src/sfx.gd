@@ -4,9 +4,8 @@ const Fx = preload("res://src/fx.gd")
 const DIR := "res://assets/sounds/"
 const SAVE := "user://settings.cfg"
 const VOLUME := {"Master": 1.0, "Music": 1.0, "SFX": 1.0, "Env": 0.5, "Crowd": 1.0}
-const MIX := {"master": 0.9, "music": 0.16, "stem": 0.5, "verb": 0.08, "rate": 22050, "voices": 28, "flat": 12,
-	"reach": 30.0, "pan": 0.7, "foe": 0.75, "crowd_foe": 0.6, "slow": 0.55, "chip": 0.09, "alarm": 0.9, "fade": 2.0}
-const MUSIC := {"bpm": 112.0, "bars": [[110.0, 1.189], [87.31, 1.26], [130.81, 1.26], [98.0, 1.26]]}
+const MIX := {"master": 0.9, "verb": 0.08, "rate": 22050, "voices": 28, "flat": 12,
+	"reach": 30.0, "pan": 0.7, "foe": 0.75, "crowd_foe": 0.6, "slow": 0.55, "chip": 0.09, "alarm": 0.9}
 const BANKS := {
 	"zap": ["laserSmall", 5], "laser": ["laserLarge", 5], "crunch": ["explosionCrunch", 5], "field": ["forceField", 5],
 	"thruster": ["thrusterFire", 2], "rumble": ["lowFrequency_explosion", 2], "launch": ["doorOpen", 3],
@@ -150,6 +149,7 @@ const RECIPES := {
 	"ui_set": [{"bank": "launch", "vol": 0.25, "rate": 1.3, "dur": 0.35}, {"bank": "plate", "vol": 0.5, "at": 0.18}, {"bank": "clank", "vol": 0.3, "rate": 1.4, "at": 0.26}],
 	"ui_select": [{"bank": "ting", "vol": 0.35, "rate": 1.25}],
 	"ui_start": [{"bank": "punch", "vol": 0.7}, {"bank": "field", "vol": 0.3, "rate": 1.2, "dur": 0.7}],
+	"ui_tune": [{"synth": {"wave": "noise", "a": 0.01, "dur": 0.3, "filter": ["bandpass", 1200.0, 3800.0, 0.8]}, "vol": 0.12}],
 	"ui_rewind": [{"synth": {"wave": "noise", "a": 0.15, "dur": 0.45, "filter": ["bandpass", 3200.0, 300.0, 1.4]}, "vol": 0.25}],
 }
 
@@ -165,10 +165,6 @@ var fades := {}
 var next_voice := 0
 var next_flat := 0
 var pending := []
-var music := AudioStreamPlayer.new()
-var song: AudioStreamSynchronized
-var stems := [0.0, 0.0, 0.0]
-var level := 0
 var mode := "garage"
 var engines := {}
 var heat := {}
@@ -214,9 +210,6 @@ func _ready() -> void:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
 		flats.append(p)
-	music.bus = "Music"
-	music.volume_db = linear_to_db(MIX.music / MIX.stem)
-	add_child(music)
 	task = WorkerThreadPool.add_task(bake_all)
 
 
@@ -224,34 +217,20 @@ func _exit_tree() -> void:
 	WorkerThreadPool.wait_for_task_completion(task)
 
 
-## Bakes every synth layer and the music stems off the main thread, then hands them over.
+## Bakes every synth layer off the main thread, then hands them over.
 func bake_all() -> void:
 	var out := {}
 	for key in RECIPES:
 		for l in RECIPES[key]:
 			if l.has("synth") and not out.has(str(l.synth)):
 				out[str(l.synth)] = wav(render(l.synth))
-	var s := AudioStreamSynchronized.new()
-	var parts := song_stems()
-	s.stream_count = parts.size()
-	for i in parts.size():
-		s.set_sync_stream(i, wav(parts[i], true))
-		s.set_sync_stream_volume(i, -80.0)
-	baked.call_deferred(out, s)
-
-
-func baked(out: Dictionary, s: AudioStreamSynchronized) -> void:
-	synths = out
-	song = s
-	music.stream = song
-	music.play()
+	set_deferred("synths", out)
 
 
 ## Feed this physics frame: new fx, and whether the match is paused.
 func update(state: Dictionary, fresh: Array, paused: bool) -> void:
 	mode = "match"
 	var live: bool = state.phase == "fight" and not paused
-	level = 0 if paused else (2 if state.phase == "fight" else 1)
 	if not is_same(state, last_state):
 		stop_engines()
 		heat.clear()
@@ -275,10 +254,9 @@ func update(state: Dictionary, fresh: Array, paused: bool) -> void:
 		cue(key, pos_of(f), v)
 
 
-## Back to the garage: engines stop, music goes calm.
+## Back to the garage: engines stop.
 func menu() -> void:
 	mode = "garage"
-	level = 0
 	stop_engines()
 
 
@@ -444,7 +422,7 @@ func alarms(state: Dictionary) -> void:
 		cue("lowHead", null, 1.0)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	var t := now()
 	for p in pending.duplicate():
 		if p[0] <= t:
@@ -452,12 +430,6 @@ func _process(delta: float) -> void:
 			sound(p[1])
 	var ts := Engine.time_scale
 	AudioServer.playback_speed_scale = lerpf(MIX.slow, 1.0, clampf(inverse_lerp(Fx.KO.slow, 1.0, ts), 0.0, 1.0)) if ts < 1.0 else 1.0
-	if song == null:
-		return
-	for i in stems.size():
-		var want := 1.0 if level >= i else 0.0
-		stems[i] = move_toward(stems[i], want, delta * MIX.fade)
-		song.set_sync_stream_volume(i, linear_to_db(maxf(stems[i], 0.0001)))
 
 
 func now() -> float:
@@ -480,14 +452,7 @@ static func buses() -> void:
 		AudioServer.add_bus(i)
 		AudioServer.set_bus_name(i, name)
 		AudioServer.set_bus_send(i, "Master")
-		if name == "Music":
-			var duck := AudioEffectCompressor.new()
-			duck.sidechain = "SFX"
-			duck.threshold = -24.0
-			duck.ratio = 4.0
-			duck.release_ms = 300.0
-			AudioServer.add_bus_effect(i, duck)
-		else:
+		if name != "Music":
 			var verb := AudioEffectReverb.new()
 			verb.room_size = 0.35
 			verb.damping = 0.6
@@ -504,7 +469,6 @@ static func volumes() -> Dictionary:
 	for k in VOLUME:
 		out[k] = clampf(float(cfg.get_value("audio", k, VOLUME[k])), 0.0, 1.0)
 	out.muted = bool(cfg.get_value("audio", "muted", false))
-	out.music_on = bool(cfg.get_value("audio", "music_on", true))
 	return out
 
 
@@ -513,7 +477,6 @@ static func apply(v: Dictionary) -> void:
 		var i := AudioServer.get_bus_index(k)
 		AudioServer.set_bus_volume_db(i, linear_to_db(maxf(v[k] * (MIX.master if k == "Master" else 1.0), 0.0001)))
 	AudioServer.set_bus_mute(0, v.muted)
-	AudioServer.set_bus_mute(AudioServer.get_bus_index("Music"), not v.music_on)
 
 
 static func store(v: Dictionary) -> void:
@@ -530,7 +493,7 @@ static func set_volume(bus: String, x: float) -> void:
 	store(v)
 
 
-## Flips "muted" (M) or "music_on" (N).
+## Flips a saved on/off setting, e.g. "muted" (M).
 static func toggle(key: String) -> void:
 	var v := volumes()
 	v[key] = not v[key]
@@ -616,7 +579,7 @@ static func coefs(kind: String, f: float, q: float, rate: float) -> PackedFloat3
 	return PackedFloat32Array([b[0] / a0, b[1] / a0, b[2] / a0, -2.0 * cw / a0, (1.0 - al) / a0])
 
 
-static func wav(data: PackedFloat32Array, loop := false) -> AudioStreamWAV:
+static func wav(data: PackedFloat32Array) -> AudioStreamWAV:
 	var bytes := PackedByteArray()
 	bytes.resize(data.size() * 2)
 	for i in data.size():
@@ -625,61 +588,5 @@ static func wav(data: PackedFloat32Array, loop := false) -> AudioStreamWAV:
 	w.format = AudioStreamWAV.FORMAT_16_BITS
 	w.mix_rate = int(MIX.rate)
 	w.data = bytes
-	if loop:
-		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		w.loop_end = data.size()
 	return w
 
-
-## The JS menu/fight music as 3 looping stems: 0 calm (pad, arp, hat), 1 drive (bass), 2 fight (drums, fast arp).
-static func song_stems() -> Array:
-	var step: float = 60.0 / MUSIC.bpm / 4.0
-	var steps: int = 16 * MUSIC.bars.size()
-	var length := int(steps * step * MIX.rate)
-	var out := []
-	for i in 3:
-		var p := PackedFloat32Array()
-		p.resize(length)
-		out.append(p)
-	var cache := {}
-	for i in steps:
-		var t := i * step
-		for note in notes(MUSIC.bars[i / 16], i % 16, step):
-			var k := str(note[1])
-			if not cache.has(k):
-				cache[k] = render(note[1])
-			var src: PackedFloat32Array = cache[k]
-			var dst: PackedFloat32Array = out[note[0]]
-			var start := int(t * MIX.rate)
-			var g: float = note[2] * MIX.stem
-			for j in src.size():
-				dst[(start + j) % length] += src[j] * g
-			out[note[0]] = dst
-	return out
-
-
-## [stem, synth spec, volume] for one 16th step of the JS music (playStep).
-static func notes(bar: Array, s: int, step: float) -> Array:
-	var root: float = bar[0]
-	var third: float = bar[1]
-	var out := []
-	if s == 0:
-		for det in [-9.0, 9.0]:
-			for k in [2.0, 2.0 * third, 3.0]:
-				out.append([0, {"wave": "saw", "f": root * k * pow(2.0, det / 1200.0), "a": 0.6, "dur": step * 16.0, "filter": ["lowpass", 900.0, 0.0, 1.0]}, 0.027])
-	var arp: float = [4.0, 4.0 * third, 6.0, 8.0, 6.0, 4.0 * third][s % 6]
-	var note := {"wave": "tri", "f": root * arp, "dur": step * 1.5}
-	out.append([0, note, 0.03] if s % 2 == 0 else [2, note, 0.035])
-	if s % 4 == 2:
-		out.append([0, {"wave": "noise", "dur": 0.025, "filter": ["highpass", 7500.0, 0.0, 1.0]}, 0.09])
-	if s % 2 == 0:
-		out.append([1, {"wave": "saw", "f": root * (2.0 if s % 8 == 6 else 1.0) * 0.5, "dur": step * 1.6, "filter": ["lowpass", 450.0, 0.0, 1.0]}, 0.1])
-	if s % 4 == 0:
-		out.append([2, {"wave": "sine", "f": 150.0, "to": 42.0, "dur": 0.16}, 0.9])
-		out.append([2, {"wave": "noise", "dur": 0.01, "filter": ["highpass", 3000.0, 0.0, 1.0]}, 0.25])
-	if s == 4 or s == 12:
-		out.append([2, {"wave": "noise", "dur": 0.16, "filter": ["bandpass", 1900.0, 0.0, 0.7]}, 0.32])
-		out.append([2, {"wave": "tri", "f": 200.0, "to": 140.0, "dur": 0.08}, 0.25])
-	if s % 2 == 1:
-		out.append([2, {"wave": "noise", "dur": 0.015, "filter": ["highpass", 9000.0, 0.0, 1.0]}, 0.035])
-	return out
