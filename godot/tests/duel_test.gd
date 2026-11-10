@@ -4,12 +4,13 @@ const Sim = preload("res://src/sim.gd")
 const Garage = preload("res://src/garage.gd")
 const Seats = preload("res://src/seats.gd")
 const Radio = preload("res://src/radio.gd")
+const Bot = preload("res://src/bot.gd")
 const Menu = preload("res://src/menu.gd")
 const Edition = preload("res://src/edition.gd")
 const I18n = preload("res://src/i18n.gd")
 
 const SAVE := "user://loadout.cfg"
-const KEYS := ["fmtLabel", "fmt_1v1", "fmt_ffa", "fmt_2v2", "whoPlayer", "seatsTitle", "seatKb", "seatPad", "seatBot", "seatFree", "seatsHint", "seatsNeed", "creditsBtn", "creditsTitle", "creditsMusic", "creditsSound", "creditsBack", "creditsKenney", "creditsQuendel", "creditsNocturnal", "seatMine", "seatBuild", "seatTeamA", "seatTeamB", "gameTitle", "menuPick", "menu_solo", "menu_coop", "menu_versus", "menu_garage", "menu_quit", "menuSub_solo", "menuSub_coop", "menuSub_versus", "menuSub_garage", "menuSub_siege", "seatsJoin", "seatsNeed2", "garageDone"]
+const KEYS := ["fmtLabel", "fmt_1v1", "fmt_ffa", "fmt_2v2", "whoPlayer", "seatsTitle", "seatKb", "seatPad", "seatBot", "seatsBots", "lvl_easy", "lvl_normal", "lvl_hard", "seatFree", "seatsHint", "seatsNeed", "creditsBtn", "creditsTitle", "creditsMusic", "creditsSound", "creditsBack", "creditsKenney", "creditsQuendel", "creditsNocturnal", "seatMine", "seatBuild", "seatTeamA", "seatTeamB", "gameTitle", "menuPick", "menu_solo", "menu_coop", "menu_versus", "menu_garage", "menu_quit", "menuSub_solo", "menuSub_coop", "menuSub_versus", "menuSub_garage", "menuSub_siege", "seatsJoin", "seatsNeed2", "garageDone"]
 
 var failed := 0
 var watch = preload("res://tests/error_watch.gd").new()
@@ -25,6 +26,7 @@ func _initialize() -> void:
 	await run("the_format_is_picked_on_the_seat_screen_and_the_match_follows_it", test_picker)
 	await run("the_format_is_saved_with_the_loadout", test_saved_format)
 	await run("seats_join_leave_and_start", test_seats)
+	await run("the_bot_level_is_picked_on_the_seat_screen_and_harder_bots_win_more", test_bot_levels)
 	await run("a_seat_picks_a_build_with_keys_pad_and_stick_and_remembers_it", test_build_pick)
 	await run("a_picked_build_reaches_the_match_and_bots_keep_the_old_rules", test_pick_in_match)
 	await run("in_2v2_humans_pick_teams_and_bots_fill_to_two_against_two", test_teams)
@@ -98,6 +100,55 @@ func texts(n: Node) -> Array:
 	return out
 
 
+func bot_wins(level: String, rival: String, games: int) -> int:
+	var wins := 0
+	for seed in games:
+		var first := seed % 2 == 0
+		var s := Sim.create_state([Sim.DEFAULT_LOADOUT, Sim.DEFAULT_LOADOUT], Sim.FORMATS["1v1"])
+		var brains := [Bot.create_brain(seed * 2 + 1, level if first else rival), Bot.create_brain(seed * 2 + 2, rival if first else level)]
+		var i := 0
+		while s.phase != "over" and i < 40000:
+			Sim.step(s, [Bot.bot_input(s, brains[0], 0), Bot.bot_input(s, brains[1], 1)])
+			i += 1
+		if s.phase == "over" and s.winner == (0 if first else 1):
+			wins += 1
+	return wins
+
+
+func test_bot_levels() -> int:
+	var bad := 0
+	bad += ensure(Bot.create_brain(7) == Bot.create_brain(7, "normal") and not Bot.create_brain(7).has("aimError"), "a normal bot carries no level keys, so old matches replay the same")
+	var games := 6
+	var hard := bot_wins("hard", "easy", games)
+	bad += ensure(hard > games / 2, "a hard bot beats an easy bot in most of %d matches (won %d)" % [games, hard])
+	var s = Seats.new()
+	root.add_child(s)
+	s.open(["kb"], "1v1", Sim.DEFAULT_LOADOUT, "solo", [], "hard")
+	bad += ensure(s.skill == "hard", "the seat screen opens on the saved bot level")
+	for k in Bot.LEVELS:
+		bad += ensure(texts(s.ui_box).has(s.tr("lvl_" + k)), "the seat screen shows the %s chip" % k)
+	var f := InputEventKey.new()
+	f.physical_keycode = KEY_F
+	f.pressed = true
+	s._input(f)
+	bad += ensure(s.skill == "easy", "F steps the bot level and wraps around")
+	s._input(joy(JOY_BUTTON_Y, 0))
+	bad += ensure(s.skill == "normal", "Y on a pad steps the bot level")
+	s.open(["kb"], "1v1", Sim.DEFAULT_LOADOUT, "solo", [], "nonsense")
+	bad += ensure(s.skill == "normal", "an unknown level falls back to normal")
+	s.queue_free()
+	var m = await duel("1v1")
+	m.autopilot = true
+	m.open_seats("solo")
+	m.seats.set_skill("hard")
+	m.seats.go()
+	await physics_frame
+	bad += ensure(m.skill_arg == "hard" and m.brain.get("aimError") == Bot.LEVELS.hard.aimError, "FIGHT gives the rival bot the picked level")
+	m.queue_free()
+	await process_frame
+	return int(bad > 0)
+
+
 func test_picker() -> int:
 	var m = await duel("1v1")
 	m.autopilot = true
@@ -134,13 +185,17 @@ func test_saved_format() -> int:
 	var had := FileAccess.file_exists(SAVE)
 	var keep := FileAccess.get_file_as_bytes(SAVE) if had else PackedByteArray()
 	var m = await duel("ffa")
+	m.skill_arg = "hard"
 	m.save_loadout()
 	var bad := ensure(m.saved_format() == "ffa", "the saved file remembers ffa")
+	bad += ensure(m.saved_skill() == "hard", "the saved file remembers the bot level")
 	var cfg := ConfigFile.new()
 	cfg.load(SAVE)
 	cfg.set_value("garage", "format", "bogus")
+	cfg.set_value("garage", "skill", "bogus")
 	cfg.save(SAVE)
 	bad += ensure(m.saved_format() == "1v1", "a bad saved format falls back to 1v1")
+	bad += ensure(m.saved_skill() == "normal", "a bad saved bot level falls back to normal")
 	m.queue_free()
 	if had:
 		var f := FileAccess.open(SAVE, FileAccess.WRITE)
