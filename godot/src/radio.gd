@@ -70,7 +70,7 @@ const ARTISTS := {
 	"cynicmusic": ["opengameart.org/content/hypnotic-chill-extended-4-minute-mix", "CC0"],
 }
 const LICENSES := "CC BY 4.0: creativecommons.org/licenses/by/4.0   ·   CC BY 3.0: creativecommons.org/licenses/by/3.0"
-const RADIO := {"db": -8.0, "show": 10.0, "fade": 0.6, "width": 330, "margin": Vector2(204, 16), "art": 64, "bars": 4}
+const RADIO := {"db": -8.0, "show": 10.0, "fade": 0.6, "width": 310, "margin": Vector2(16, 16), "art": 64, "bars": 4}
 
 var sfx: Node
 var station := 0
