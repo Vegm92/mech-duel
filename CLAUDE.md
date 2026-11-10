@@ -589,7 +589,7 @@ $P = "$R\godot"
   hover/tread hums + footsteps (`LOOPS`, `STEPS`), overheat / cooled / low-head alarms, shield up
   and shield block (watched from `m.act`, not fx), K.O. slow-mo via
   `AudioServer.playback_speed_scale`. Music = the radio (`src/radio.gd`): random station at launch,
-  songs one at a time in shuffled order, N = next song, Shift+N = next station, now-playing card bottom-left beside the mech panel (fades after 10 s).
+  songs one at a time in shuffled order, N = next song, Shift+N = next station, now-playing card in the bottom-left corner (fades after 10 s; `sound_test` checks it covers no seat-screen hint).
   Buses (`Sfx.buses()`, code-built): Master (compressor + limiter) ← SFX, Env, Crowd, Music (no
   duck: game sounds never lower the music). Pause menu sliders + M mute + N radio, saved in
   `user://settings.cfg`. A new weapon or fx kind needs a `RECIPES` row, or `sound_test` fails.
