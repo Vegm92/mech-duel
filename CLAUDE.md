@@ -373,7 +373,10 @@ $P = "$R\godot"
   taps in `main.taps`); other seats' reticles are `view.extra_aims`. The camera frames every local human
   (`frame_points`, `frame_box`), still never rotating; Salvage only runs for one human in 1v1. Credits: the
   CREDITS button in the garage (`Garage.CREDITS`, strings in `i18n.gd`) lists every asset in
-  `godot/assets/sounds/LICENSE.txt`; add a line there and in `CREDITS` for any new third-party asset. Look flags:
+  `godot/assets/sounds/LICENSE.txt`; add a line there and in `CREDITS` for any new third-party asset. Below them the screen lists the radio music, built by
+  `Radio.credits()` from `Radio.STATIONS` and `Radio.ARTISTS` (site and license per artist; a song with another license
+  carries `lic`): a new song needs its artist in `ARTISTS` and a line in `godot/assets/music/LICENSE.txt` (`duel_test`
+  checks both). The list scrolls: wheel, Up / Down, d-pad, left stick. Look flags:
   `--menu`, `--mode=solo|coop|versus`, `--seats[=set:team,...]` (e.g. `--seats=sniper:0,tank:0,:1`), `--credits`, `--humans=<1..4>` (extra local humans on pads 1..3, idle). Evidence:
   `production/qa/evidence/duel-*-2026-10-31.png`.
 - **Arcade UI, duel part** (Victor 2026-10-30, design "Arcade"; `look.gd` `ARCADE` is the one palette, siege

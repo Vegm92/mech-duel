@@ -21,7 +21,7 @@ const STATIONS := [
 		{"title": "Misuse", "by": "Kevin MacLeod", "files": ["techno_misuse.mp3"]},
 		{"title": "Nightchaser", "by": "Shane Ivers", "files": ["techno_nightchaser.mp3"]},
 		{"title": "Cybermatic Pulse", "by": "Alexandr Zhelanov", "files": ["techno_cybermatic_pulse.mp3"]},
-		{"title": "Industria", "by": "Alexandr Zhelanov", "files": ["techno_industria.mp3"]},
+		{"title": "Industria", "by": "Alexandr Zhelanov", "lic": "CC BY 3.0", "files": ["techno_industria.mp3"]},
 		{"title": "Things Got a Bit Ravey in Wuffly Land Tonight", "by": "Spring", "files": ["techno_wuffly_land.ogg"]},
 		{"title": "Techno", "by": "Pro Sensory", "files": ["techno_1.mp3"]},
 		{"title": "Techno 2", "by": "Pro Sensory", "files": ["techno_2.mp3"]},
@@ -40,7 +40,7 @@ const STATIONS := [
 		{"title": "Intuit", "by": "Kevin MacLeod", "files": ["acid_intuit.mp3"]},
 		{"title": "Pulsar", "by": "Shane Ivers", "files": ["acid_pulsar.mp3"]},
 		{"title": "Posteriosis", "by": "Shane Ivers", "files": ["acid_posteriosis.mp3"]},
-		{"title": "Fly", "by": "Alexandr Zhelanov", "files": ["acid_fly.mp3"]},
+		{"title": "Fly", "by": "Alexandr Zhelanov", "lic": "CC BY 3.0", "files": ["acid_fly.mp3"]},
 	]},
 	{"name": "radioDeep", "songs": [
 		{"title": "Algate", "by": "cinameng", "files": [["algate_no_kick.wav", 4], ["algate.wav", 8], ["algate_bass.wav", 4], ["algate_low.wav", 4], ["algate.wav", 8]]},
@@ -56,6 +56,20 @@ const STATIONS := [
 		{"title": "Deep Care", "by": "Of Far Different Nature", "files": ["deep_deep_care.mp3"]},
 	]},
 ]
+const ARTISTS := {
+	"Kevin MacLeod": ["incompetech.com", "CC BY 4.0"],
+	"Shane Ivers": ["silvermansound.com", "CC BY 4.0"],
+	"Alexandr Zhelanov": ["soundcloud.com/alexandr-zhelanov", "CC BY 4.0"],
+	"Bogart VGM": ["facebook.com/BogartVGM", "CC BY 3.0"],
+	"Fato Shadow": ["opengameart.org/content/private-party-edm-disco", "CC BY 4.0"],
+	"Of Far Different Nature": ["opengameart.org/content/escape-album-14-tracks-deep-massive", "CC BY 4.0"],
+	"Pro Sensory": ["opengameart.org/content/electronic", "CC0"],
+	"cinameng": ["opengameart.org/content/algate", "CC0"],
+	"Fupi": ["opengameart.org/content/slampe-synthwave-house", "CC0"],
+	"Spring": ["opengameart.org/content/things-got-a-bit-ravey-in-wuffly-land-tonight", "CC0"],
+	"cynicmusic": ["opengameart.org/content/hypnotic-chill-extended-4-minute-mix", "CC0"],
+}
+const LICENSES := "CC BY 4.0: creativecommons.org/licenses/by/4.0   ·   CC BY 3.0: creativecommons.org/licenses/by/3.0"
 const RADIO := {"db": -8.0, "show": 10.0, "fade": 0.6, "width": 330, "margin": Vector2(204, 16), "art": 64, "bars": 4}
 
 var sfx: Node
@@ -144,6 +158,19 @@ func stream(s: Dictionary) -> Array:
 		out = p
 	streams[s.title] = [out, parts.reduce(func(a, x): return a + x.get_length(), 0.0)]
 	return streams[s.title]
+
+
+## One row per artist for the credits screen: [artist, site, license, quoted track titles].
+static func credits() -> Array:
+	var out := []
+	for a in ARTISTS:
+		var tracks := []
+		for st in STATIONS:
+			for s in st.songs:
+				if s.by == a:
+					tracks.append("\"%s\"%s" % [s.title, " (%s)" % s.lic if s.has("lic") else ""])
+		out.append([a, ARTISTS[a][0], ARTISTS[a][1], "   ·   ".join(tracks)])
+	return out
 
 
 func build() -> void:

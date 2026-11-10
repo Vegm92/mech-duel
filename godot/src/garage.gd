@@ -8,6 +8,7 @@ const PartView = preload("res://src/part_view.gd")
 const I18n = preload("res://src/i18n.gd")
 const Progress = preload("res://src/progress.gd")
 const Look = preload("res://src/look.gd")
+const Radio = preload("res://src/radio.gd")
 
 const SIZE := Vector2(1280, 720)
 const PAD := 20.0
@@ -62,6 +63,7 @@ static var BAD := A_DANGER
 
 var loadout: Dictionary = Sim.DEFAULT_LOADOUT.duplicate()
 var credits: Control
+var credits_scroll: ScrollContainer
 var progress := Progress.new()
 var tab := 0
 var hover = null
@@ -415,18 +417,55 @@ func open_credits() -> void:
 	rect(credits, Rect2(Vector2.ZERO, SIZE), A_GROUND)
 	hazard(credits, Rect2(0, 0, SIZE.x, 8))
 	big(credits, tr("creditsTitle"), Vector2(60, 30), 54, Color.WHITE, 0, 70)
-	text(credits, tr("creditsSound"), Vector2(60, 124), 14, A_HAZARD, 0, true)
-	for i in CREDITS.size():
-		var c: Array = CREDITS[i]
-		var y := 156.0 + i * 130.0
-		panel(credits, Rect2(60, y, SIZE.x - 120, 116), A_PANEL, 12)
-		big(credits, c[0], Vector2(84, y + 10), 28, Color.WHITE, 0, 36)
-		text(credits, c[2], Vector2(SIZE.x - 84 - 120, y + 16), 18, A_HAZARD if c[2] != "CC0" else A_GOOD, 120, true, HORIZONTAL_ALIGNMENT_RIGHT)
-		text(credits, c[1], Vector2(84, y + 48), 13, A_BLUE)
-		para(credits, tr(c[3]), Rect2(84, y + 72, SIZE.x - 168, 40), 14, A_INK, 2)
+	credits_scroll = ScrollContainer.new()
+	credits_scroll.position = Vector2(0, 112)
+	credits_scroll.size = Vector2(SIZE.x - 30, SIZE.y - 112 - 76)
+	credits_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	credits.add_child(credits_scroll)
+	var page := Control.new()
+	page.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	credits_scroll.add_child(page)
+	text(page, tr("creditsSound"), Vector2(60, 12), 14, A_HAZARD, 0, true)
+	var y := 44.0
+	for c in CREDITS:
+		y = credit_row(page, y, c[0], c[1], c[2], tr(c[3]))
+	text(page, tr("creditsMusic"), Vector2(60, y + 12), 14, A_HAZARD, 0, true)
+	y += 44.0
+	for c in Radio.credits():
+		y = credit_row(page, y, c[0], c[1], c[2], c[3])
+	text(page, Radio.LICENSES, Vector2(60, y + 4), 13, A_DIM)
+	page.custom_minimum_size = Vector2(SIZE.x - 30, y + 40.0)
 	var back := button(credits, Rect2(SIZE.x - 260, SIZE.y - 60, 200, 40), {}, close_credits)
 	back.focus_mode = Control.FOCUS_NONE
 	text(back, tr("creditsBack"), Vector2.ZERO, 15, A_DIM, 200, true, HORIZONTAL_ALIGNMENT_CENTER, 40)
+
+
+func credit_row(page: Control, y: float, who: String, site: String, license: String, body: String) -> float:
+	var w := SIZE.x - 168
+	var p := panel(page, Rect2(60, y, SIZE.x - 120, 0), A_PANEL, 12)
+	big(page, who, Vector2(84, y + 10), 28, Color.WHITE, 0, 36)
+	text(page, license, Vector2(SIZE.x - 84 - 120, y + 16), 18, A_HAZARD if license != "CC0" else A_GOOD, 120, true, HORIZONTAL_ALIGNMENT_RIGHT)
+	text(page, site, Vector2(84, y + 48), 13, A_BLUE)
+	var l := text(page, "", Vector2(84, y + 72), 14, A_INK)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.text = body
+	var h := l.get_theme_font("font").get_multiline_string_size(body, HORIZONTAL_ALIGNMENT_LEFT, w, 14).y
+	l.size = Vector2(w, h)
+	p.size.y = 72 + h + 20
+	return y + p.size.y + 14
+
+
+func scroll_credits(d: float) -> void:
+	credits_scroll.scroll_vertical += int(d)
+
+
+func _process(dt: float) -> void:
+	if credits == null:
+		return
+	for d in Input.get_connected_joypads():
+		var tilt := Input.get_joy_axis(d, JOY_AXIS_LEFT_Y)
+		if absf(tilt) > 0.3:
+			scroll_credits(tilt * 900.0 * dt)
 
 
 func close_credits() -> void:
@@ -470,6 +509,8 @@ func _unhandled_input(e: InputEvent) -> void:
 	if credits != null:
 		if e.button_index in [JOY_BUTTON_B, JOY_BUTTON_A, JOY_BUTTON_START]:
 			close_credits()
+		elif e.button_index in [JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN]:
+			scroll_credits(-160.0 if e.button_index == JOY_BUTTON_DPAD_UP else 160.0)
 		get_viewport().set_input_as_handled()
 		return
 	match e.button_index:
@@ -490,6 +531,10 @@ func _unhandled_key_input(e: InputEvent) -> void:
 	if credits != null:
 		if e.physical_keycode in [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER]:
 			close_credits()
+		elif e.physical_keycode in [KEY_UP, KEY_W, KEY_PAGEUP]:
+			scroll_credits(-160.0)
+		elif e.physical_keycode in [KEY_DOWN, KEY_S, KEY_PAGEDOWN]:
+			scroll_credits(160.0)
 		get_viewport().set_input_as_handled()
 		return
 	match e.physical_keycode:
