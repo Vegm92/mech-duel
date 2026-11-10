@@ -135,6 +135,7 @@ var core_arg_pct := -1.0
 var shot_on := ""
 var allies := []
 var format_arg := ""
+var skill_arg := ""
 var pause_arg := false
 var extras := []
 var siege_view: Node3D
@@ -237,6 +238,8 @@ func _ready() -> void:
 			pause_arg = true
 		elif a.begins_with("--format="):
 			format_arg = a.substr(9)
+		elif a.begins_with("--skill="):
+			skill_arg = a.substr(8)
 		elif a.begins_with("--lang="):
 			TranslationServer.set_locale(a.substr(7))
 		elif a == "--pad":
@@ -269,6 +272,8 @@ func _ready() -> void:
 		progress.load_file()
 	if not Sim.FORMATS.has(format_arg):
 		format_arg = saved_format() if real else "1v1"
+	if not Bot.LEVELS.has(skill_arg):
+		skill_arg = saved_skill() if real else "normal"
 	if parts_arg != "":
 		part_sheet(parts_arg)
 		return
@@ -300,6 +305,9 @@ func _ready() -> void:
 	add_child(seats)
 	seats.confirmed.connect(func(list: Array, picks: Array) -> void:
 		format_arg = seats.fmt
+		skill_arg = seats.skill
+		if real:
+			save_loadout()
 		seated(list, picks))
 	seats.back.connect(to_menu)
 	seats.ui.connect(sfx.ui)
@@ -410,10 +418,18 @@ func saved_format() -> String:
 	return f if Sim.FORMATS.has(f) else "1v1"
 
 
+func saved_skill() -> String:
+	var cfg := ConfigFile.new()
+	cfg.load(SAVE)
+	var k: String = cfg.get_value("garage", "skill", "normal")
+	return k if Bot.LEVELS.has(k) else "normal"
+
+
 func save_loadout() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("garage", "loadout", loadout)
 	cfg.set_value("garage", "format", format_arg)
+	cfg.set_value("garage", "skill", skill_arg)
 	cfg.save(SAVE)
 
 
@@ -447,7 +463,7 @@ func open_seats(picked: String) -> void:
 	var bots := []
 	for i in 4:
 		bots.append(build_for(i, next_seed, rival_of(next_seed)[1], []))
-	seats.open(["kb"] if last_pad < 0 else [last_pad], "2v2" if picked == "coop" else format_arg, loadout, picked, bots)
+	seats.open(["kb"] if last_pad < 0 else [last_pad], "2v2" if picked == "coop" else format_arg, loadout, picked, bots, skill_arg)
 
 
 func rival_of(s: int) -> Array:
@@ -624,12 +640,12 @@ func new_match() -> void:
 		for i in teams.size():
 			los.append(build_for(i, s, rival))
 			if i >= 2:
-				extras.append(Bot.create_brain(s + 20 + i))
+				extras.append(Bot.create_brain(s + 20 + i, skill_arg))
 		state = Sim.create_state(los, teams)
 	if sandbox:
 		pin()
 	seat_up()
-	brain = Bot.create_brain(s + 1)
+	brain = Bot.create_brain(s + 1, skill_arg)
 	pilot = Bot.create_brain(s + 2)
 	if farm_arg:
 		pilot.farm = true

@@ -3,11 +3,14 @@ extends RefCounted
 const Sim = preload("res://src/sim.gd")
 
 const SKILL := {"skilled": {"aimError": 0.3, "reaction": 0.15, "dodge": 0.5}, "average": {"aimError": 0.9, "reaction": 0.3, "dodge": 0.25}, "weak": {"aimError": 1.6, "reaction": 0.5, "dodge": 0.1}}
+const LEVELS := {"easy": {"aimError": 1.6, "rhythm": 999}, "normal": {}, "hard": {"aimError": 0.2, "rhythm": 0}}
 const BOT := {"aimError": 0.9, "guard": 0.35, "dodge": 0.25, "reaction": 0.3, "jukeMin": 18, "jukeMax": 70, "close": [1.6, 2.6], "heatCap": 82, "rhythm": 18, "healAt": 0.6, "grab": 14, "stick": 1.3}
 
 
-static func create_brain(seed := 1) -> Dictionary:
-	return {"seed": seed & 0xFFFFFFFF, "side": 1, "nextJuke": 0, "lastFlip": 0, "guard": 0, "threat": 0, "guardRoll": false, "dodgeRoll": false, "nextShot": {"left": 0, "right": 0}}
+static func create_brain(seed := 1, level := "normal") -> Dictionary:
+	var b := {"seed": seed & 0xFFFFFFFF, "side": 1, "nextJuke": 0, "lastFlip": 0, "guard": 0, "threat": 0, "guardRoll": false, "dodgeRoll": false, "nextShot": {"left": 0, "right": 0}}
+	b.merge(LEVELS.get(level, {}))
+	return b
 
 
 static func melee_ready(m) -> bool:
@@ -410,5 +413,5 @@ static func bot_input(state, brain, me := 1) -> Dictionary:
 		inp.ay = o.y + o.vy * travel
 	elif g != null and m.cd[shooter] == 0 and (sight or lob or m.buffs.xray > 0) and heat_ok and (not facing or lob) and d > 2 and d < g.range and tick >= brain.nextShot[shooter]:
 		inp[shooter] = true
-		brain.nextShot[shooter] = tick + g.cd + floor(Sim.rng(brain) * minf(BOT.rhythm, g.cd))
+		brain.nextShot[shooter] = tick + g.cd + floor(Sim.rng(brain) * minf(brain.get("rhythm", BOT.rhythm), g.cd))
 	return inp

@@ -8,6 +8,7 @@ const Garage = preload("res://src/garage.gd")
 const Look = preload("res://src/look.gd")
 const PartView = preload("res://src/part_view.gd")
 const Sim = preload("res://src/sim.gd")
+const Bot = preload("res://src/bot.gd")
 
 const SIZE := Vector2(1280, 720)
 const CARD := Vector2(270, 340)
@@ -31,6 +32,7 @@ var bots: Array = []
 var mode := ""
 var count := 2
 var fmt := "1v1"
+var skill := "normal"
 var warn := ""
 var tilt := {}
 
@@ -70,7 +72,8 @@ func _init() -> void:
 				v.turn(false))
 
 
-func open(start: Array, format: String, garage_loadout: Dictionary = Sim.DEFAULT_LOADOUT, kind := "", bot_builds: Array = []) -> void:
+func open(start: Array, format: String, garage_loadout: Dictionary = Sim.DEFAULT_LOADOUT, kind := "", bot_builds: Array = [], level := "normal") -> void:
+	skill = level if Bot.LEVELS.has(level) else "normal"
 	list = []
 	picks = {}
 	mode = kind
@@ -161,6 +164,19 @@ func set_format(f: String) -> void:
 func step_format(d: int) -> void:
 	var all := formats()
 	set_format(all[posmod(all.find(fmt) + d, all.size())])
+
+
+func set_skill(level: String) -> void:
+	if not Bot.LEVELS.has(level) or level == skill:
+		return
+	skill = level
+	ui.emit("tab")
+	refresh()
+
+
+func step_skill(d: int) -> void:
+	var all := Bot.LEVELS.keys()
+	set_skill(all[posmod(all.find(skill) + d, all.size())])
 
 
 func cycle(who, step: int) -> void:
@@ -305,6 +321,24 @@ func refresh() -> void:
 		b.add_child(t)
 		t.size.y = 40.0
 		t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var levels := Bot.LEVELS.keys()
+	label(tr("seatsBots"), Vector2(SIZE.x - 60 - levels.size() * 96.0 - 170, 86), 13, Garage.A_DIM, 160.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	for j in levels.size():
+		var lv: String = levels[j]
+		var on: bool = lv == skill
+		var b := Button.new()
+		b.position = Vector2(SIZE.x - 60 - (levels.size() - j) * 96.0, 80)
+		b.size = Vector2(92, 30)
+		b.focus_mode = Control.FOCUS_NONE
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		b.pressed.connect(set_skill.bind(lv))
+		ui_box.add_child(b)
+		Garage.skew(b, Garage.A_HAZARD if on else Garage.A_RAISED)
+		var t := label(tr("lvl_" + lv), Vector2.ZERO, 14, Garage.A_GROUND if on else Color.WHITE, 92.0, HORIZONTAL_ALIGNMENT_CENTER, true)
+		t.get_parent().remove_child(t)
+		b.add_child(t)
+		t.size.y = 30.0
+		t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	for i in 4:
 		var at := card_at(i)
 		var open_slot := i < count
@@ -386,6 +420,8 @@ func _input(e: InputEvent) -> void:
 				leave("kb")
 			KEY_TAB:
 				step_format(-1 if e.shift_pressed else 1)
+			KEY_F:
+				step_skill(1)
 			KEY_A, KEY_LEFT:
 				steer("kb", -1, 0)
 			KEY_D, KEY_RIGHT:
@@ -413,6 +449,8 @@ func _input(e: InputEvent) -> void:
 				step_format(-1)
 			JOY_BUTTON_RIGHT_SHOULDER:
 				step_format(1)
+			JOY_BUTTON_Y:
+				step_skill(1)
 			JOY_BUTTON_DPAD_LEFT:
 				steer(e.device, -1, 0)
 			JOY_BUTTON_DPAD_RIGHT:

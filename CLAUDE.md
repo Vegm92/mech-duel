@@ -356,7 +356,11 @@ $P = "$R\godot"
   and DONE goes back to the menu; SOLO / CO-OP / VERSUS open the seat screen (`main.open_seats(mode)`); after a
   match, Enter and "Quit" go back to the menu. **Format picker:** 1V1 / FFA / 2V2 chips on the seat screen
   (`Sim.FORMATS`; Tab or LB / RB), saved as `[garage] format` in `user://loadout.cfg`; `--format=` still
-  overrides. Mode rules (`seats.gd`): SOLO one human, any format; CO-OP 2v2 only, up to two humans all on team A
+  overrides. **Bot level:** EASY / NORMAL / HARD chips under the format chips (F, or Y on a pad), `seats.skill`, saved as
+  `[garage] skill`; `--skill=` overrides. `Bot.LEVELS` holds what a level changes (`aimError` and `rhythm`, the random
+  wait between shots; measured over 20 bot matches: hard beats normal 16, normal beats easy 14; `reaction`, `dodge`
+  and `guard` made no measurable difference). `Bot.create_brain(seed, level)` merges it; normal adds no key, so old
+  seeds replay the same. Only duel bots use it (not Core Siege, not online yet). Mode rules (`seats.gd`): SOLO one human, any format; CO-OP 2v2 only, up to two humans all on team A
   against bots; VERSUS needs two humans, any format, humans split between teams. **Seats:** `seats.gd` (join screen); `main.locals` lists the humans in join order
   (`"kb"` = keyboard + mouse, an int = that gamepad's device id), human `i` drives mech `i`, every other mech
   is a bot. Keyboard seat also takes any gamepad no seat owns (so the old one-player pad play still works).
