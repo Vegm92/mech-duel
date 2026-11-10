@@ -18,6 +18,7 @@ const Look = preload("res://src/look.gd")
 const Edition = preload("res://src/edition.gd")
 const Seats = preload("res://src/seats.gd")
 const Menu = preload("res://src/menu.gd")
+const Settings = preload("res://src/settings.gd")
 const SIEGE_CAM := {"dist": 48.0, "edge": 62.0, "near": 36.0, "far": 64.0, "top": 205.0}
 
 const PITCH := deg_to_rad(60.0)
@@ -111,6 +112,7 @@ var pending := {}
 var seat_picks: Array = []
 var seats_arg := false
 var menu_arg := false
+var settings_arg := false
 var seats_demo := ""
 var credits_arg := false
 var humans_arg := 1
@@ -244,8 +246,9 @@ func _ready() -> void:
 			TranslationServer.set_locale(a.substr(7))
 		elif a == "--pad":
 			pad_flag = true
-		elif a == "--menu":
+		elif a == "--menu" or a == "--settings":
 			menu_arg = true
+			settings_arg = a == "--settings"
 		elif a.begins_with("--mode="):
 			mode_arg = a.substr(7)
 		elif a == "--seats" or a.begins_with("--seats="):
@@ -270,6 +273,7 @@ func _ready() -> void:
 		progress.path = progress_arg
 	if real:
 		progress.load_file()
+		Settings.apply(Settings.saved())
 	if not Sim.FORMATS.has(format_arg):
 		format_arg = saved_format() if real else "1v1"
 	if not Bot.LEVELS.has(skill_arg):
@@ -337,6 +341,8 @@ func _ready() -> void:
 				garage.open_credits()
 		else:
 			to_menu()
+			if settings_arg:
+				menu.open_settings()
 		if seats_arg:
 			open_seats(mode_arg if mode_arg != "" else "versus")
 			var demo := seats_demo.split(",", false)

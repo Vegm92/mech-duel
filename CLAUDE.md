@@ -592,7 +592,12 @@ $P = "$R\godot"
   songs one at a time in shuffled order, N = next song, Shift+N = next station, now-playing card in the bottom-left corner (fades after 10 s; `sound_test` checks it covers no seat-screen hint).
   Buses (`Sfx.buses()`, code-built): Master (compressor + limiter) ← SFX, Env, Crowd, Music (no
   duck: game sounds never lower the music). Pause menu sliders + M mute + N radio, saved in
-  `user://settings.cfg`. A new weapon or fx kind needs a `RECIPES` row, or `sound_test` fails.
+  `user://settings.cfg`. The sliders live in the settings panel (`settings.gd`): fullscreen, vsync, language and
+  the five volumes. One copy sits in the pause screen, one behind SETTINGS in the main menu (Esc / B goes back).
+  Display and language are saved in the same file under `[display]` and applied at launch (real runs only, never
+  with `--shot` or `--autopilot`). The L key still flips the language for the session only. Look flag: `--settings`.
+  `duel_test` checks save, load, apply and keys; fullscreen and vsync need a real window, so they are not in the
+  headless tests. Evidence: `settings-*-2026-11-10.png`. A new weapon or fx kind needs a `RECIPES` row, or `sound_test` fails.
   Not checked by ear (Claude can't hear). Evidence: `godot-sound-pause-sliders-{english,spanish}-2026-10-27.png`.
 - Guns are `godot/assets/models/guns.glb` (one object per gun id, +X = barrel), made in Blender
   (`art/guns.blend`, build script = text block `guns_build.py`; re-run it, export the Guns

@@ -7,6 +7,7 @@ const Garage = preload("res://src/garage.gd")
 const I18n = preload("res://src/i18n.gd")
 const Look = preload("res://src/look.gd")
 const Edition = preload("res://src/edition.gd")
+const Settings = preload("res://src/settings.gd")
 
 const SIZE := Vector2(1280, 720)
 const W := 500.0
@@ -16,6 +17,7 @@ const TOP := 176.0
 
 var root: Control
 var buttons := []
+var panel: Control
 
 
 func _init() -> void:
@@ -86,6 +88,7 @@ func build() -> void:
 	for c in root.get_children():
 		c.queue_free()
 	buttons.clear()
+	panel = null
 	Garage.hazard(root, Rect2(0, 0, SIZE.x, 8))
 	var title := label(root, tr("gameTitle"), Rect2(0, 36, SIZE.x, 90), 76, Color.WHITE)
 	title.add_theme_color_override("font_shadow_color", Color.BLACK)
@@ -98,15 +101,43 @@ func build() -> void:
 		label(b, tr("siegeBtn") if m == "siege" else tr("menu_" + m), Rect2(0, 8, W, 40), 32, Color.WHITE)
 		label(b, tr("menuSub_" + m), Rect2(16, 48, W - 32, 22), 13, Garage.A_DIM, false)
 		y += H + GAP
-	var q := button(Rect2((SIZE.x - W) / 2.0, y + 6, W, 48), "quit")
-	label(q, tr("menu_quit"), Rect2(0, 0, W, 48), 20, Garage.A_DIM)
+	var half := (W - GAP) / 2.0
+	for i in 2:
+		var m: String = ["settings", "quit"][i]
+		var b := button(Rect2((SIZE.x - W) / 2.0 + i * (half + GAP), y + 6, half, 48), m)
+		label(b, tr("menu_" + m), Rect2(0, 0, half, 48), 20, Garage.A_DIM)
 	buttons[0].grab_focus.call_deferred()
+
+
+func open_settings() -> void:
+	for c in root.get_children():
+		c.queue_free()
+	buttons.clear()
+	Garage.hazard(root, Rect2(0, 0, SIZE.x, 8))
+	var title := label(root, "menu_settings", Rect2(0, 36, SIZE.x, 90), 76, Color.WHITE)
+	title.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_ALWAYS
+	var back := Panel.new()
+	back.position = Vector2((SIZE.x - W) / 2.0, 160)
+	back.size = Vector2(W, 376)
+	back.add_theme_stylebox_override("panel", Garage.box(Garage.A_PANEL, 14))
+	root.add_child(back)
+	panel = Settings.new()
+	panel.position = Vector2(26, 26)
+	panel.size = Vector2(W - 52, 0)
+	panel.ui.connect(ui.emit)
+	back.add_child(panel)
+	var b := button(Rect2((SIZE.x - W) / 2.0, 552, W, 48), "back")
+	label(b, "settingsBack", Rect2(0, 0, W, 48), 20, Garage.A_DIM).auto_translate_mode = Node.AUTO_TRANSLATE_MODE_ALWAYS
+	panel.switches.fullscreen.grab_focus.call_deferred()
 
 
 func choose(mode: String) -> void:
 	ui.emit("select")
 	if mode == "quit":
 		get_tree().quit()
+		return
+	if mode in ["settings", "back"]:
+		(open_settings if mode == "settings" else build).call()
 		return
 	visible = false
 	picked.emit(mode)
@@ -115,5 +146,13 @@ func choose(mode: String) -> void:
 func _unhandled_key_input(e: InputEvent) -> void:
 	if visible and e.pressed and not e.echo and e.physical_keycode == KEY_L:
 		I18n.toggle()
+		if panel == null:
+			build()
+		get_viewport().set_input_as_handled()
+
+
+func _unhandled_input(e: InputEvent) -> void:
+	if visible and panel != null and (e.is_action_pressed("ui_cancel") or (e is InputEventJoypadButton and e.pressed and e.button_index == JOY_BUTTON_B)):
+		ui.emit("select")
 		build()
 		get_viewport().set_input_as_handled()

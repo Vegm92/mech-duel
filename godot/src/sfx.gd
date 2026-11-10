@@ -481,6 +481,7 @@ static func apply(v: Dictionary) -> void:
 
 static func store(v: Dictionary) -> void:
 	var cfg := ConfigFile.new()
+	cfg.load(save_path)
 	for k in v:
 		cfg.set_value("audio", k, v[k])
 	cfg.save(save_path)

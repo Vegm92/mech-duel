@@ -3,7 +3,7 @@ extends SceneTree
 const Sim = preload("res://src/sim.gd")
 const Look = preload("res://src/look.gd")
 
-const KEYS := ["nameMech0", "nameMech1", "nameMech2", "nameMech3", "whoYou", "whoBot", "barLarm", "barHead", "barCore", "barRarm", "barLegs", "jam", "heatN", "kLmb", "kRmb", "kcTag", "kcSkipOr", "backGarage", "keyEnter", "soundTitle", "radialShop", "radialNote", "radialHint", "siegeWave", "siegeBest", "siegeTiers", "siegeRecall", "siegeCrate", "siegeShop", "siegeBuildHint", "radialSquare", "radialSquareNote", "radialGate", "radialGateNote", "shop_turret", "shop_gate", "shop_rebuild", "siegeKeys", "siegeLost", "siegeHeld", "capQ", "capE", "capR", "capSpace", "capLt", "capRt", "capLb", "capRb", "capL3", "capR3", "slotShield", "round", "go", "ko", "timeUp", "victory", "defeat", "mPaused", "mResume", "mRestart", "mGarage", "closing", "ventsOn", "healReady", "overheat"]
+const KEYS := ["nameMech0", "nameMech1", "nameMech2", "nameMech3", "whoYou", "whoBot", "barLarm", "barHead", "barCore", "barRarm", "barLegs", "jam", "heatN", "kLmb", "kRmb", "kcTag", "kcSkipOr", "backGarage", "keyEnter", "menu_settings", "set_fullscreen", "set_vsync", "set_locale", "setOn", "setOff", "langName", "settingsBack", "radialShop", "radialNote", "radialHint", "siegeWave", "siegeBest", "siegeTiers", "siegeRecall", "siegeCrate", "siegeShop", "siegeBuildHint", "radialSquare", "radialSquareNote", "radialGate", "radialGateNote", "shop_turret", "shop_gate", "shop_rebuild", "siegeKeys", "siegeLost", "siegeHeld", "capQ", "capE", "capR", "capSpace", "capLt", "capRt", "capLb", "capRb", "capL3", "capR3", "slotShield", "round", "go", "ko", "timeUp", "victory", "defeat", "mPaused", "mResume", "mRestart", "mGarage", "closing", "ventsOn", "healReady", "overheat"]
 
 var failed := 0
 var watch = preload("res://tests/error_watch.gd").new()
@@ -250,8 +250,8 @@ func test_pause() -> int:
 	var bad := ensure(hidden, "menu and sliders start hidden")
 	bad += ensure(hud.menu.visible and hud.sound.visible, "pause shows both")
 	bad += ensure(hud.menu.get_child_count() == 3, "three buttons")
-	bad += ensure(hud.sound.get_child_count() == 5, "five sliders")
-	var line: HBoxContainer = hud.sound.get_child(1)
+	bad += ensure(hud.sound.get_child_count() == 8 and hud.sound.switches.size() == 3 and hud.sound.sliders.size() == 5, "three switches and five sliders")
+	var line: HBoxContainer = hud.sound.get_child(4)
 	var slider: HSlider = line.get_child(1)
 	slider.value = 0.35
 	bad += ensure(line.get_child(2).text == "35", "the value label follows the slider")

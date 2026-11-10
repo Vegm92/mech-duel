@@ -8,6 +8,8 @@ const Bot = preload("res://src/bot.gd")
 const Menu = preload("res://src/menu.gd")
 const Edition = preload("res://src/edition.gd")
 const I18n = preload("res://src/i18n.gd")
+const Settings = preload("res://src/settings.gd")
+const Sfx = preload("res://src/sfx.gd")
 
 const SAVE := "user://loadout.cfg"
 const KEYS := ["fmtLabel", "fmt_1v1", "fmt_ffa", "fmt_2v2", "whoPlayer", "seatsTitle", "seatKb", "seatPad", "seatBot", "seatsBots", "lvl_easy", "lvl_normal", "lvl_hard", "seatFree", "seatsHint", "seatsNeed", "creditsBtn", "creditsTitle", "creditsMusic", "creditsSound", "creditsBack", "creditsKenney", "creditsQuendel", "creditsNocturnal", "seatMine", "seatBuild", "seatTeamA", "seatTeamB", "gameTitle", "menuPick", "menu_solo", "menu_coop", "menu_versus", "menu_garage", "menu_quit", "menuSub_solo", "menuSub_coop", "menuSub_versus", "menuSub_garage", "menuSub_siege", "seatsJoin", "seatsNeed2", "garageDone"]
@@ -35,6 +37,7 @@ func _initialize() -> void:
 	await run("the_camera_frames_the_living_foe_not_a_dead_mech_1", test_camera_follows_the_living)
 	await run("a_full_duel_runs_with_siege_off", test_siege_off)
 	await run("the_menu_offers_the_modes_and_siege_only_when_on", test_menu)
+	await run("settings_are_saved_applied_and_reached_from_the_menu_with_keys_and_pad", test_settings)
 	await run("solo_coop_and_versus_set_the_seats_and_models", test_modes)
 	await run("credits_list_every_licensed_asset_in_both_languages", test_credits)
 	await run("the_steam_preset_turns_siege_off_and_no_uid_is_orphaned", test_files)
@@ -358,7 +361,7 @@ func test_menu() -> int:
 	menu.open()
 	await process_frame
 	labels = texts(menu.root)
-	bad += ensure(not labels.has(menu.tr("siegeBtn")) and labels.has(menu.tr("menu_solo")) and menu.buttons.size() == 5, "with siege off the siege entry is gone")
+	bad += ensure(not labels.has(menu.tr("siegeBtn")) and labels.has(menu.tr("menu_solo")) and menu.buttons.size() == 6, "with siege off the siege entry is gone")
 	Edition.siege = true
 	menu.queue_free()
 	var m = await duel("1v1")
@@ -376,6 +379,68 @@ func test_menu() -> int:
 	m.queue_free()
 	await process_frame
 	return int(bad > 0)
+
+
+func press(action: String) -> void:
+	for down in [true, false]:
+		var e := InputEventAction.new()
+		e.action = action
+		e.pressed = down
+		root.push_input(e)
+
+
+func test_settings() -> int:
+	var real := Sfx.save_path
+	var was := TranslationServer.get_locale()
+	Sfx.buses()
+	Sfx.save_path = "user://settings_test.cfg"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Sfx.save_path))
+	TranslationServer.set_locale("en")
+	var bad := ensure(Settings.saved() == Settings.DEFAULTS, "with no file every setting is its default")
+	var menu = Menu.new()
+	root.add_child(menu)
+	var got := []
+	menu.picked.connect(func(m): got.append(m))
+	menu.open()
+	await process_frame
+	menu.buttons[-2].pressed.emit()
+	await process_frame
+	bad += ensure(menu.visible and menu.panel != null and got.is_empty(), "SETTINGS opens the panel inside the menu")
+	var p = menu.panel
+	bad += ensure(p.switches.size() == 3 and p.sliders.size() == 5, "the panel has three switches and five sliders")
+	bad += ensure(root.gui_get_focus_owner() == p.switches.fullscreen, "the first switch has the focus")
+	press("ui_accept")
+	bad += ensure(Settings.saved().fullscreen and p.switches.fullscreen.text == "setOn", "accept on FULLSCREEN turns it on and saves it")
+	press("ui_down")
+	press("ui_accept")
+	bad += ensure(root.gui_get_focus_owner() == p.switches.vsync and not Settings.saved().vsync, "down then accept turns VSYNC off")
+	p.switches.locale.pressed.emit()
+	bad += ensure(TranslationServer.get_locale() == "es" and Settings.saved().locale == "es", "LANGUAGE switches to Spanish and saves it")
+	p.sliders.Music[0].value = 0.3
+	bad += ensure(is_equal_approx(Sfx.volumes().Music, 0.3) and Settings.saved().fullscreen, "a volume change keeps the display settings")
+	Settings.store("vsync", true)
+	bad += ensure(is_equal_approx(Sfx.volumes().Music, 0.3), "a display change keeps the volumes")
+	TranslationServer.set_locale("en")
+	Settings.apply(Settings.saved())
+	bad += ensure(TranslationServer.get_locale() == "es", "the saved language is applied at launch")
+	var again = Settings.new()
+	bad += ensure(again.switches.fullscreen.text == "setOn" and is_equal_approx(again.sliders.Music[0].value, 0.3), "a new panel shows the saved values")
+	again.free()
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.pressed = true
+	menu._unhandled_input(esc)
+	await process_frame
+	bad += ensure(menu.panel == null and menu.buttons.size() == menu.modes().size() + 2, "Esc goes back to the mode list")
+	menu.open_settings()
+	menu._unhandled_input(joy(JOY_BUTTON_B, 0))
+	bad += ensure(menu.panel == null, "B on a pad goes back too")
+	menu.queue_free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Sfx.save_path))
+	Sfx.save_path = real
+	Sfx.apply(Sfx.volumes())
+	TranslationServer.set_locale(was)
+	return bad
 
 
 func test_modes() -> int:
