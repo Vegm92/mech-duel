@@ -3,6 +3,8 @@ extends SceneTree
 const Sim = preload("res://src/sim.gd")
 const Sfx = preload("res://src/sfx.gd")
 const Radio = preload("res://src/radio.gd")
+const Seats = preload("res://src/seats.gd")
+const I18n = preload("res://src/i18n.gd")
 const BRANCHED := ["muzzle", "slash", "hit", "boom", "count", "beam"]
 
 var failed := 0
@@ -105,6 +107,23 @@ func _initialize() -> void:
 	radio.tune(3)
 	await process_frame
 	check(radio.card.modulate.a == 1.0 and radio.title.text == radio.song.title and radio.artist.text == radio.song.by and radio.hint.text != "", "the now-playing card shows the song, the artist and how to change it")
+	I18n.setup()
+	var seats = Seats.new()
+	root.add_child(seats)
+	var covered := []
+	for loc in I18n.STRINGS:
+		TranslationServer.set_locale(loc)
+		seats.open(["kb", 0], "2v2", Sim.DEFAULT_LOADOUT, "versus")
+		await process_frame
+		await process_frame
+		var edge: float = radio.card.global_position.x + radio.card.size.x
+		for l in seats.ui_box.get_children():
+			if l is Label and l.text in [seats.tr("seatsHint"), seats.tr("seatsJoin")]:
+				var w: float = l.get_theme_font("font").get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, l.get_theme_font_size("font_size")).x
+				if l.global_position.x + (l.size.x - w) / 2.0 < edge:
+					covered.append("%s %s" % [loc, l.text.left(12)])
+	check(radio.card.size.x > 0.0 and covered.is_empty(), "the now-playing card covers no hint on the seat screen (covered: %s)" % [covered])
+	seats.queue_free()
 	radio.shown = radio.now() - Radio.RADIO.show - Radio.RADIO.fade
 	await process_frame
 	check(radio.card.modulate.a == 0.0, "the card fades away after %d s without a switch" % Radio.RADIO.show)
