@@ -3,7 +3,7 @@ extends CanvasLayer
 const Sim = preload("res://src/sim.gd")
 const Mech = preload("res://src/mech.gd")
 const Garage = preload("res://src/garage.gd")
-const Sfx = preload("res://src/sfx.gd")
+const Settings = preload("res://src/settings.gd")
 const Look = preload("res://src/look.gd")
 const Edition = preload("res://src/edition.gd")
 
@@ -76,7 +76,6 @@ var top := {}
 var last := {}
 var menu: VBoxContainer
 var sound: VBoxContainer
-var values: Array[Label] = []
 var replay := -1.0
 var who := Vector2i(-1, -1)
 var rounds := []
@@ -124,62 +123,12 @@ func _ready() -> void:
 		menu.add_child(b)
 	menu.visible = false
 	add_child(menu)
-	sound = VBoxContainer.new()
-	sound.add_theme_constant_override("separation", 14)
+	sound = Settings.new()
 	sound.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	sound.offset_left = -554
 	sound.offset_right = -146
-	sound.offset_top = 362
-	var vol := Sfx.volumes()
-	var img := Image.create_empty(12, 28, false, Image.FORMAT_RGBA8)
-	img.fill(A.hazard)
-	var grab := ImageTexture.create_from_image(img)
-	var track := StyleBoxFlat.new()
-	track.bg_color = A.line
-	track.content_margin_top = 4
-	track.content_margin_bottom = 4
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = A.hazard
-	fill.content_margin_top = 4
-	fill.content_margin_bottom = 4
-	for row in [["vMaster", "Master"], ["vMusic", "Music"], ["vSfx", "SFX"], ["vEnv", "Env"], ["vCrowd", "Crowd"]]:
-		var line := HBoxContainer.new()
-		line.add_theme_constant_override("separation", 12)
-		var l := Label.new()
-		l.set_meta("key", row[0])
-		l.custom_minimum_size = Vector2(90, 0)
-		l.add_theme_font_override("font", label_f)
-		l.add_theme_font_size_override("font_size", 13)
-		l.add_theme_color_override("font_color", A.dim)
-		line.add_child(l)
-		var s := HSlider.new()
-		s.min_value = 0.0
-		s.max_value = 1.0
-		s.step = 0.05
-		s.value = vol[row[1]]
-		s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		s.custom_minimum_size = Vector2(0, 28)
-		s.add_theme_stylebox_override("slider", track)
-		s.add_theme_stylebox_override("grabber_area", fill)
-		s.add_theme_stylebox_override("grabber_area_highlight", fill)
-		for ic in ["grabber", "grabber_highlight", "grabber_disabled"]:
-			s.add_theme_icon_override(ic, grab)
-		var v := Label.new()
-		v.custom_minimum_size = Vector2(40, 0)
-		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		v.add_theme_font_override("font", label_f)
-		v.add_theme_font_size_override("font_size", 13)
-		v.text = str(roundi(s.value * 100.0))
-		values.append(v)
-		var bus: String = row[1]
-		s.value_changed.connect(func(x: float) -> void:
-			Sfx.set_volume(bus, x)
-			v.text = str(roundi(x * 100.0)))
-		s.drag_ended.connect(func(_c: bool) -> void: ui.emit("select"))
-		line.add_child(s)
-		line.add_child(v)
-		sound.add_child(line)
+	sound.offset_top = 236
+	sound.ui.connect(ui.emit)
 	sound.visible = false
 	add_child(sound)
 
@@ -190,9 +139,6 @@ func _process(_dt: float) -> void:
 	sound.visible = menu.visible
 	if menu.visible and not was:
 		menu.get_child(0).grab_focus()
-	for line in sound.get_children():
-		var l: Label = line.get_child(0)
-		l.text = tr(l.get_meta("key")).to_upper()
 	if not state.is_empty() and not state.has("siege"):
 		if state.round == 1 and state.phase == "countdown":
 			rounds.clear()
@@ -727,9 +673,9 @@ func pause_screen(size: Vector2) -> void:
 		poly(shape, A.hazard if on else A.raised)
 		var big: bool = r.size.y > 60
 		txt(tr(b.get_meta("key")).to_upper(), Vector2(r.position.x + 28, r.position.y + r.size.y / 2.0 + (10 if big else 8)), 30 if big else 22, A.ground if on else Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy if big else semi)
-	var p := Rect2(size.x - 580, 300, 460, 280)
+	var p := Rect2(size.x - 580, 174, 460, 406)
 	poly(cut(p, 18), A.panel)
-	txt(tr("soundTitle"), Vector2(p.position.x + 26, p.position.y + 44), 22, A.hazard, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy)
+	txt(tr("menu_settings"), Vector2(p.position.x + 26, p.position.y + 44), 22, A.hazard, HORIZONTAL_ALIGNMENT_LEFT, -1.0, heavy)
 	txt(tr("pauseHint"), Vector2(0, size.y - 40), 13, A.dim, HORIZONTAL_ALIGNMENT_CENTER, size.x)
 
 
