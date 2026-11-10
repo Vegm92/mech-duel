@@ -3,12 +3,13 @@ extends SceneTree
 const Sim = preload("res://src/sim.gd")
 const Garage = preload("res://src/garage.gd")
 const Seats = preload("res://src/seats.gd")
+const Radio = preload("res://src/radio.gd")
 const Menu = preload("res://src/menu.gd")
 const Edition = preload("res://src/edition.gd")
 const I18n = preload("res://src/i18n.gd")
 
 const SAVE := "user://loadout.cfg"
-const KEYS := ["fmtLabel", "fmt_1v1", "fmt_ffa", "fmt_2v2", "whoPlayer", "seatsTitle", "seatKb", "seatPad", "seatBot", "seatFree", "seatsHint", "seatsNeed", "creditsBtn", "creditsTitle", "creditsSound", "creditsBack", "creditsKenney", "creditsQuendel", "creditsNocturnal", "seatMine", "seatBuild", "seatTeamA", "seatTeamB", "gameTitle", "menuPick", "menu_solo", "menu_coop", "menu_versus", "menu_garage", "menu_quit", "menuSub_solo", "menuSub_coop", "menuSub_versus", "menuSub_garage", "menuSub_siege", "seatsJoin", "seatsNeed2", "garageDone"]
+const KEYS := ["fmtLabel", "fmt_1v1", "fmt_ffa", "fmt_2v2", "whoPlayer", "seatsTitle", "seatKb", "seatPad", "seatBot", "seatFree", "seatsHint", "seatsNeed", "creditsBtn", "creditsTitle", "creditsMusic", "creditsSound", "creditsBack", "creditsKenney", "creditsQuendel", "creditsNocturnal", "seatMine", "seatBuild", "seatTeamA", "seatTeamB", "gameTitle", "menuPick", "menu_solo", "menu_coop", "menu_versus", "menu_garage", "menu_quit", "menuSub_solo", "menuSub_coop", "menuSub_versus", "menuSub_garage", "menuSub_siege", "seatsJoin", "seatsNeed2", "garageDone"]
 
 var failed := 0
 var watch = preload("res://tests/error_watch.gd").new()
@@ -381,6 +382,23 @@ func test_credits() -> int:
 	var lic := FileAccess.get_file_as_string("res://assets/sounds/LICENSE.txt")
 	for c in Garage.CREDITS:
 		bad += ensure(lic.contains(c[0]), "%s is in LICENSE.txt" % c[0])
+	var music := FileAccess.get_file_as_string("res://assets/music/LICENSE.txt")
+	var unlisted := []
+	for st in Radio.STATIONS:
+		for song in st.songs:
+			if not (Radio.ARTISTS.has(song.by) and all.contains("\"%s\"" % song.title) and all.contains(song.by) and music.contains(song.by)):
+				unlisted.append(song.title)
+	bad += ensure(unlisted.is_empty(), "credits show every radio song with its artist (missing: %s)" % [unlisted])
+	bad += ensure(all.contains("\"Industria\" (CC BY 3.0)") and all.contains("creativecommons.org/licenses/by/3.0") and all.contains("incompetech.com"), "credits show the license of a track, the license links and the artist's site")
+	await process_frame
+	await process_frame
+	var down := InputEventKey.new()
+	down.physical_keycode = KEY_DOWN
+	down.pressed = true
+	g._unhandled_key_input(down)
+	bad += ensure(g.credits_scroll.scroll_vertical > 0, "Down scrolls the credits")
+	var wide: Array = g.credits.find_children("*", "Label", true, false).filter(func(l): return l.position.x + l.size.x > Garage.SIZE.x - 60)
+	bad += ensure(wide.is_empty(), "no credits text runs past the right edge (got %s)" % [wide.map(func(l): return l.text.left(20))])
 	var esc := InputEventKey.new()
 	esc.physical_keycode = KEY_ESCAPE
 	esc.pressed = true
